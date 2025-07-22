@@ -154,7 +154,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Check Documentation: ${{ matrix.template.name }}
+      - name: Check Documentation
         run: |
           template_path="${{ matrix.template.path }}"
           template_name="${{ matrix.template.name }}"
