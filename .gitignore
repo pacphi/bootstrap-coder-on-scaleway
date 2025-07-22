@@ -1,0 +1,366 @@
+# ============================================================================
+# Coder on Scaleway - Comprehensive .gitignore
+# Protects against committing state files, credentials, and sensitive data
+# ============================================================================
+
+# ============================================================================
+# Terraform State and Configuration Files
+# ============================================================================
+# Local .terraform directories
+**/.terraform/*
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform crash log files
+crash.log
+crash.*.log
+
+# Terraform plan output files
+*.tfplan
+*.tfout
+
+# Terraform variable files (may contain sensitive data)
+*.tfvars
+*.tfvars.json
+terraform.tfvars*
+*.auto.tfvars*
+
+# Override files (for local development)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform CLI configuration files
+.terraformrc
+terraform.rc
+
+# ============================================================================
+# Cloud Provider and Kubernetes Configuration
+# ============================================================================
+# Kubernetes configuration files
+kubeconfig*
+.kube/
+*.kubeconfig
+
+# Scaleway CLI configuration
+.config/scw/
+
+# Helm charts and temporary files
+.helm/
+charts/*.tgz
+
+# ============================================================================
+# Credentials and Secrets
+# ============================================================================
+# Environment variable files
+.env
+.env.*
+*.env
+
+# SSH keys and certificates
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Secret files
+secrets/
+secret.*
+*secret*
+*.secrets
+
+# GPG keys
+*.gpg
+*.asc
+
+# ============================================================================
+# Logs and Runtime Artifacts
+# ============================================================================
+# All log files and log directories
+logs/
+*.log
+*.log.*
+
+# Backup files
+*.backup
+*.bak
+*.old
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Process IDs
+*.pid
+
+# Debug and crash dumps
+core
+*.dump
+*.stackdump
+
+# ============================================================================
+# Development Environment and Tools
+# ============================================================================
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Vim temporary files
+*.swp
+*.swo
+*.swn
+
+# Emacs backup files
+*~
+\#*\#
+.\#*
+
+# ============================================================================
+# Language and Framework Specific
+# ============================================================================
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# Ruby
+*.gem
+*.rbc
+/.config
+/coverage/
+/InstalledFiles
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+/tmp/
+.bundle/
+vendor/bundle
+.ruby-version
+.ruby-gemset
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+
+# ============================================================================
+# Container and Virtualization
+# ============================================================================
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Vagrant
+.vagrant/
+
+# ============================================================================
+# CI/CD and Deployment
+# ============================================================================
+# GitHub Actions local runner
+.github/workflows/.env
+
+# Local environment configuration
+.local/
+.cache/
+
+# ============================================================================
+# Monitoring and Observability
+# ============================================================================
+# Prometheus data
+prometheus_data/
+
+# Grafana data
+grafana_data/
+
+# Loki data
+loki_data/
+
+# ============================================================================
+# Cost and Resource Management
+# ============================================================================
+# Cost analysis reports
+cost-reports/
+*.cost.json
+*.cost.csv
+
+# Resource tracking
+resource-reports/
+*.resources.json
+
+# Budget alerts configuration
+budget-alerts/
+
+# ============================================================================
+# Security and Compliance
+# ============================================================================
+# Security scan results
+security-reports/
+*.security.json
+vulnerability-reports/
+
+# Compliance reports
+compliance-reports/
+audit-reports/
+
+# ============================================================================
+# Testing and Quality Assurance
+# ============================================================================
+# Test results
+test-results/
+coverage/
+*.coverage
+.nyc_output
+
+# Performance test results
+performance-results/
+load-test-results/
+
+# ============================================================================
+# Local Configuration and Overrides
+# ============================================================================
+# Local configuration files
+local.conf
+local.config
+*.local
+
+# User-specific configuration
+user.conf
+user.config
+
+# Development overrides
+dev-override.*
+local-override.*
+
+# ============================================================================
+# Backup and Archive Files
+# ============================================================================
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.7z
+*.rar
+
+# Backup directories
+backups/
+*-backup/
+backup-*/
+
+# ============================================================================
+# OS and System Files
+# ============================================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============================================================================
+# Tool-specific configurations
+# ============================================================================
+# Terraform Cloud/Enterprise
+.terraform.lock.hcl.backup
+
+# Ansible
+*.retry
+.ansible/
+
+# Packer
+packer_cache/
+
+# ============================================================================
+# Custom Application Files
+# ============================================================================
+# Coder workspace data (if any local testing)
+coder-workspace-*/
+
+# Template testing artifacts
+template-test-*/
+
+# Script execution artifacts
+script-outputs/
+execution-logs/

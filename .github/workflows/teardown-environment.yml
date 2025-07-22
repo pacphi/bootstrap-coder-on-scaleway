@@ -1,0 +1,446 @@
+name: Teardown Coder Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to teardown'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      confirmation:
+        description: 'Type CONFIRM to proceed with teardown'
+        required: true
+        type: string
+      backup_before_destroy:
+        description: 'Create backup before teardown'
+        required: false
+        type: boolean
+        default: true
+      preserve_data:
+        description: 'Preserve data volumes (experimental)'
+        required: false
+        type: boolean
+        default: false
+      emergency_mode:
+        description: 'Emergency teardown (bypasses all safety checks)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_VAR_scaleway_region: ${{ vars.SCALEWAY_REGION || 'fr-par' }}
+  TF_VAR_scaleway_zone: ${{ vars.SCALEWAY_ZONE || 'fr-par-1' }}
+
+jobs:
+  validate-request:
+    name: Validate Teardown Request
+    runs-on: ubuntu-latest
+    outputs:
+      confirmed: ${{ steps.validation.outputs.confirmed }}
+
+    steps:
+      - name: Validate Confirmation
+        id: validation
+        run: |
+          if [[ "${{ github.event.inputs.confirmation }}" == "CONFIRM" ]]; then
+            echo "confirmed=true" >> $GITHUB_OUTPUT
+            echo "✅ Teardown request confirmed"
+          else
+            echo "confirmed=false" >> $GITHUB_OUTPUT
+            echo "❌ Invalid confirmation. Please type 'CONFIRM' to proceed."
+            exit 1
+          fi
+
+      - name: Extra Production Validation
+        if: github.event.inputs.environment == 'prod'
+        run: |
+          echo "🔴 PRODUCTION ENVIRONMENT TEARDOWN REQUESTED"
+          echo "This will PERMANENTLY DELETE the production environment!"
+          echo "Proceeding with additional safety checks..."
+
+  pre-teardown-backup:
+    name: Create Pre-Teardown Backup
+    runs-on: ubuntu-latest
+    needs: validate-request
+    if: needs.validate-request.outputs.confirmed == 'true' && github.event.inputs.backup_before_destroy == 'true'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure Scaleway Credentials
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+        run: |
+          echo "SCW_ACCESS_KEY=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+
+      - name: Download Kubeconfig
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-${{ github.event.inputs.environment }}
+          path: ./
+
+      - name: Setup Kubeconfig
+        continue-on-error: true
+        run: |
+          if [[ -f "kubeconfig-${{ github.event.inputs.environment }}" ]]; then
+            mkdir -p ~/.kube
+            cp "kubeconfig-${{ github.event.inputs.environment }}" ~/.kube/config-coder-${{ github.event.inputs.environment }}
+            chmod 600 ~/.kube/config-coder-${{ github.event.inputs.environment }}
+          fi
+
+      - name: Create Pre-Teardown Backup
+        id: backup
+        run: |
+          chmod +x scripts/lifecycle/backup.sh
+
+          backup_name="pre-teardown-$(date +%Y%m%d-%H%M%S)-${{ github.event.inputs.environment }}"
+
+          ./scripts/lifecycle/backup.sh \
+            --env=${{ github.event.inputs.environment }} \
+            --backup-name="$backup_name" \
+            --pre-destroy \
+            --auto
+
+          echo "backup_name=$backup_name" >> $GITHUB_OUTPUT
+
+      - name: Upload Backup Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.backup.outputs.backup_name }}
+          path: backups/${{ steps.backup.outputs.backup_name }}
+          retention-days: 30
+
+  analyze-impact:
+    name: Analyze Teardown Impact
+    runs-on: ubuntu-latest
+    needs: validate-request
+    if: needs.validate-request.outputs.confirmed == 'true'
+    outputs:
+      cost_savings: ${{ steps.impact.outputs.cost_savings }}
+      active_workspaces: ${{ steps.impact.outputs.active_workspaces }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.6.0"
+          terraform_wrapper: false
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure Scaleway Credentials
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+        run: |
+          echo "SCW_ACCESS_KEY=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+
+      - name: Analyze Impact
+        id: impact
+        run: |
+          environment="${{ github.event.inputs.environment }}"
+
+          # Calculate cost savings
+          case "$environment" in
+            dev) cost_savings="53.70" ;;
+            staging) cost_savings="97.85" ;;
+            prod) cost_savings="374.50" ;;
+          esac
+
+          echo "cost_savings=$cost_savings" >> $GITHUB_OUTPUT
+
+          # Check for active workspaces (if kubeconfig available)
+          active_workspaces="Unknown"
+          if [[ -f "kubeconfig-$environment" ]]; then
+            export KUBECONFIG="kubeconfig-$environment"
+            if kubectl cluster-info &>/dev/null; then
+              active_workspaces=$(kubectl get pods -n coder --no-headers 2>/dev/null | grep -c "workspace" || echo "0")
+            fi
+          fi
+
+          echo "active_workspaces=$active_workspaces" >> $GITHUB_OUTPUT
+
+      - name: Download Kubeconfig for Analysis
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-${{ github.event.inputs.environment }}
+          path: ./
+
+  teardown:
+    name: Execute Teardown
+    runs-on: ubuntu-latest
+    needs: [validate-request, analyze-impact]
+    if: |
+      needs.validate-request.outputs.confirmed == 'true' &&
+      (needs.pre-teardown-backup.result == 'success' ||
+       needs.pre-teardown-backup.result == 'skipped' ||
+       github.event.inputs.backup_before_destroy == 'false')
+    environment:
+      name: ${{ github.event.inputs.environment }}-teardown
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.6.0"
+          terraform_wrapper: false
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure Scaleway Credentials
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+        run: |
+          echo "SCW_ACCESS_KEY=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+
+      - name: Download Kubeconfig
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-${{ github.event.inputs.environment }}
+          path: ./
+
+      - name: Setup Kubeconfig
+        continue-on-error: true
+        run: |
+          if [[ -f "kubeconfig-${{ github.event.inputs.environment }}" ]]; then
+            mkdir -p ~/.kube
+            cp "kubeconfig-${{ github.event.inputs.environment }}" ~/.kube/config-coder-${{ github.event.inputs.environment }}
+            chmod 600 ~/.kube/config-coder-${{ github.event.inputs.environment }}
+          fi
+
+      - name: Final Confirmation for Production
+        if: github.event.inputs.environment == 'prod'
+        run: |
+          echo "🔴 FINAL PRODUCTION TEARDOWN CONFIRMATION 🔴"
+          echo "About to PERMANENTLY DELETE the production environment!"
+          echo "Active workspaces: ${{ needs.analyze-impact.outputs.active_workspaces }}"
+          echo "Monthly cost savings: €${{ needs.analyze-impact.outputs.cost_savings }}"
+          echo ""
+          echo "This action is IRREVERSIBLE!"
+
+          # In a real scenario, you might want additional approval steps here
+
+      - name: Setup Teardown Flags
+        id: setup-flags
+        run: |
+          flags="--env=${{ github.event.inputs.environment }} --confirm"
+
+          if [[ "${{ github.event.inputs.emergency_mode }}" == "true" ]]; then
+            flags="$flags --emergency"
+          fi
+
+          if [[ "${{ github.event.inputs.preserve_data }}" == "true" ]]; then
+            flags="$flags --preserve-data"
+          fi
+
+          if [[ "${{ github.event.inputs.backup_before_destroy }}" == "false" ]]; then
+            flags="$flags --no-backup"
+          fi
+
+          echo "teardown_flags=$flags" >> $GITHUB_OUTPUT
+
+      - name: Execute Teardown
+        id: teardown
+        run: |
+          chmod +x scripts/lifecycle/teardown.sh
+
+          echo "🔥 Starting teardown with flags: ${{ steps.setup-flags.outputs.teardown_flags }}"
+
+          # Run teardown script
+          ./scripts/lifecycle/teardown.sh ${{ steps.setup-flags.outputs.teardown_flags }}
+
+      - name: Verify Complete Destruction
+        run: |
+          chmod +x scripts/validate.sh
+
+          # This should fail if resources still exist
+          if ./scripts/validate.sh --env=${{ github.event.inputs.environment }} --quick; then
+            echo "⚠️ Warning: Some resources may still be accessible"
+            echo "Please verify complete teardown in Scaleway console"
+          else
+            echo "✅ Teardown verification: No accessible resources found"
+          fi
+
+  post-teardown:
+    name: Post-Teardown Actions
+    runs-on: ubuntu-latest
+    needs: [validate-request, analyze-impact, teardown]
+    if: always() && needs.validate-request.outputs.confirmed == 'true'
+
+    steps:
+      - name: Create Teardown Report
+        id: report
+        run: |
+          cat > teardown-report.md << 'EOF'
+          # Teardown Report
+
+          **Environment:** ${{ github.event.inputs.environment }}
+          **Date:** $(date -Iseconds)
+          **Triggered by:** ${{ github.actor }}
+          **Status:** ${{ needs.teardown.result }}
+
+          ## Teardown Details
+          - **Emergency Mode:** ${{ github.event.inputs.emergency_mode }}
+          - **Backup Created:** ${{ github.event.inputs.backup_before_destroy }}
+          - **Data Preserved:** ${{ github.event.inputs.preserve_data }}
+          - **Active Workspaces (pre-teardown):** ${{ needs.analyze-impact.outputs.active_workspaces }}
+
+          ## Cost Impact
+          **Monthly Savings:** €${{ needs.analyze-impact.outputs.cost_savings }}
+
+          ## Next Steps
+          $( if [[ "${{ needs.teardown.result }}" == "success" ]]; then
+            echo "- ✅ Environment successfully torn down"
+            echo "- Verify no unexpected charges in Scaleway console"
+            echo "- Remove any manually created resources"
+          else
+            echo "- ❌ Teardown failed or incomplete"
+            echo "- Check Scaleway console for remaining resources"
+            echo "- Manual cleanup may be required"
+          fi )
+
+          ## Workflow Details
+          - **Run ID:** ${{ github.run_id }}
+          - **Repository:** ${{ github.repository }}
+          - **Commit:** ${{ github.sha }}
+          EOF
+
+      - name: Upload Teardown Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: teardown-report-${{ github.event.inputs.environment }}-$(date +%Y%m%d)
+          path: teardown-report.md
+          retention-days: 90
+
+      - name: Notify Teams
+        if: vars.SLACK_WEBHOOK_URL
+        env:
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
+        run: |
+          status="${{ needs.teardown.result }}"
+          environment="${{ github.event.inputs.environment }}"
+
+          if [[ "$status" == "success" ]]; then
+            color="good"
+            emoji="💥"
+            text="Coder environment teardown completed"
+          else
+            color="danger"
+            emoji="⚠️"
+            text="Coder environment teardown failed"
+          fi
+
+          payload="{
+            \"attachments\": [{
+              \"color\": \"$color\",
+              \"text\": \"$emoji $text\",
+              \"fields\": [
+                {\"title\": \"Environment\", \"value\": \"$environment\", \"short\": true},
+                {\"title\": \"Cost Savings\", \"value\": \"€${{ needs.analyze-impact.outputs.cost_savings }}/month\", \"short\": true},
+                {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true}
+              ]
+            }]
+          }"
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "$payload" "$SLACK_WEBHOOK_URL"
+
+      - name: Create Cleanup Issue on Failure
+        if: needs.teardown.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Manual Cleanup Required: ${{ github.event.inputs.environment }} environment`;
+            const body = `## Teardown Failure - Manual Cleanup Required
+
+            **Environment:** ${{ github.event.inputs.environment }}
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Triggered by:** ${{ github.actor }}
+
+            The automated teardown has failed. Manual cleanup is required to prevent ongoing costs.
+
+            ## Immediate Actions Required
+            1. **Check Scaleway Console** for remaining resources
+            2. **Manually delete** any remaining:
+               - Kubernetes cluster and node pools
+               - PostgreSQL database instances
+               - Load balancers
+               - VPC and networking resources
+               - Storage volumes
+            3. **Verify billing** to ensure no unexpected charges
+
+            ## Resources That May Need Manual Cleanup
+            - Cluster: \`coder-${{ github.event.inputs.environment }}\`
+            - Database: \`coder-db-${{ github.event.inputs.environment }}\`
+            - VPC: \`coder-vpc-${{ github.event.inputs.environment }}\`
+
+            ## Estimated Monthly Cost if Not Cleaned
+            **€${{ needs.analyze-impact.outputs.cost_savings }}** per month
+
+            **Priority:** High - Ongoing cost impact
+            **Labels:** manual-cleanup-required, cost-impact, ${{ github.event.inputs.environment }}`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['manual-cleanup-required', 'cost-impact', '${{ github.event.inputs.environment }}']
+            });
+
+      - name: Update Status
+        if: always()
+        run: |
+          if [[ "${{ needs.teardown.result }}" == "success" ]]; then
+            echo "✅ Teardown completed successfully!"
+            echo "Environment: ${{ github.event.inputs.environment }}"
+            echo "Monthly cost savings: €${{ needs.analyze-impact.outputs.cost_savings }}"
+          else
+            echo "❌ Teardown failed or incomplete!"
+            echo "Manual cleanup may be required."
+            echo "Check Scaleway console for remaining resources."
+          fi

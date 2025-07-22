@@ -1,0 +1,471 @@
+name: Validate Templates
+
+on:
+  workflow_dispatch:
+    inputs:
+      template_filter:
+        description: 'Template filter (e.g., "backend/*", "ai-enhanced/*", or specific template name)'
+        required: false
+        type: string
+        default: '*'
+      test_environment:
+        description: 'Environment to use for validation tests'
+        required: false
+        type: choice
+        options:
+          - dev
+          - staging
+        default: dev
+      comprehensive_test:
+        description: 'Run comprehensive validation (includes deployment tests)'
+        required: false
+        type: boolean
+        default: false
+
+  pull_request:
+    paths:
+      - 'templates/**'
+      - 'modules/**'
+
+  push:
+    branches: [main, develop]
+    paths:
+      - 'templates/**'
+      - 'modules/**'
+
+  schedule:
+    # Run template validation daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  TF_IN_AUTOMATION: true
+
+jobs:
+  discover-templates:
+    name: Discover Available Templates
+    runs-on: ubuntu-latest
+    outputs:
+      templates: ${{ steps.discover.outputs.templates }}
+      template_count: ${{ steps.discover.outputs.template_count }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Discover Templates
+        id: discover
+        run: |
+          # Discover all available templates
+          templates_json="["
+          template_count=0
+          first=true
+
+          while IFS= read -r -d '' template_file; do
+            # Extract template info
+            template_name=$(dirname "$template_file" | sed 's|.*/templates/.*/||')
+            template_category=$(dirname "$template_file" | sed 's|.*/templates/||' | sed 's|/.*||')
+            template_path=$(dirname "$template_file" | sed 's|./||')
+
+            if [[ -n "$template_name" ]]; then
+              # Apply filter if specified
+              filter="${{ github.event.inputs.template_filter || '*' }}"
+              if [[ "$filter" != "*" ]]; then
+                # Check if template matches filter
+                if [[ "$filter" == *"/"* ]]; then
+                  # Category filter (e.g., "backend/*")
+                  category_filter=$(echo "$filter" | cut -d'/' -f1)
+                  if [[ "$template_category" != "$category_filter" ]]; then
+                    continue
+                  fi
+                else
+                  # Specific template filter
+                  if [[ "$template_name" != "$filter" ]]; then
+                    continue
+                  fi
+                fi
+              fi
+
+              [[ "$first" == "true" ]] && first=false || templates_json="$templates_json,"
+              templates_json="$templates_json{\"name\":\"$template_name\",\"category\":\"$template_category\",\"path\":\"$template_path\"}"
+              ((template_count++))
+            fi
+          done < <(find ./templates -name "main.tf" -type f -print0)
+
+          templates_json="$templates_json]"
+
+          echo "templates=$templates_json" >> $GITHUB_OUTPUT
+          echo "template_count=$template_count" >> $GITHUB_OUTPUT
+
+          echo "Discovered $template_count templates matching filter: ${{ github.event.inputs.template_filter || '*' }}"
+
+  validate-syntax:
+    name: Validate Template Syntax
+    runs-on: ubuntu-latest
+    needs: discover-templates
+    if: needs.discover-templates.outputs.template_count > 0
+    strategy:
+      matrix:
+        template: ${{ fromJson(needs.discover-templates.outputs.templates) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.6.0"
+
+      - name: Validate Template: ${{ matrix.template.name }}
+        run: |
+          echo "Validating template: ${{ matrix.template.name }} (category: ${{ matrix.template.category }})"
+          cd "${{ matrix.template.path }}"
+
+          # Initialize and validate
+          terraform init -backend=false
+          terraform validate
+
+          # Check for required files
+          required_files=("main.tf")
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "::error::Missing required file: $file"
+              exit 1
+            fi
+          done
+
+          # Format check
+          terraform fmt -check -recursive
+
+          echo "✅ Template ${{ matrix.template.name }} validation passed"
+
+  validate-documentation:
+    name: Validate Template Documentation
+    runs-on: ubuntu-latest
+    needs: discover-templates
+    if: needs.discover-templates.outputs.template_count > 0
+    strategy:
+      matrix:
+        template: ${{ fromJson(needs.discover-templates.outputs.templates) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Check Documentation: ${{ matrix.template.name }}
+        run: |
+          template_path="${{ matrix.template.path }}"
+          template_name="${{ matrix.template.name }}"
+
+          echo "Checking documentation for: $template_name"
+
+          # Check for README file
+          readme_found=false
+          for readme in "README.md" "readme.md" "Readme.md"; do
+            if [[ -f "$template_path/$readme" ]]; then
+              readme_found=true
+              echo "✅ Found README: $readme"
+              break
+            fi
+          done
+
+          if [[ "$readme_found" == "false" ]]; then
+            echo "::warning::No README found for template: $template_name"
+          fi
+
+          # Check if template is documented in main docs
+          if grep -q "$template_name" docs/USAGE.md; then
+            echo "✅ Template documented in USAGE.md"
+          else
+            echo "::warning::Template $template_name not found in docs/USAGE.md"
+          fi
+
+          # Check main.tf for descriptions
+          if [[ -f "$template_path/main.tf" ]]; then
+            if grep -q "description" "$template_path/main.tf"; then
+              echo "✅ Template contains descriptions"
+            else
+              echo "::warning::Template main.tf lacks descriptions"
+            fi
+          fi
+
+  security-scan:
+    name: Security Scan Templates
+    runs-on: ubuntu-latest
+    needs: discover-templates
+    if: needs.discover-templates.outputs.template_count > 0
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Checkov Security Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: templates/
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+          soft_fail: true
+
+      - name: Upload Security Scan Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-results.sarif
+
+  test-deployment:
+    name: Test Template Deployment
+    runs-on: ubuntu-latest
+    needs: [discover-templates, validate-syntax]
+    if: |
+      needs.discover-templates.outputs.template_count > 0 &&
+      github.event.inputs.comprehensive_test == 'true' &&
+      success()
+    strategy:
+      matrix:
+        template: ${{ fromJson(needs.discover-templates.outputs.templates) }}
+      fail-fast: false
+      max-parallel: 2  # Limit concurrent deployments to avoid resource conflicts
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.6.0"
+          terraform_wrapper: false
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure Scaleway Credentials
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+        run: |
+          echo "SCW_ACCESS_KEY=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+
+      - name: Deploy Test Environment
+        id: deploy-env
+        run: |
+          chmod +x scripts/lifecycle/setup.sh
+
+          # Deploy minimal environment for testing
+          ./scripts/lifecycle/setup.sh \
+            --env=${{ github.event.inputs.test_environment || 'dev' }} \
+            --auto-approve \
+            --template=${{ matrix.template.name }}
+
+          echo "environment_deployed=true" >> $GITHUB_OUTPUT
+
+      - name: Validate Template Deployment
+        if: steps.deploy-env.outputs.environment_deployed == 'true'
+        run: |
+          chmod +x scripts/validate.sh
+
+          # Validate the deployed environment
+          ./scripts/validate.sh \
+            --env=${{ github.event.inputs.test_environment || 'dev' }} \
+            --components=coder \
+            --detailed
+
+      - name: Cleanup Test Environment
+        if: always() && steps.deploy-env.outputs.environment_deployed == 'true'
+        run: |
+          chmod +x scripts/lifecycle/teardown.sh
+
+          # Clean up the test environment
+          ./scripts/lifecycle/teardown.sh \
+            --env=${{ github.event.inputs.test_environment || 'dev' }} \
+            --confirm \
+            --emergency \
+            --no-backup
+
+  generate-report:
+    name: Generate Validation Report
+    runs-on: ubuntu-latest
+    needs: [discover-templates, validate-syntax, validate-documentation, security-scan]
+    if: always()
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Generate Template Validation Report
+        run: |
+          cat > template-validation-report.md << 'EOF'
+          # Template Validation Report
+
+          **Date:** $(date -Iseconds)
+          **Triggered by:** ${{ github.event_name }} (${{ github.actor }})
+          **Repository:** ${{ github.repository }}
+          **Commit:** ${{ github.sha }}
+
+          ## Summary
+          - **Templates Discovered:** ${{ needs.discover-templates.outputs.template_count }}
+          - **Filter Applied:** ${{ github.event.inputs.template_filter || 'None (*)'  }}
+          - **Comprehensive Testing:** ${{ github.event.inputs.comprehensive_test || 'false' }}
+
+          ## Validation Results
+
+          | Stage | Status | Details |
+          |-------|--------|---------|
+          | Template Discovery | ${{ needs.discover-templates.result == 'success' && '✅ Passed' || '❌ Failed' }} | Found ${{ needs.discover-templates.outputs.template_count }} templates |
+          | Syntax Validation | ${{ needs.validate-syntax.result == 'success' && '✅ Passed' || (needs.validate-syntax.result == 'failure' && '❌ Failed' || '⏭️ Skipped') }} | Terraform syntax and format validation |
+          | Documentation Check | ${{ needs.validate-documentation.result == 'success' && '✅ Passed' || (needs.validate-documentation.result == 'failure' && '❌ Failed' || '⏭️ Skipped') }} | README and documentation validation |
+          | Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || (needs.security-scan.result == 'failure' && '❌ Failed' || '⏭️ Skipped') }} | Checkov security scanning |
+          | Deployment Test | ${{ needs.test-deployment.result == 'success' && '✅ Passed' || (needs.test-deployment.result == 'failure' && '❌ Failed' || '⏭️ Skipped') }} | Live deployment testing |
+
+          ## Discovered Templates
+
+          $( echo '${{ needs.discover-templates.outputs.templates }}' | jq -r '.[] | "- **\(.name)** (\(.category)): `\(.path)`"' 2>/dev/null || echo "Template list unavailable" )
+
+          ## Recommendations
+
+          $( if [[ "${{ needs.validate-syntax.result }}" == "failure" ]]; then
+            echo "- 🔧 Fix Terraform syntax errors in failing templates"
+          fi
+
+          if [[ "${{ needs.validate-documentation.result }}" != "success" ]]; then
+            echo "- 📝 Improve template documentation (add README files)"
+          fi
+
+          if [[ "${{ needs.security-scan.result }}" == "failure" ]]; then
+            echo "- 🔒 Address security findings from Checkov scan"
+          fi
+
+          if [[ "${{ needs.test-deployment.result }}" == "failure" ]]; then
+            echo "- 🚨 Fix deployment issues in failing templates"
+          fi )
+
+          ## Next Steps
+
+          - Review validation failures in workflow logs
+          - Update templates to address any issues
+          - Consider running comprehensive tests before major releases
+
+          **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+
+      - name: Upload Validation Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: template-validation-report-$(date +%Y%m%d)
+          path: template-validation-report.md
+          retention-days: 30
+
+      - name: Comment Validation Results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('template-validation-report.md', 'utf8');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [discover-templates, validate-syntax, validate-documentation, security-scan, test-deployment]
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+
+    steps:
+      - name: Determine Overall Status
+        id: status
+        run: |
+          # Check if any critical jobs failed
+          syntax_status="${{ needs.validate-syntax.result }}"
+          deploy_status="${{ needs.test-deployment.result }}"
+
+          if [[ "$syntax_status" == "failure" || "$deploy_status" == "failure" ]]; then
+            echo "overall_status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+          elif [[ "$syntax_status" == "success" && ("$deploy_status" == "success" || "$deploy_status" == "skipped") ]]; then
+            echo "overall_status=success" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+          else
+            echo "overall_status=partial" >> $GITHUB_OUTPUT
+            echo "emoji=⚠️" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify Slack
+        if: vars.SLACK_WEBHOOK_URL
+        env:
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
+        run: |
+          status="${{ steps.status.outputs.overall_status }}"
+          emoji="${{ steps.status.outputs.emoji }}"
+
+          case "$status" in
+            success) color="good"; text="Template validation completed successfully" ;;
+            failure) color="danger"; text="Template validation failed" ;;
+            *) color="warning"; text="Template validation completed with warnings" ;;
+          esac
+
+          payload="{
+            \"attachments\": [{
+              \"color\": \"$color\",
+              \"text\": \"$emoji $text\",
+              \"fields\": [
+                {\"title\": \"Templates Validated\", \"value\": \"${{ needs.discover-templates.outputs.template_count }}\", \"short\": true},
+                {\"title\": \"Filter Applied\", \"value\": \"${{ github.event.inputs.template_filter || '*' }}\", \"short\": true},
+                {\"title\": \"Comprehensive Test\", \"value\": \"${{ github.event.inputs.comprehensive_test || 'false' }}\", \"short\": true},
+                {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true}
+              ]
+            }]
+          }"
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "$payload" "$SLACK_WEBHOOK_URL"
+
+      - name: Create Issue on Critical Failure
+        if: steps.status.outputs.overall_status == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Template Validation Failure: Critical Issues Detected`;
+            const body = `## Template Validation Failure
+
+            Critical issues have been detected in template validation.
+
+            **Validation Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Templates Affected:** ${{ needs.discover-templates.outputs.template_count }}
+            **Filter:** ${{ github.event.inputs.template_filter || '*' }}
+
+            ## Failed Stages
+            ${ '${{ needs.validate-syntax.result }}' === 'failure' ? '- ❌ Syntax Validation' : '' }
+            ${ '${{ needs.test-deployment.result }}' === 'failure' ? '- ❌ Deployment Testing' : '' }
+
+            ## Immediate Actions Required
+            1. Review workflow logs for detailed error messages
+            2. Fix syntax errors and deployment issues
+            3. Re-run validation after fixes
+            4. Consider disabling problematic templates temporarily
+
+            **Priority:** High - Template reliability issue`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['template-validation', 'bug', 'high-priority']
+            });
