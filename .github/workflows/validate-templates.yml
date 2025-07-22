@@ -117,7 +117,7 @@ jobs:
         with:
           terraform_version: "~1.6.0"
 
-      - name: Validate Template: ${{ matrix.template.name }}
+      - name: Validate Template
         run: |
           echo "Validating template: ${{ matrix.template.name }} (category: ${{ matrix.template.category }})"
           cd "${{ matrix.template.path }}"
