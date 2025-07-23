@@ -9,6 +9,7 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 ## Core Technology Stack
 
 - **Infrastructure**: Terraform (≥1.6.0) with Scaleway provider
+- **State Storage**: Remote state using Scaleway Object Storage (S3-compatible)
 - **Container Platform**: Kubernetes on Scaleway Kapsule with Cilium CNI
 - **Application**: Coder development platform with workspace templates
 - **Database**: Managed PostgreSQL with environment-specific configurations
@@ -28,6 +29,7 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 - **`modules/postgresql/`**: Database provisioning with HA and backup configuration
 - **`modules/coder-deployment/`**: Coder platform deployment with OAuth and ingress
 - **`modules/security/`**: RBAC, Pod Security Standards, network policies
+- **`modules/terraform-backend/`**: Remote state storage using Scaleway Object Storage
 
 ### Template System (21+ Templates)
 - **Backend** (7): Java Spring, Python Django+CrewAI, Go Fiber, Ruby Rails, PHP Symfony, Rust Actix, .NET Core
@@ -54,6 +56,26 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 # Complete environment teardown with backup
 ./scripts/lifecycle/teardown.sh --env=dev --create-backup
 ```
+
+### Remote State Management
+
+```bash
+# Manual setup of remote state backend infrastructure (optional - auto-provisioned in CI/CD)
+./scripts/utils/setup-backend.sh --env=dev
+./scripts/utils/setup-backend.sh --env=all  # Setup all environments
+
+# Migrate existing local state to remote backend (if migrating from local state)
+./scripts/utils/migrate-state.sh --env=dev
+./scripts/utils/migrate-state.sh --env=prod --verbose
+
+# State management operations
+./scripts/utils/state-manager.sh show --env=dev
+./scripts/utils/state-manager.sh list --env=prod --format=json
+./scripts/utils/state-manager.sh backup --env=staging
+./scripts/utils/state-manager.sh drift --env=prod
+```
+
+**Note**: Remote state backend infrastructure is now **automatically provisioned** during GitHub Actions workflows. Manual setup is only needed for local development or troubleshooting.
 
 ### Cost Management and Analysis
 
@@ -284,9 +306,43 @@ kubectl get secrets -n coder
 kubectl exec -it deployment/coder -n coder -- env | grep DB_
 ```
 
+**Remote State Issues**
+```bash
+# Backend auto-provisioning issues (check GitHub Actions logs for backend setup job)
+# Manual backend creation if auto-provisioning fails
+./scripts/utils/setup-backend.sh --env=<env> --verbose
+
+# Check state backend connectivity
+./scripts/utils/state-manager.sh show --env=<env>
+
+# Verify backend configuration
+cd environments/<env> && terraform init
+
+# Check for state drift
+./scripts/utils/state-manager.sh drift --env=<env>
+
+# Create state backup before troubleshooting
+./scripts/utils/state-manager.sh backup --env=<env>
+```
+
+**State Migration Problems**
+```bash
+# Dry run migration to preview changes
+./scripts/utils/migrate-state.sh --env=<env> --dry-run
+
+# Check migration prerequisites
+cd environments/<env> && terraform init -backend=false
+
+# Rollback to local state if needed (see migration backup directory)
+ls backups/state-migration/<env>/
+```
+
 ### Log Locations
 - **Setup logs**: `/logs/setup/<timestamp>-<env>-setup.log`
-- **Terraform state**: `environments/<env>/terraform.tfstate`
+- **Terraform state**: Remote in Scaleway Object Storage (`terraform-state-coder-<env>` bucket)
+- **Local state backup**: `environments/<env>/terraform.tfstate` (after migration)
+- **State migration logs**: `backups/state-migration/migration-<timestamp>-<env>-*.log`
+- **State backups**: `backups/state-backups/<env>-<timestamp>/`
 - **Kubeconfig**: `~/.kube/config-coder-<env>`
 - **Application logs**: `kubectl logs -f deployment/coder -n coder`
 
@@ -297,6 +353,8 @@ kubectl exec -it deployment/coder -n coder -- env | grep DB_
 2. Use environment-specific configurations in `environments/{env}/`
 3. Test changes in development environment before promoting to staging/production
 4. Validate cost impact using `cost-calculator.sh` before deployment
+5. Use remote state for all environments to enable team collaboration
+6. Create state backups before major infrastructure changes
 
 ### Template Development
 1. Follow existing template patterns in `templates/` directories
@@ -316,6 +374,16 @@ kubectl exec -it deployment/coder -n coder -- env | grep DB_
 3. Test integrations using `test-runner.sh --suite=integrations`
 4. Follow the patterns in the hooks framework for consistent integration behavior
 5. Always implement graceful degradation when integrations are not configured
+
+### State Management Best Practices
+1. **Setup Remote Backend First**: Use `setup-backend.sh` before deploying infrastructure
+2. **Migrate Safely**: Use `migrate-state.sh` with dry-run option to preview migration
+3. **Regular Backups**: Create state backups before major changes using `state-manager.sh backup`
+4. **Monitor Drift**: Regularly check for configuration drift using `state-manager.sh drift`
+5. **Team Coordination**: Use GitHub Actions for centralized deployments to avoid conflicts
+6. **State Inspection**: Use `state-manager.sh show/list/inspect` for troubleshooting
+7. **Version Management**: Object Storage versioning is enabled for state history
+8. **Access Control**: Use environment-specific buckets and IAM policies
 
 ### Cost Optimization
 1. Use cost calculator before scaling or deploying

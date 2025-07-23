@@ -1,0 +1,133 @@
+terraform {
+  required_providers {
+    scaleway = {
+      source  = "scaleway/scaleway"
+      version = "~> 2.34"
+    }
+  }
+}
+
+# Create Object Storage bucket for Terraform state
+resource "scaleway_object_bucket" "terraform_state" {
+  name   = var.bucket_name
+  region = var.region
+
+  # Enable versioning for state history
+  versioning {
+    enabled = true
+  }
+
+  # CORS configuration for potential web-based access
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    allowed_origins = ["*"]
+    max_age_seconds = 3000
+  }
+
+  tags = merge(var.tags, {
+    Purpose     = "terraform-state"
+    Environment = var.environment
+    Project     = "coder-platform"
+  })
+}
+
+# Create lifecycle configuration to manage state versions
+resource "scaleway_object_bucket_lifecycle_configuration" "terraform_state" {
+  bucket = scaleway_object_bucket.terraform_state.name
+  region = var.region
+
+  rule {
+    id     = "terraform_state_lifecycle"
+    status = "Enabled"
+
+    # Keep current version forever, but limit non-current versions
+    noncurrent_version_expiration {
+      noncurrent_days = var.state_retention_days
+    }
+
+    # Clean up incomplete multipart uploads
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}
+
+# Create bucket policy for secure access
+resource "scaleway_object_bucket_policy" "terraform_state" {
+  bucket = scaleway_object_bucket.terraform_state.name
+  region = var.region
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowTerraformStateAccess"
+        Effect = "Allow"
+        Principal = {
+          SCW = "project_id:${var.project_id}"
+        }
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetBucketVersioning",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          "arn:scw:s3:::${var.bucket_name}",
+          "arn:scw:s3:::${var.bucket_name}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# Generate backend configuration for Terraform
+locals {
+  backend_config = {
+    bucket = scaleway_object_bucket.terraform_state.name
+    key    = "${var.environment}/terraform.tfstate"
+    region = var.region
+    endpoint = "https://s3.${var.region}.scw.cloud"
+
+    # S3-compatibility flags for Scaleway
+    skip_credentials_validation = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+
+    # Workspace-specific state keys
+    workspace_key_prefix = "${var.environment}"
+  }
+}
+
+# Create backend configuration file
+resource "local_file" "backend_config" {
+  count = var.generate_backend_config ? 1 : 0
+
+  filename = "${path.root}/backend-${var.environment}.tf"
+  content = templatefile("${path.module}/templates/backend.tf.tpl", {
+    bucket_name = scaleway_object_bucket.terraform_state.name
+    state_key   = local.backend_config.key
+    region      = var.region
+    endpoint    = local.backend_config.endpoint
+  })
+
+  file_permission = "0644"
+}
+
+# Create environment-specific backend configuration
+resource "local_file" "backend_env_config" {
+  count = var.generate_backend_config ? 1 : 0
+
+  filename = "${path.root}/../../environments/${var.environment}/backend.tf"
+  content = templatefile("${path.module}/templates/backend.tf.tpl", {
+    bucket_name = scaleway_object_bucket.terraform_state.name
+    state_key   = local.backend_config.key
+    region      = var.region
+    endpoint    = local.backend_config.endpoint
+  })
+
+  file_permission = "0644"
+}

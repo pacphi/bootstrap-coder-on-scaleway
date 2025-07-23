@@ -126,11 +126,32 @@ jobs:
         with:
           version: 'v3.12.0'
 
+      - name: Configure Scaleway Credentials for Validation
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+        run: |
+          echo "SCW_ACCESS_KEY=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+
       - name: Validate Terraform Configuration
         run: |
           cd environments/${{ steps.determine-env.outputs.environment }}
           terraform fmt -check -recursive
-          terraform init -backend=false
+
+          # Initialize with remote backend if backend.tf exists, otherwise use local backend
+          if [[ -f "backend.tf" ]]; then
+            echo "🔄 Initializing with remote backend..."
+            terraform init
+          else
+            echo "⚠️ No remote backend configured, using local backend for validation"
+            terraform init -backend=false
+          fi
+
           terraform validate
 
       - name: Validate Template (if specified)
@@ -156,11 +177,22 @@ jobs:
           terraform validate
           echo "::notice::Template validated: ${{ steps.determine-env.outputs.template }}"
 
+  setup-backend:
+    name: Setup Terraform Backend
+    needs: validate
+    if: needs.validate.outputs.deploy_env != ''
+    uses: ./.github/workflows/setup-backend.yml
+    with:
+      environment: ${{ needs.validate.outputs.deploy_env }}
+      region: ${{ vars.SCALEWAY_REGION || 'fr-par' }}
+      force_recreate: false
+    secrets: inherit
+
   estimate-costs:
     name: Estimate Costs
     runs-on: ubuntu-latest
-    needs: validate
-    if: needs.validate.outputs.deploy_env != ''
+    needs: [validate, setup-backend]
+    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true'
     permissions:
       contents: read        # Read repository code
       pull-requests: write  # Comment cost estimates on PRs
@@ -219,11 +251,154 @@ jobs:
               body: body
             });
 
+  plan:
+    name: Plan Infrastructure Changes
+    runs-on: ubuntu-latest
+    needs: [validate, setup-backend, estimate-costs]
+    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true'
+    permissions:
+      contents: read        # Read repository code
+      pull-requests: write  # Comment plan results on PRs
+    outputs:
+      plan_id: ${{ steps.plan.outputs.plan_id }}
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+      plan_summary: ${{ steps.plan.outputs.plan_summary }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.6.0"
+          terraform_wrapper: false
+
+      - name: Configure Scaleway Credentials
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+        run: |
+          echo "SCW_ACCESS_KEY=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
+          echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+
+      - name: Download Backend Configuration
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          path: ./
+
+      - name: Initialize Terraform Backend
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}
+
+          echo "🔄 Initializing with remote backend..."
+          echo "Backend bucket: ${{ needs.setup-backend.outputs.bucket_name }}"
+          terraform init
+
+      - name: Plan Infrastructure Changes
+        id: plan
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}
+
+          # Generate unique plan ID
+          plan_id="plan-$(date +%Y%m%d-%H%M%S)-${{ github.run_id }}"
+          echo "plan_id=$plan_id" >> $GITHUB_OUTPUT
+
+          # Run terraform plan
+          set +e
+          terraform plan -detailed-exitcode -out="${plan_id}.tfplan" > plan_output.txt 2>&1
+          plan_exit_code=$?
+          set -e
+
+          # Parse plan results
+          case $plan_exit_code in
+            0)
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+              echo "plan_summary=No changes needed" >> $GITHUB_OUTPUT
+              ;;
+            1)
+              echo "❌ Terraform plan failed"
+              cat plan_output.txt
+              exit 1
+              ;;
+            2)
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+
+              # Extract plan summary
+              if grep -q "Plan:" plan_output.txt; then
+                plan_summary=$(grep "Plan:" plan_output.txt | head -1)
+                echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
+              else
+                echo "plan_summary=Infrastructure changes detected" >> $GITHUB_OUTPUT
+              fi
+              ;;
+          esac
+
+          # Save plan output for artifacts
+          cp plan_output.txt "terraform-plan-${plan_id}.txt"
+
+      - name: Upload Plan Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          path: |
+            environments/${{ needs.validate.outputs.deploy_env }}/*.tfplan
+            environments/${{ needs.validate.outputs.deploy_env }}/terraform-plan-*.txt
+          retention-days: 30
+
+      - name: Comment Plan Results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const planFile = `environments/${{ needs.validate.outputs.deploy_env }}/terraform-plan-${{ steps.plan.outputs.plan_id }}.txt`;
+            let planOutput = '';
+
+            try {
+              planOutput = fs.readFileSync(planFile, 'utf8');
+            } catch (error) {
+              planOutput = 'Plan output not available';
+            }
+
+            const body = `## 📋 Terraform Plan Results
+
+            **Environment:** \`${{ needs.validate.outputs.deploy_env }}\`
+            **Plan ID:** \`${{ steps.plan.outputs.plan_id }}\`
+            **Has Changes:** ${{ steps.plan.outputs.has_changes }}
+            **Summary:** ${{ steps.plan.outputs.plan_summary }}
+
+            <details>
+            <summary>View Plan Details</summary>
+
+            \`\`\`terraform
+            ${planOutput.slice(0, 32000)} ${planOutput.length > 32000 ? '... (truncated)' : ''}
+            \`\`\`
+
+            </details>
+
+            ${steps.plan.outputs.has_changes === 'true' ? '⚠️ **Review the changes carefully before approving deployment**' : '✅ **No infrastructure changes needed**'}`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
   deploy:
     name: Deploy Environment
     runs-on: ubuntu-latest
-    needs: [validate, estimate-costs]
-    if: needs.validate.outputs.deploy_env != ''
+    needs: [validate, setup-backend, estimate-costs, plan]
+    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true' && (github.event.inputs.dry_run != 'true' || github.event.inputs.dry_run == '')
     environment:
       name: ${{ needs.validate.outputs.deploy_env }}
       url: ${{ steps.deploy.outputs.coder_url }}
@@ -289,66 +464,102 @@ jobs:
 
           echo "deployment_flags=$flags" >> $GITHUB_OUTPUT
 
-      - name: Deploy Environment
-        id: deploy
+      - name: Download Plan Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          path: environments/${{ needs.validate.outputs.deploy_env }}/
+
+      - name: Download Backend Configuration
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          path: ./
+
+      - name: Initialize Terraform Backend
         run: |
-          chmod +x scripts/lifecycle/setup.sh
+          cd environments/${{ needs.validate.outputs.deploy_env }}
 
-          # Run deployment
-          ./scripts/lifecycle/setup.sh ${{ steps.setup-flags.outputs.deployment_flags }}
+          echo "🔄 Initializing with remote backend..."
+          echo "Backend bucket: ${{ needs.setup-backend.outputs.bucket_name }}"
+          terraform init
 
-          # Extract outputs if not dry run
-          if [[ "${{ github.event.inputs.dry_run }}" != "true" ]]; then
-            cd environments/${{ needs.validate.outputs.deploy_env }}
+      - name: Apply Infrastructure Changes
+        id: apply
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}
 
-            coder_url=$(terraform output -raw access_url 2>/dev/null || terraform output -raw coder_url 2>/dev/null || echo "")
-            admin_username=$(terraform output -raw admin_username 2>/dev/null || echo "admin")
-            load_balancer_ip=$(terraform output -raw load_balancer_ip 2>/dev/null || echo "")
+          # Find the plan file
+          plan_file=$(ls *.tfplan 2>/dev/null | head -1 || echo "")
 
-            echo "coder_url=$coder_url" >> $GITHUB_OUTPUT
-            echo "admin_username=$admin_username" >> $GITHUB_OUTPUT
-            echo "load_balancer_ip=$load_balancer_ip" >> $GITHUB_OUTPUT
-
-            # Generate DNS instructions if domain is configured
-            if [[ "${{ needs.validate.outputs.deploy_domain }}" != "" ]]; then
-              subdomain="${{ needs.validate.outputs.deploy_subdomain }}"
-              if [[ -z "$subdomain" ]]; then
-                case "${{ needs.validate.outputs.deploy_env }}" in
-                  dev) subdomain="coder-dev" ;;
-                  staging) subdomain="coder-staging" ;;
-                  prod) subdomain="coder" ;;
-                esac
-              fi
-              full_domain="${subdomain}.${{ needs.validate.outputs.deploy_domain }}"
-
-              echo "full_domain=$full_domain" >> $GITHUB_OUTPUT
-              echo "dns_required=true" >> $GITHUB_OUTPUT
+          if [[ -n "$plan_file" ]] && [[ -f "$plan_file" ]]; then
+            echo "📋 Applying planned changes from: $plan_file"
+            terraform apply -auto-approve "$plan_file"
+          else
+            echo "⚠️ No plan file found, running direct apply"
+            if [[ "${{ github.event.inputs.auto_approve }}" == "true" ]]; then
+              terraform apply -auto-approve
             else
-              echo "dns_required=false" >> $GITHUB_OUTPUT
-            fi
-
-            # Save kubeconfig as artifact
-            if [[ -f "${HOME}/.kube/config-coder-${{ needs.validate.outputs.deploy_env }}" ]]; then
-              cp "${HOME}/.kube/config-coder-${{ needs.validate.outputs.deploy_env }}" ./kubeconfig-${{ needs.validate.outputs.deploy_env }}
+              terraform apply
             fi
           fi
 
+          echo "apply_completed=true" >> $GITHUB_OUTPUT
+
+      - name: Extract Deployment Outputs
+        id: deploy
+        if: steps.apply.outputs.apply_completed == 'true'
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}
+
+          # Extract outputs
+          coder_url=$(terraform output -raw access_url 2>/dev/null || terraform output -raw coder_url 2>/dev/null || echo "")
+          admin_username=$(terraform output -raw admin_username 2>/dev/null || echo "admin")
+          load_balancer_ip=$(terraform output -raw load_balancer_ip 2>/dev/null || echo "")
+
+          echo "coder_url=$coder_url" >> $GITHUB_OUTPUT
+          echo "admin_username=$admin_username" >> $GITHUB_OUTPUT
+          echo "load_balancer_ip=$load_balancer_ip" >> $GITHUB_OUTPUT
+
+          # Generate DNS instructions if domain is configured
+          if [[ "${{ needs.validate.outputs.deploy_domain }}" != "" ]]; then
+            subdomain="${{ needs.validate.outputs.deploy_subdomain }}"
+            if [[ -z "$subdomain" ]]; then
+              case "${{ needs.validate.outputs.deploy_env }}" in
+                dev) subdomain="coder-dev" ;;
+                staging) subdomain="coder-staging" ;;
+                prod) subdomain="coder" ;;
+              esac
+            fi
+            full_domain="${subdomain}.${{ needs.validate.outputs.deploy_domain }}"
+
+            echo "full_domain=$full_domain" >> $GITHUB_OUTPUT
+            echo "dns_required=true" >> $GITHUB_OUTPUT
+          else
+            echo "dns_required=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Save kubeconfig as artifact
+          if [[ -f "${HOME}/.kube/config-coder-${{ needs.validate.outputs.deploy_env }}" ]]; then
+            cp "${HOME}/.kube/config-coder-${{ needs.validate.outputs.deploy_env }}" ./kubeconfig-${{ needs.validate.outputs.deploy_env }}
+          fi
+
       - name: Upload Kubeconfig Artifact
-        if: github.event.inputs.dry_run != 'true'
+        if: steps.apply.outputs.apply_completed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}
-          path: kubeconfig-${{ needs.validate.outputs.deploy_env }}
+          path: environments/${{ needs.validate.outputs.deploy_env }}/kubeconfig-${{ needs.validate.outputs.deploy_env }}
           retention-days: 7
 
       - name: Validate Deployment
-        if: github.event.inputs.dry_run != 'true'
+        if: steps.apply.outputs.apply_completed == 'true'
         run: |
           chmod +x scripts/validate.sh
           ./scripts/validate.sh --env=${{ needs.validate.outputs.deploy_env }} --quick
 
       - name: Comment Deployment Success on PR
-        if: github.event_name == 'pull_request' && github.event.inputs.dry_run != 'true'
+        if: github.event_name == 'pull_request' && steps.apply.outputs.apply_completed == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -404,13 +615,15 @@ jobs:
       - name: Update Deployment Status
         if: always()
         run: |
-          if [[ "${{ job.status }}" == "success" && "${{ github.event.inputs.dry_run }}" != "true" ]]; then
+          if [[ "${{ job.status }}" == "success" && "${{ steps.apply.outputs.apply_completed }}" == "true" ]]; then
             echo "✅ Deployment completed successfully!"
             echo "Environment: ${{ needs.validate.outputs.deploy_env }}"
             echo "Coder URL: ${{ steps.deploy.outputs.coder_url }}"
-          elif [[ "${{ job.status }}" == "success" && "${{ github.event.inputs.dry_run }}" == "true" ]]; then
-            echo "🔍 Dry run completed successfully!"
-            echo "No resources were created."
+            echo "Plan Summary: ${{ needs.plan.outputs.plan_summary }}"
+          elif [[ "${{ job.status }}" == "success" && "${{ needs.plan.outputs.has_changes }}" == "false" ]]; then
+            echo "✅ No changes were needed!"
+            echo "Environment: ${{ needs.validate.outputs.deploy_env }}"
+            echo "Infrastructure is up to date."
           else
             echo "❌ Deployment failed!"
             exit 1

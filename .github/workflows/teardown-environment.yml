@@ -211,12 +211,24 @@ jobs:
           name: kubeconfig-${{ github.event.inputs.environment }}
           path: ./
 
+  setup-backend:
+    name: Setup Terraform Backend
+    needs: validate-request
+    if: needs.validate-request.outputs.confirmed == 'true'
+    uses: ./.github/workflows/setup-backend.yml
+    with:
+      environment: ${{ github.event.inputs.environment }}
+      region: ${{ vars.SCALEWAY_REGION || 'fr-par' }}
+      force_recreate: false
+    secrets: inherit
+
   teardown:
     name: Execute Teardown
     runs-on: ubuntu-latest
-    needs: [validate-request, analyze-impact]
+    needs: [validate-request, setup-backend, analyze-impact]
     if: |
       needs.validate-request.outputs.confirmed == 'true' &&
+      needs.setup-backend.outputs.backend_configured == 'true' &&
       (needs.pre-teardown-backup.result == 'success' ||
        needs.pre-teardown-backup.result == 'skipped' ||
        github.event.inputs.backup_before_destroy == 'false')
@@ -297,15 +309,40 @@ jobs:
 
           echo "teardown_flags=$flags" >> $GITHUB_OUTPUT
 
+      - name: Download Backend Configuration
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-config-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          path: ./
+
+      - name: Initialize Terraform Backend
+        run: |
+          cd environments/${{ github.event.inputs.environment }}
+
+          echo "🔄 Initializing with remote backend..."
+          echo "Backend bucket: ${{ needs.setup-backend.outputs.bucket_name }}"
+          terraform init
+
+      - name: Plan Teardown Changes
+        id: plan-destroy
+        run: |
+          cd environments/${{ github.event.inputs.environment }}
+
+          echo "📋 Planning teardown changes..."
+          terraform plan -destroy -detailed-exitcode -out=destroy.tfplan
+
+          echo "destroy_plan_created=true" >> $GITHUB_OUTPUT
+
       - name: Execute Teardown
         id: teardown
+        if: steps.plan-destroy.outputs.destroy_plan_created == 'true'
         run: |
-          chmod +x scripts/lifecycle/teardown.sh
+          cd environments/${{ github.event.inputs.environment }}
 
-          echo "🔥 Starting teardown with flags: ${{ steps.setup-flags.outputs.teardown_flags }}"
+          echo "🔥 Applying teardown plan..."
+          terraform apply -auto-approve destroy.tfplan
 
-          # Run teardown script
-          ./scripts/lifecycle/teardown.sh ${{ steps.setup-flags.outputs.teardown_flags }}
+          echo "teardown_completed=true" >> $GITHUB_OUTPUT
 
       - name: Verify Complete Destruction
         run: |
