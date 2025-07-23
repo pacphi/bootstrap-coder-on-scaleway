@@ -104,7 +104,7 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 ./scripts/lifecycle/backup.sh --env=prod --include-all
 
 # Pre-destroy backup with retention policy
-./scripts/lifecycle/backup.sh --env=staging --pre-destroy --retention=90d
+./scripts/lifecycle/backup.sh --env=staging --pre-destroy --retention-days=90
 ```
 
 ### Terraform Operations

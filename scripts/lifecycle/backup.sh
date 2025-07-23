@@ -53,6 +53,7 @@ Options:
     --backup-name=NAME      Custom backup name (default: timestamp-based)
     --include-data          Include workspace data and databases
     --include-templates     Include workspace templates
+    --include-all           Include all backup components (data, templates, config)
     --no-config            Skip configuration backup
     --auto                 Run in automated mode (no prompts)
     --pre-destroy          Pre-destruction backup (includes everything)
@@ -62,6 +63,7 @@ Options:
 
 Examples:
     $0 --env=dev --include-data
+    $0 --env=prod --include-all
     $0 --env=prod --pre-destroy --backup-name="maintenance-$(date +%Y%m%d)"
     $0 --env=all --auto --retention-days=90
 
@@ -681,6 +683,12 @@ main() {
                 ;;
             --include-templates)
                 INCLUDE_TEMPLATES=true
+                shift
+                ;;
+            --include-all)
+                INCLUDE_DATA=true
+                INCLUDE_TEMPLATES=true
+                INCLUDE_CONFIG=true
                 shift
                 ;;
             --no-config)

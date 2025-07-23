@@ -289,7 +289,7 @@ gh workflow run validate-templates.yml \
 ./scripts/lifecycle/backup.sh --env=prod --include-all
 
 # Pre-destroy backup with retention
-./scripts/lifecycle/backup.sh --env=staging --pre-destroy --retention=90d
+./scripts/lifecycle/backup.sh --env=staging --pre-destroy --retention-days=90
 ```
 
 ## 🔧 Hooks Framework
