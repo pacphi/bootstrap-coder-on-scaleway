@@ -314,7 +314,7 @@ Each template must include:
 
 This documentation is automatically maintained using:
 ```bash
-# Generate/update TEMPLATES.md from template directory scan
+# Generate/update docs/TEMPLATES.md from template directory scan
 ./scripts/utils/generate-template-docs.sh
 ```
 
@@ -322,7 +322,7 @@ Run this script after adding, removing, or modifying templates to keep the docum
 
 ## Related Documentation
 
-- [CLAUDE.md](./CLAUDE.md) - Project overview and architecture
-- [Setup Guide](./scripts/lifecycle/setup.sh) - Environment deployment
-- [Cost Calculator](./scripts/utils/cost-calculator.sh) - Resource cost analysis
-- [Test Suite](./scripts/test-runner.sh) - Template validation and testing
+- [CLAUDE.md](../CLAUDE.md) - Project overview and architecture
+- [Setup Guide](../scripts/lifecycle/setup.sh) - Environment deployment
+- [Cost Calculator](../scripts/utils/cost-calculator.sh) - Resource cost analysis
+- [Test Suite](../scripts/test-runner.sh) - Template validation and testing

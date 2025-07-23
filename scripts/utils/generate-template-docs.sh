@@ -10,7 +10,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TEMPLATES_DIR="$PROJECT_ROOT/templates"
-DEFAULT_OUTPUT="$PROJECT_ROOT/TEMPLATES.md"
+DEFAULT_OUTPUT="$PROJECT_ROOT/docs/TEMPLATES.md"
 
 # Colors for output
 RED='\033[0;31m'
@@ -33,12 +33,12 @@ Usage: $0 [OPTIONS]
 
 OPTIONS:
     --dry-run           Show what would be generated without writing files
-    --output=FILE       Output file path (default: TEMPLATES.md)
+    --output=FILE       Output file path (default: docs/TEMPLATES.md)
     --verbose           Show detailed processing information
     --help              Show this help message
 
 EXAMPLES:
-    $0                                  # Generate TEMPLATES.md
+    $0                                  # Generate docs/TEMPLATES.md
     $0 --dry-run                        # Preview generation without writing
     $0 --output=/tmp/templates.md       # Write to custom location
     $0 --verbose --dry-run              # Show detailed processing
@@ -306,7 +306,7 @@ generate_template_list() {
     echo "$templates"
 }
 
-# Generate the complete TEMPLATES.md content
+# Generate the complete docs/TEMPLATES.md content
 generate_templates_md() {
     local total_templates=$(get_total_template_count)
     local total_categories=$(get_total_category_count)
@@ -440,7 +440,7 @@ Each template must include:
 
 This documentation is automatically maintained using:
 ```bash
-# Generate/update TEMPLATES.md from template directory scan
+# Generate/update docs/TEMPLATES.md from template directory scan
 ./scripts/utils/generate-template-docs.sh
 ```
 
@@ -448,10 +448,10 @@ Run this script after adding, removing, or modifying templates to keep the docum
 
 ## Related Documentation
 
-- [CLAUDE.md](./CLAUDE.md) - Project overview and architecture
-- [Setup Guide](./scripts/lifecycle/setup.sh) - Environment deployment
-- [Cost Calculator](./scripts/utils/cost-calculator.sh) - Resource cost analysis
-- [Test Suite](./scripts/test-runner.sh) - Template validation and testing
+- [CLAUDE.md](../CLAUDE.md) - Project overview and architecture
+- [Setup Guide](../scripts/lifecycle/setup.sh) - Environment deployment
+- [Cost Calculator](../scripts/utils/cost-calculator.sh) - Resource cost analysis
+- [Test Suite](../scripts/test-runner.sh) - Template validation and testing
 EOF
 }
 

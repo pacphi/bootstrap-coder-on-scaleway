@@ -220,6 +220,7 @@ Flutter, React Native, Ionic
 
 - **[📋 Usage Guide](docs/USAGE.md)** - Complete usage examples, GitHub Actions workflows, and troubleshooting
 - **[🏗️ Architecture Guide](docs/ARCHITECTURE.md)** - System design, components, CI/CD flows, and Mermaid diagrams
+- **[🎯 Templates Guide](docs/TEMPLATES.md)** - Comprehensive listing of all 21+ workspace templates with usage examples
 - **[🤖 AI Assistant Context](CLAUDE.md)** - Technical context for Claude Code integration and new capabilities
 - **[🔌 Integrations Guide](docs/INTEGRATIONS.md)** - External integrations setup (Slack, JIRA, monitoring, compliance)
 - **[🔧 Hooks Framework](scripts/hooks/README.md)** - Extensible automation and integration examples
