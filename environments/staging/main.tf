@@ -6,6 +6,15 @@ terraform {
   }
 }
 
+# Import shared configuration
+module "shared_config" {
+  source = "../../shared"
+
+  environment                = local.environment
+  scaleway_organization_id   = var.scaleway_organization_id
+  scaleway_project_id        = var.scaleway_project_id
+}
+
 # Local variables for staging environment
 locals {
   environment = "staging"
