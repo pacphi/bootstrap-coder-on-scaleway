@@ -1,5 +1,12 @@
 name: Teardown Coder Environment
 
+# Set minimal required permissions for security
+permissions:
+  contents: read   # Access repository code
+  issues: write    # Create cleanup failure issues
+  actions: read    # Download artifacts (kubeconfig)
+  id-token: write  # For OIDC authentication if needed
+
 on:
   workflow_dispatch:
     inputs:
@@ -40,6 +47,8 @@ jobs:
   validate-request:
     name: Validate Teardown Request
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # Read repository code for validation
     outputs:
       confirmed: ${{ steps.validation.outputs.confirmed }}
 
@@ -68,6 +77,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate-request
     if: needs.validate-request.outputs.confirmed == 'true' && github.event.inputs.backup_before_destroy == 'true'
+    permissions:
+      contents: read  # Read repository code
+      actions: write  # Upload backup artifacts
 
     steps:
       - name: Checkout Code
@@ -133,6 +145,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate-request
     if: needs.validate-request.outputs.confirmed == 'true'
+    permissions:
+      contents: read  # Read repository code
+      actions: read   # Download kubeconfig artifacts
     outputs:
       cost_savings: ${{ steps.impact.outputs.cost_savings }}
       active_workspaces: ${{ steps.impact.outputs.active_workspaces }}
@@ -309,6 +324,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate-request, analyze-impact, teardown]
     if: always() && needs.validate-request.outputs.confirmed == 'true'
+    permissions:
+      contents: read  # Read repository information
+      actions: write  # Upload teardown report
+      issues: write   # Create cleanup issues on failure
 
     steps:
       - name: Create Teardown Report

@@ -1,5 +1,13 @@
 name: Deploy Coder Environment
 
+# Set minimal required permissions for security
+permissions:
+  contents: read        # Access repository code
+  issues: write        # Create deployment failure issues
+  pull-requests: write # Comment on PRs with deployment status
+  actions: read        # Download/upload artifacts
+  id-token: write      # For OIDC authentication if needed
+
 on:
   workflow_dispatch:
     inputs:
@@ -153,6 +161,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     if: needs.validate.outputs.deploy_env != ''
+    permissions:
+      contents: read        # Read repository code
+      pull-requests: write  # Comment cost estimates on PRs
 
     steps:
       - name: Checkout Code
@@ -410,6 +421,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate, deploy]
     if: always() && needs.validate.outputs.deploy_env != ''
+    permissions:
+      contents: read  # Read repository information
+      issues: write   # Create issues on deployment failure
 
     steps:
       - name: Notify Slack (if configured)

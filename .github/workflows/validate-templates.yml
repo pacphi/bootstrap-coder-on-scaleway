@@ -1,5 +1,13 @@
 name: Validate Templates
 
+# Set minimal required permissions for security
+permissions:
+  contents: read          # Access repository code
+  pull-requests: write    # Comment validation results on PRs
+  security-events: write  # Upload SARIF security scan results
+  actions: write          # Upload validation report artifacts
+  issues: write           # Create issues on critical failures
+
 on:
   workflow_dispatch:
     inputs:
@@ -44,6 +52,8 @@ jobs:
   discover-templates:
     name: Discover Available Templates
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # Read repository to discover templates
     outputs:
       templates: ${{ steps.discover.outputs.templates }}
       template_count: ${{ steps.discover.outputs.template_count }}
@@ -161,6 +171,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: discover-templates
     if: needs.discover-templates.outputs.template_count > 0
+    permissions:
+      contents: read  # Read repository code for validation
     strategy:
       matrix:
         template: ${{ fromJson(needs.discover-templates.outputs.templates) }}
@@ -203,6 +215,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: discover-templates
     if: needs.discover-templates.outputs.template_count > 0
+    permissions:
+      contents: read  # Read repository code and documentation
     strategy:
       matrix:
         template: ${{ fromJson(needs.discover-templates.outputs.templates) }}
@@ -254,6 +268,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: discover-templates
     if: needs.discover-templates.outputs.template_count > 0
+    permissions:
+      contents: read          # Read repository code for scanning
+      security-events: write  # Upload SARIF security scan results
 
     steps:
       - name: Checkout Code
@@ -282,6 +299,9 @@ jobs:
       needs.discover-templates.outputs.template_count > 0 &&
       github.event.inputs.comprehensive_test == 'true' &&
       success()
+    permissions:
+      contents: read   # Read repository code
+      id-token: write  # For OIDC authentication with Scaleway
     strategy:
       matrix:
         template: ${{ fromJson(needs.discover-templates.outputs.templates) }}
@@ -356,6 +376,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [discover-templates, validate-syntax, validate-documentation, security-scan]
     if: always()
+    permissions:
+      contents: read        # Read repository information
+      actions: write        # Upload validation report artifacts
+      pull-requests: write  # Comment validation results on PRs
 
     steps:
       - name: Checkout Code
@@ -444,6 +468,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [discover-templates, validate-syntax, validate-documentation, security-scan, test-deployment]
     if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read  # Read repository information
+      issues: write   # Create issues on critical failures
 
     steps:
       - name: Determine Overall Status
