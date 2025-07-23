@@ -221,16 +221,17 @@ resource "scaleway_lb_frontend" "https" {
   certificate_ids = var.domain_name != "" ? [scaleway_lb_certificate.main[0].id] : []
 }
 
-# Gateway for private network (enables internet access)
-resource "scaleway_vpc_public_gateway" "main" {
-  name = "${var.vpc_name}-gateway"
-  type = "VPC-GW-S"
+# Gateway IP (create first)
+resource "scaleway_vpc_public_gateway_ip" "main" {
   tags = var.tags
 }
 
-# Gateway IP
-resource "scaleway_vpc_public_gateway_ip" "main" {
-  gateway_id = scaleway_vpc_public_gateway.main.id
+# Gateway for private network (enables internet access)
+resource "scaleway_vpc_public_gateway" "main" {
+  name  = "${var.vpc_name}-gateway"
+  type  = "VPC-GW-S"
+  ip_id = scaleway_vpc_public_gateway_ip.main.id
+  tags  = var.tags
 }
 
 # Attach gateway to private network

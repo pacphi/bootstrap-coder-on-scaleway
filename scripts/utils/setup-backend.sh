@@ -75,7 +75,7 @@ Environment Variables:
   SCW_DEFAULT_REGION   Default Scaleway region
 
 Prerequisites:
-  - Terraform >= 1.6.0
+  - Terraform >= 1.12.0
   - Valid Scaleway credentials
 EOF
 }

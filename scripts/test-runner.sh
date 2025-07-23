@@ -247,7 +247,7 @@ test_prerequisites_versions() {
     # Check Terraform version
     if command -v terraform &> /dev/null; then
         local tf_version=$(terraform version -json 2>/dev/null | jq -r '.terraform_version' || terraform version | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-        local tf_min_version="1.6.0"
+        local tf_min_version="1.12.0"
 
         if [[ "$tf_version" != "unknown" ]]; then
             if printf '%s\n%s\n' "$tf_min_version" "$tf_version" | sort -V -C; then

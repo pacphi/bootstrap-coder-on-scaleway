@@ -114,7 +114,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.6.0"
+          terraform_version: "~1.12.0"
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
@@ -460,7 +460,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.6.0"
+          terraform_version: "~1.12.0"
           terraform_wrapper: false
 
       - name: Configure Scaleway Credentials
@@ -599,7 +599,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.6.0"
+          terraform_version: "~1.12.0"
           terraform_wrapper: false
 
       - name: Setup kubectl

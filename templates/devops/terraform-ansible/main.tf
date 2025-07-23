@@ -89,20 +89,20 @@ data "coder_parameter" "terraform_version" {
   name         = "terraform_version"
   display_name = "Terraform Version"
   description  = "Terraform version to install"
-  default      = "1.6"
+  default      = "1.12"
   icon         = "/icon/terraform.svg"
   mutable      = false
   option {
-    name  = "Terraform 1.5"
-    value = "1.5"
+    name  = "Terraform 1.12"
+    value = "1.12"
   }
   option {
-    name  = "Terraform 1.6"
-    value = "1.6"
+    name  = "Terraform 1.13"
+    value = "1.13"
   }
   option {
-    name  = "Terraform 1.7"
-    value = "1.7"
+    name  = "Terraform 1.14"
+    value = "1.14"
   }
 }
 

@@ -147,7 +147,7 @@ check_prerequisites() {
 
     # Check Terraform version
     local tf_version=$(terraform version -json | jq -r '.terraform_version')
-    local min_version="1.6.0"
+    local min_version="1.12.0"
     if ! printf '%s\n%s\n' "$min_version" "$tf_version" | sort -V -C; then
         log ERROR "Terraform version $tf_version is too old. Minimum required: $min_version"
         exit 1

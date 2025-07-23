@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.6.0"
+  required_version = ">= 1.12.0"
 
   backend "s3" {
     # Configure remote backend for production
@@ -85,9 +85,9 @@ module "networking" {
   region = var.scaleway_region
   zone   = var.scaleway_zone
 
-  tags = merge(var.tags, {
+  tags = [for k, v in merge(var.tags, {
     Environment = local.environment
-  })
+  }) : "${k}:${v}"]
 }
 
 # Scaleway Cluster Module

@@ -25,7 +25,7 @@ This project adheres to a [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a welc
 
 Before contributing, ensure you have the following tools installed:
 
-- **Terraform** ≥1.6.0
+- **Terraform** ≥1.12.0
 - **kubectl** ≥1.28.0
 - **Helm** ≥3.12.0
 - **Git** for version control

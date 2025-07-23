@@ -1,93 +1,52 @@
-# Cluster Outputs
-output "cluster_id" {
-  description = "ID of the Kubernetes cluster"
-  value       = module.scaleway_cluster.cluster_id
+# Shared Configuration Outputs
+output "common_tags" {
+  description = "Common tags for all resources"
+  value       = local.common_tags
+}
+
+output "effective_config" {
+  description = "Effective configuration after applying environment defaults"
+  value       = local.effective_config
 }
 
 output "cluster_name" {
-  description = "Name of the Kubernetes cluster"
-  value       = module.scaleway_cluster.cluster_name
-}
-
-output "cluster_endpoint" {
-  description = "Endpoint of the Kubernetes cluster"
-  value       = module.scaleway_cluster.cluster_endpoint
-  sensitive   = true
-}
-
-output "cluster_ca_certificate" {
-  description = "CA certificate of the Kubernetes cluster"
-  value       = module.scaleway_cluster.cluster_ca_certificate
-  sensitive   = true
-}
-
-output "cluster_token" {
-  description = "Authentication token for the Kubernetes cluster"
-  value       = module.scaleway_cluster.cluster_token
-  sensitive   = true
-}
-
-# Database Outputs
-output "database_endpoint" {
-  description = "Endpoint of the PostgreSQL database"
-  value       = module.postgresql.endpoint
-  sensitive   = true
-}
-
-output "database_port" {
-  description = "Port of the PostgreSQL database"
-  value       = module.postgresql.port
+  description = "Generated cluster name"
+  value       = local.cluster_name
 }
 
 output "database_name" {
-  description = "Name of the PostgreSQL database"
-  value       = module.postgresql.database_name
+  description = "Generated database name"
+  value       = local.database_name
 }
 
-output "database_username" {
-  description = "Username for the PostgreSQL database"
-  value       = module.postgresql.username
-  sensitive   = true
+output "database_user" {
+  description = "Database user name"
+  value       = local.database_user
 }
 
-output "database_password" {
-  description = "Password for the PostgreSQL database"
-  value       = module.postgresql.password
-  sensitive   = true
+output "coder_namespace" {
+  description = "Kubernetes namespace for Coder"
+  value       = local.coder_namespace
 }
 
-# Networking Outputs
-output "vpc_id" {
-  description = "ID of the VPC"
-  value       = module.networking.vpc_id
+output "monitoring_namespace" {
+  description = "Kubernetes namespace for monitoring"
+  value       = local.monitoring_namespace
 }
 
-output "private_network_id" {
-  description = "ID of the private network"
-  value       = module.networking.private_network_id
+output "vpc_cidr" {
+  description = "VPC CIDR for the current environment"
+  value       = local.vpc_cidr[var.environment]
 }
 
-output "load_balancer_ip" {
-  description = "IP address of the load balancer"
-  value       = var.enable_load_balancer ? module.networking.load_balancer_ip : null
+output "private_subnet_cidr" {
+  description = "Private subnet CIDR for the current environment"
+  value       = local.private_subnet_cidr[var.environment]
 }
 
-# Coder Outputs
-output "coder_url" {
-  description = "URL to access Coder"
-  value       = module.coder_deployment.coder_url
-}
-
-output "coder_admin_username" {
-  description = "Initial admin username for Coder"
-  value       = module.coder_deployment.admin_username
-  sensitive   = true
-}
-
-output "coder_admin_password" {
-  description = "Initial admin password for Coder"
-  value       = module.coder_deployment.admin_password
-  sensitive   = true
+output "pod_security_standard" {
+  description = "Pod security standard for the current environment"
+  value       = local.pod_security_standard
 }
 
 # Cost Information
@@ -118,8 +77,8 @@ locals {
     "DB-GP-L"  = 73.80  # 8 vCPU, 16GB RAM
   }
 
-  cluster_cost  = var.node_count * lookup(local.node_costs, var.node_type, 0)
-  database_cost = lookup(local.db_costs, var.database_node_type, 0)
+  cluster_cost  = local.effective_config.node_count * lookup(local.node_costs, local.effective_config.node_type, 0)
+  database_cost = lookup(local.db_costs, local.effective_config.database_node_type, 0)
   network_cost  = var.enable_load_balancer ? 8.90 : 2.10  # LB + VPC costs
   total_cost    = local.cluster_cost + local.database_cost + local.network_cost
 }

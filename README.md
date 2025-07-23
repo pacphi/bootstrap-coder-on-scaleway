@@ -20,7 +20,7 @@ Install the following tools on your local machine:
 brew install terraform kubectl helm jq curl
 
 # Alternative: Install specific versions
-brew install terraform@1.6
+brew install terraform@1.12
 brew install kubernetes-cli@1.28
 brew install helm@3.12
 ```
@@ -76,7 +76,7 @@ scoop install terraform kubectl helm jq curl git
 #### Verify Installation
 ```bash
 # Check all tools are installed with correct versions
-terraform version   # Must be >= 1.6.0
+terraform version   # Must be >= 1.12.0
 kubectl version --client   # Must be >= 1.28.0
 helm version        # Must be >= 3.12.0
 jq --version        # Any recent version

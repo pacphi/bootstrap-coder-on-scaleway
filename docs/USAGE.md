@@ -20,7 +20,7 @@ Before deploying your first Coder environment, ensure you have the following too
 
 ```bash
 # Check required versions
-terraform version    # >= 1.6.0
+terraform version    # >= 1.12.0
 kubectl version      # >= 1.28.0
 helm version         # >= 3.12.0
 ```
@@ -1316,18 +1316,18 @@ EOF
 ```bash
 # Symptom
 ./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai
-ERROR: Terraform not found or version < 1.6.0
+ERROR: Terraform not found or version < 1.12.0
 
 # Solution
 # 1. Check versions
-terraform version    # Should be >= 1.6.0
+terraform version    # Should be >= 1.12.0
 kubectl version      # Should be >= 1.28.0
 helm version         # Should be >= 3.12.0
 
 # 2. Install missing tools
 # Terraform
-wget https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip
-unzip terraform_1.6.6_linux_amd64.zip
+wget https://releases.hashicorp.com/terraform/1.12.2/terraform_1.12.2_linux_amd64.zip
+unzip terraform_1.12.2_linux_amd64.zip
 sudo mv terraform /usr/local/bin/
 
 # kubectl

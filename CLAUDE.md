@@ -8,7 +8,7 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 
 ## Core Technology Stack
 
-- **Infrastructure**: Terraform (≥1.6.0) with Scaleway provider
+- **Infrastructure**: Terraform (≥1.12.0) with Scaleway provider
 - **State Storage**: Remote state using Scaleway Object Storage (S3-compatible)
 - **Container Platform**: Kubernetes on Scaleway Kapsule with Cilium CNI
 - **Application**: Coder development platform with workspace templates
@@ -184,7 +184,7 @@ Each `environments/{env}/` directory contains:
 ## Prerequisites and Setup
 
 ### Required Tools and Versions
-- **Terraform** ≥1.6.0
+- **Terraform** ≥1.12.0
 - **kubectl** ≥1.28.0
 - **Helm** ≥3.12.0
 - **Git** for version control
