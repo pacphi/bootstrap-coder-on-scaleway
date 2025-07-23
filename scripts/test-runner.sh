@@ -53,7 +53,7 @@ including infrastructure, templates, workflows, and integrations.
 
 Options:
     --suite=SUITE           Test suite to run [required]
-                           Options: all, smoke, infrastructure, templates, workflows, integration
+                           Options: all, smoke, prerequisites, infrastructure, templates, workflows, integration
     --environment=ENV       Test environment (dev|staging) [default: dev]
     --no-cleanup           Skip cleanup after tests
     --parallel             Run compatible tests in parallel
@@ -64,12 +64,14 @@ Options:
 Test Suites:
     all                    Run all test suites (comprehensive)
     smoke                  Quick smoke tests for basic functionality
+    prerequisites          Check required tools, versions, and credentials
     infrastructure         Infrastructure deployment and configuration tests
     templates              Template validation and deployment tests
     workflows              GitHub Actions workflow tests (dry-run)
     integration            End-to-end integration tests
 
 Examples:
+    $0 --suite=prerequisites
     $0 --suite=smoke
     $0 --suite=templates --environment=dev --parallel
     $0 --suite=all --no-cleanup --timeout=7200
@@ -131,7 +133,10 @@ setup_test_environment() {
 
     if [[ ${#missing_tools[@]} -gt 0 ]]; then
         log ERROR "Missing required tools: ${missing_tools[*]}"
-        exit 1
+        # Don't exit if we're running prerequisites test suite
+        if [[ "$TEST_SUITE" != "prerequisites" ]]; then
+            exit 1
+        fi
     fi
 
     # Check Scaleway credentials
@@ -153,23 +158,221 @@ run_test() {
     local test_start=$(date +%s)
     local test_log="${OUTPUT_DIR}/${test_name//[^a-zA-Z0-9]/_}.log"
 
-    if timeout "$TEST_TIMEOUT" bash -c "$test_function" 2>&1 | tee "$test_log"; then
-        local test_end=$(date +%s)
-        local test_duration=$((test_end - test_start))
-        log PASS "$test_name (${test_duration}s)"
-        ((TESTS_PASSED++))
-        return 0
+    # Use timeout if available, otherwise run directly
+    if command -v timeout &>/dev/null; then
+        if timeout "$TEST_TIMEOUT" "$test_function" 2>&1 | tee "$test_log"; then
+            local test_end=$(date +%s)
+            local test_duration=$((test_end - test_start))
+            log PASS "$test_name (${test_duration}s)"
+            ((TESTS_PASSED++))
+            return 0
+        else
+            local test_end=$(date +%s)
+            local test_duration=$((test_end - test_start))
+            log FAIL "$test_name (${test_duration}s)"
+            ((TESTS_FAILED++))
+            FAILED_TESTS+=("$test_name")
+            return 1
+        fi
     else
-        local test_end=$(date +%s)
-        local test_duration=$((test_end - test_start))
-        log FAIL "$test_name (${test_duration}s)"
-        ((TESTS_FAILED++))
-        FAILED_TESTS+=("$test_name")
-        return 1
+        # Run without timeout
+        if "$test_function" 2>&1 | tee "$test_log"; then
+            local test_end=$(date +%s)
+            local test_duration=$((test_end - test_start))
+            log PASS "$test_name (${test_duration}s)"
+            ((TESTS_PASSED++))
+            return 0
+        else
+            local test_end=$(date +%s)
+            local test_duration=$((test_end - test_start))
+            log FAIL "$test_name (${test_duration}s)"
+            ((TESTS_FAILED++))
+            FAILED_TESTS+=("$test_name")
+            return 1
+        fi
     fi
 }
 
 # Test Functions
+
+test_prerequisites_tools() {
+    log INFO "Checking required tools installation"
+    
+    local required_tools=("terraform" "kubectl" "helm" "jq" "curl" "git")
+    local missing_tools=()
+    local found_tools=()
+    
+    for tool in "${required_tools[@]}"; do
+        if command -v "$tool" &> /dev/null; then
+            found_tools+=("$tool")
+            log INFO "✓ $tool is installed"
+        else
+            missing_tools+=("$tool")
+            log ERROR "✗ $tool is NOT installed"
+        fi
+    done
+    
+    # Check optional tools
+    log INFO ""
+    log INFO "Checking optional tools"
+    
+    if command -v "gh" &> /dev/null; then
+        log INFO "✓ gh (GitHub CLI) is installed - required for GitHub Actions deployment"
+    else
+        log WARN "! gh (GitHub CLI) is NOT installed - optional, needed for GitHub Actions"
+    fi
+    
+    if [[ ${#missing_tools[@]} -gt 0 ]]; then
+        log ERROR ""
+        log ERROR "Missing required tools: ${missing_tools[*]}"
+        log ERROR ""
+        log ERROR "Installation instructions:"
+        log ERROR "  macOS:        brew install ${missing_tools[*]}"
+        log ERROR "  Ubuntu/Debian: See Prerequisites section in README.md"
+        log ERROR "  Other:        Visit tool documentation for installation instructions"
+        return 1
+    else
+        log INFO ""
+        log INFO "✅ All required tools are installed"
+        return 0
+    fi
+}
+
+test_prerequisites_versions() {
+    log INFO "Checking tool versions"
+    
+    local version_errors=0
+    
+    # Check Terraform version
+    if command -v terraform &> /dev/null; then
+        local tf_version=$(terraform version -json 2>/dev/null | jq -r '.terraform_version' || terraform version | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        local tf_min_version="1.6.0"
+        
+        if [[ "$tf_version" != "unknown" ]]; then
+            if printf '%s\n%s\n' "$tf_min_version" "$tf_version" | sort -V -C; then
+                log INFO "✓ Terraform version $tf_version (>= $tf_min_version required)"
+            else
+                log ERROR "✗ Terraform version $tf_version is too old (>= $tf_min_version required)"
+                ((version_errors++))
+            fi
+        else
+            log WARN "! Unable to determine Terraform version"
+        fi
+    fi
+    
+    # Check kubectl version
+    if command -v kubectl &> /dev/null; then
+        local kubectl_version=$(kubectl version --client -o json 2>/dev/null | jq -r '.clientVersion.gitVersion' | sed 's/v//' || echo "unknown")
+        local kubectl_min_version="1.28.0"
+        
+        if [[ "$kubectl_version" != "unknown" ]]; then
+            if printf '%s\n%s\n' "$kubectl_min_version" "$kubectl_version" | sort -V -C; then
+                log INFO "✓ kubectl version $kubectl_version (>= $kubectl_min_version required)"
+            else
+                log ERROR "✗ kubectl version $kubectl_version is too old (>= $kubectl_min_version required)"
+                ((version_errors++))
+            fi
+        else
+            log WARN "! Unable to determine kubectl version"
+        fi
+    fi
+    
+    # Check Helm version
+    if command -v helm &> /dev/null; then
+        local helm_version=$(helm version --short 2>/dev/null | sed 's/v//' | cut -d'+' -f1 || echo "unknown")
+        local helm_min_version="3.12.0"
+        
+        if [[ "$helm_version" != "unknown" ]]; then
+            if printf '%s\n%s\n' "$helm_min_version" "$helm_version" | sort -V -C; then
+                log INFO "✓ Helm version $helm_version (>= $helm_min_version required)"
+            else
+                log ERROR "✗ Helm version $helm_version is too old (>= $helm_min_version required)"
+                ((version_errors++))
+            fi
+        else
+            log WARN "! Unable to determine Helm version"
+        fi
+    fi
+    
+    # Check other tools (version not critical)
+    for tool in jq curl git; do
+        if command -v "$tool" &> /dev/null; then
+            local version=$($tool --version 2>&1 | head -1 || echo "installed")
+            log INFO "✓ $tool: $version"
+        fi
+    done
+    
+    if [[ $version_errors -gt 0 ]]; then
+        log ERROR ""
+        log ERROR "Some tools have outdated versions. Please update them."
+        return 1
+    else
+        log INFO ""
+        log INFO "✅ All tool versions meet requirements"
+        return 0
+    fi
+}
+
+test_prerequisites_credentials() {
+    log INFO "Checking Scaleway credentials"
+    
+    local missing_creds=()
+    
+    # Check required environment variables
+    if [[ -n "${SCW_ACCESS_KEY:-}" ]]; then
+        log INFO "✓ SCW_ACCESS_KEY is set"
+    else
+        missing_creds+=("SCW_ACCESS_KEY")
+        log ERROR "✗ SCW_ACCESS_KEY is NOT set"
+    fi
+    
+    if [[ -n "${SCW_SECRET_KEY:-}" ]]; then
+        log INFO "✓ SCW_SECRET_KEY is set"
+    else
+        missing_creds+=("SCW_SECRET_KEY")
+        log ERROR "✗ SCW_SECRET_KEY is NOT set"
+    fi
+    
+    if [[ -n "${SCW_DEFAULT_PROJECT_ID:-}" ]]; then
+        log INFO "✓ SCW_DEFAULT_PROJECT_ID is set"
+    else
+        missing_creds+=("SCW_DEFAULT_PROJECT_ID")
+        log ERROR "✗ SCW_DEFAULT_PROJECT_ID is NOT set"
+    fi
+    
+    # Check optional environment variables
+    log INFO ""
+    log INFO "Checking optional environment variables"
+    
+    if [[ -n "${SCW_DEFAULT_REGION:-}" ]]; then
+        log INFO "✓ SCW_DEFAULT_REGION is set to: $SCW_DEFAULT_REGION"
+    else
+        log WARN "! SCW_DEFAULT_REGION is NOT set (will default to fr-par)"
+    fi
+    
+    if [[ -n "${SCW_DEFAULT_ZONE:-}" ]]; then
+        log INFO "✓ SCW_DEFAULT_ZONE is set to: $SCW_DEFAULT_ZONE"
+    else
+        log WARN "! SCW_DEFAULT_ZONE is NOT set (will default to fr-par-1)"
+    fi
+    
+    if [[ ${#missing_creds[@]} -gt 0 ]]; then
+        log ERROR ""
+        log ERROR "Missing required credentials: ${missing_creds[*]}"
+        log ERROR ""
+        log ERROR "To set credentials:"
+        log ERROR "  export SCW_ACCESS_KEY=\"your-access-key\""
+        log ERROR "  export SCW_SECRET_KEY=\"your-secret-key\""
+        log ERROR "  export SCW_DEFAULT_PROJECT_ID=\"your-project-id\""
+        log ERROR ""
+        log ERROR "Get credentials from: https://console.scaleway.com/iam/api-keys"
+        return 1
+    else
+        log INFO ""
+        log INFO "✅ All required credentials are set"
+        return 0
+    fi
+}
 
 test_script_syntax() {
     log INFO "Validating script syntax and executability"
@@ -411,6 +614,14 @@ test_integration_environment_lifecycle() {
     fi
 }
 
+run_prerequisites_tests() {
+    log STEP "Running prerequisites tests..."
+    
+    run_test "Required Tools Check" "test_prerequisites_tools"
+    run_test "Tool Versions Check" "test_prerequisites_versions"
+    run_test "Scaleway Credentials Check" "test_prerequisites_credentials"
+}
+
 run_smoke_tests() {
     log STEP "Running smoke tests..."
 
@@ -482,7 +693,11 @@ generate_test_report() {
 $( for i in $(seq 1 $TESTS_PASSED); do echo "✅ Test passed"; done )
 
 ### Failed Tests: $TESTS_FAILED
-$( for test in "${FAILED_TESTS[@]}"; do echo "❌ $test"; done )
+$( if [[ ${#FAILED_TESTS[@]} -gt 0 ]]; then
+    for test in "${FAILED_TESTS[@]}"; do echo "❌ $test"; done
+else
+    echo "None"
+fi )
 
 ## Test Logs
 
@@ -545,9 +760,11 @@ print_summary() {
     if [[ $TESTS_FAILED -gt 0 ]]; then
         echo
         echo -e "${YELLOW}Failed Tests:${NC}"
-        for test in "${FAILED_TESTS[@]}"; do
-            echo -e "  ${RED}✗${NC} $test"
-        done
+        if [[ ${#FAILED_TESTS[@]} -gt 0 ]]; then
+            for test in "${FAILED_TESTS[@]}"; do
+                echo -e "  ${RED}✗${NC} $test"
+            done
+        fi
     fi
 
     echo
@@ -624,6 +841,9 @@ main() {
 
     # Run selected test suite
     case "$TEST_SUITE" in
+        prerequisites)
+            run_prerequisites_tests
+            ;;
         smoke)
             run_smoke_tests
             ;;
@@ -640,6 +860,7 @@ main() {
             run_integration_tests
             ;;
         all)
+            run_prerequisites_tests
             run_smoke_tests
             run_infrastructure_tests
             run_template_tests
@@ -648,7 +869,7 @@ main() {
             ;;
         *)
             log ERROR "Unknown test suite: $TEST_SUITE"
-            log ERROR "Available suites: all, smoke, infrastructure, templates, workflows, integration"
+            log ERROR "Available suites: all, smoke, prerequisites, infrastructure, templates, workflows, integration"
             exit 1
             ;;
     esac

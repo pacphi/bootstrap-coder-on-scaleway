@@ -72,7 +72,7 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 
 ```bash
 # Run comprehensive validation suite
-./scripts/test-runner.sh --suite=all --verbose
+./scripts/test-runner.sh --suite=all
 
 # Quick health check for specific environment
 ./scripts/validate.sh --env=prod --quick
@@ -80,8 +80,8 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 # Validate specific test suites
 ./scripts/test-runner.sh --suite=smoke,templates --format=json
 
-# Check prerequisites and fix issues
-./scripts/test-runner.sh --suite=prerequisites --fix
+# Check prerequisites
+./scripts/test-runner.sh --suite=prerequisites
 ```
 
 ### Scaling and Resource Management
@@ -260,7 +260,7 @@ Templates are located in `templates/{category}/{framework}/` and contain:
 **Template Deployment Failures**
 ```bash
 # Validate template syntax and dependencies
-./scripts/test-runner.sh --suite=templates --verbose --template=<template-name>
+./scripts/test-runner.sh --suite=templates --template=<template-name>
 ```
 
 **Cost Overruns**

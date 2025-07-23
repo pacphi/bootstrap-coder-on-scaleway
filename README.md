@@ -140,7 +140,7 @@ git clone https://github.com/your-org/bootstrap-coder-on-scaleway.git
 cd bootstrap-coder-on-scaleway
 
 # Run prerequisite check
-./scripts/test-runner.sh --suite=prerequisites --fix
+./scripts/test-runner.sh --suite=prerequisites
 ```
 
 ## ⚡ Quick Start
@@ -259,7 +259,7 @@ gh workflow run validate-templates.yml \
 ### Comprehensive Testing
 ```bash
 # Run all validation tests
-./scripts/test-runner.sh --suite=all --verbose
+./scripts/test-runner.sh --suite=all
 
 # Run specific test suites
 ./scripts/test-runner.sh --suite=smoke,templates --format=json
@@ -427,13 +427,13 @@ jobs:
 **Prerequisites Missing**
 ```bash
 # Check system requirements
-./scripts/test-runner.sh --suite=prerequisites --fix
+./scripts/test-runner.sh --suite=prerequisites
 ```
 
 **Template Deployment Fails**
 ```bash
 # Validate templates
-./scripts/test-runner.sh --suite=templates --verbose
+./scripts/test-runner.sh --suite=templates
 
 # Check template syntax
 gh workflow run validate-templates.yml -f validation_scope=syntax

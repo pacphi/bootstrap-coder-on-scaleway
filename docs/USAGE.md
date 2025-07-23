@@ -1541,8 +1541,7 @@ gh secret get SCW_ACCESS_KEY  # Should not show value
 # 5. Run manual deployment for debugging
 ./scripts/lifecycle/setup.sh \
   --env=dev \
-  --template=python-django-crewai \
-  --verbose
+  --template=python-django-crewai
 ```
 
 #### Template Validation Failures
@@ -1556,9 +1555,7 @@ ERROR: Template 'custom-template' failed validation
 # Solution
 # 1. Test template locally
 ./scripts/test-runner.sh \
-  --suite=templates \
-  --filter=custom-template \
-  --verbose
+  --suite=templates
 
 # 2. Check template syntax
 cd templates/backend/custom-template
