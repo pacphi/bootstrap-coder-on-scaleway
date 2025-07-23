@@ -41,7 +41,7 @@ resource "scaleway_rdb_instance" "postgresql" {
 
   settings = merge(var.settings, var.init_settings)
 
-  tags = var.tags
+  tags = [for k, v in var.tags : "${k}:${v}"]
 
   depends_on = [random_password.db_password]
 }
@@ -58,7 +58,7 @@ resource "scaleway_rdb_user" "coder_user" {
 resource "scaleway_rdb_database" "coder_database" {
   instance_id = scaleway_rdb_instance.postgresql.id
   name        = var.database_name
-  owner       = scaleway_rdb_user.coder_user.name
+  # owner removed - automatically set based on user creation
 
   depends_on = [scaleway_rdb_user.coder_user]
 }

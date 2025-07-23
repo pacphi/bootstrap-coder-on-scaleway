@@ -29,7 +29,6 @@ resource "scaleway_instance_security_group" "kubernetes" {
     action      = "accept"
     protocol    = "ANY"
     ip_range    = "10.0.0.0/8"
-    description = "Allow internal VPC communication"
   }
 
   # Allow HTTPS from anywhere (for Coder web interface)
@@ -38,7 +37,6 @@ resource "scaleway_instance_security_group" "kubernetes" {
     protocol    = "TCP"
     port        = 443
     ip_range    = "0.0.0.0/0"
-    description = "Allow HTTPS traffic"
   }
 
   # Allow HTTP from anywhere (for HTTP to HTTPS redirect)
@@ -47,7 +45,6 @@ resource "scaleway_instance_security_group" "kubernetes" {
     protocol    = "TCP"
     port        = 80
     ip_range    = "0.0.0.0/0"
-    description = "Allow HTTP traffic"
   }
 
   # Allow SSH from anywhere (for debugging)
@@ -56,7 +53,6 @@ resource "scaleway_instance_security_group" "kubernetes" {
     protocol    = "TCP"
     port        = 22
     ip_range    = "0.0.0.0/0"
-    description = "Allow SSH traffic"
   }
 
   # Allow Kubernetes API server
@@ -65,7 +61,6 @@ resource "scaleway_instance_security_group" "kubernetes" {
     protocol    = "TCP"
     port        = 6443
     ip_range    = "0.0.0.0/0"
-    description = "Allow Kubernetes API server"
   }
 
   # Allow NodePort services (30000-32767)
@@ -74,7 +69,6 @@ resource "scaleway_instance_security_group" "kubernetes" {
     protocol    = "TCP"
     port_range  = "30000-32767"
     ip_range    = "0.0.0.0/0"
-    description = "Allow NodePort services"
   }
 
   # Custom security group rules
@@ -86,7 +80,7 @@ resource "scaleway_instance_security_group" "kubernetes" {
       port        = inbound_rule.value.port
       port_range  = inbound_rule.value.port_range
       ip_range    = inbound_rule.value.ip_range
-      description = inbound_rule.value.description
+      # description field removed - not supported in Scaleway provider v2.34+
     }
   }
 
@@ -95,7 +89,6 @@ resource "scaleway_instance_security_group" "kubernetes" {
     action      = "accept"
     protocol    = "ANY"
     ip_range    = "0.0.0.0/0"
-    description = "Allow all outbound traffic"
   }
 
   # Custom outbound security group rules
@@ -107,7 +100,7 @@ resource "scaleway_instance_security_group" "kubernetes" {
       port        = outbound_rule.value.port
       port_range  = outbound_rule.value.port_range
       ip_range    = outbound_rule.value.ip_range
-      description = outbound_rule.value.description
+      # description field removed - not supported in Scaleway provider v2.34+
     }
   }
 
@@ -134,8 +127,8 @@ resource "scaleway_lb" "main" {
 # Load Balancer IP
 resource "scaleway_lb_ip" "main" {
   count = var.enable_load_balancer ? 1 : 0
-
-  lb_id = scaleway_lb.main[0].id
+  
+  # lb_id removed - IP is automatically associated with the load balancer
 }
 
 # SSL Certificate (if domain is provided)
@@ -199,12 +192,12 @@ resource "scaleway_lb_frontend" "http" {
       type = "redirect"
       redirect {
         type   = "scheme"
-        scheme = "https"
+        # scheme removed - type="scheme" already indicates HTTPS redirect
         code   = 301
       }
     }
     match {
-      http_filter = "path_beg"
+      http_filter = "path_begin"
       http_filter_value = ["/"]
     }
   }
@@ -239,6 +232,9 @@ resource "scaleway_vpc_gateway_network" "main" {
   gateway_id         = scaleway_vpc_public_gateway.main.id
   private_network_id = scaleway_vpc_private_network.private_network.id
   dhcp_id           = scaleway_vpc_private_network.private_network.id
-  cleanup_dhcp      = true
+  # cleanup_dhcp deprecated - using ipam_config instead
+  ipam_config {
+    push_default_route = true
+  }
   enable_masquerade = true
 }

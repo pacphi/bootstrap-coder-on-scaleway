@@ -5,12 +5,12 @@ output "instance_id" {
 
 output "endpoint" {
   description = "Connection endpoint for the PostgreSQL database"
-  value       = scaleway_rdb_instance.postgresql.endpoint_ip
+  value       = scaleway_rdb_instance.postgresql.private_network[0].ip
 }
 
 output "port" {
   description = "Connection port for the PostgreSQL database"
-  value       = scaleway_rdb_instance.postgresql.endpoint_port
+  value       = scaleway_rdb_instance.postgresql.private_network[0].port
 }
 
 output "database_name" {
@@ -31,20 +31,17 @@ output "password" {
 
 output "connection_string" {
   description = "PostgreSQL connection string"
-  value       = "postgresql://${scaleway_rdb_user.coder_user.name}:${random_password.db_password.result}@${scaleway_rdb_instance.postgresql.endpoint_ip}:${scaleway_rdb_instance.postgresql.endpoint_port}/${scaleway_rdb_database.coder_database.name}?sslmode=require"
+  value       = "postgresql://${scaleway_rdb_user.coder_user.name}:${random_password.db_password.result}@${scaleway_rdb_instance.postgresql.private_network[0].ip}:${scaleway_rdb_instance.postgresql.private_network[0].port}/${scaleway_rdb_database.coder_database.name}?sslmode=require"
   sensitive   = true
 }
 
 output "connection_pool_string" {
   description = "PostgreSQL connection string for connection pooling"
-  value       = "postgresql://${scaleway_rdb_user.coder_user.name}:${random_password.db_password.result}@${scaleway_rdb_instance.postgresql.endpoint_ip}:${scaleway_rdb_instance.postgresql.endpoint_port}/${scaleway_rdb_database.coder_database.name}?sslmode=require&pool_max_conns=10"
+  value       = "postgresql://${scaleway_rdb_user.coder_user.name}:${random_password.db_password.result}@${scaleway_rdb_instance.postgresql.private_network[0].ip}:${scaleway_rdb_instance.postgresql.private_network[0].port}/${scaleway_rdb_database.coder_database.name}?sslmode=require&pool_max_conns=10"
   sensitive   = true
 }
 
-output "instance_status" {
-  description = "Status of the PostgreSQL instance"
-  value       = scaleway_rdb_instance.postgresql.status
-}
+# instance_status removed - status attribute not available in Scaleway provider v2.34+
 
 output "engine_version" {
   description = "Version of the PostgreSQL engine"
