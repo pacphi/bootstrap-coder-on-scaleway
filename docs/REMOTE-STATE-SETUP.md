@@ -94,7 +94,7 @@ export SCW_DEFAULT_PROJECT_ID="your-project-id"
 
 ### 2. Automatic Backend Provisioning (Recommended)
 
-**The remote state backend is now automatically provisioned during GitHub Actions workflows.** 
+**The remote state backend is now automatically provisioned during GitHub Actions workflows.**
 
 When you run any deployment workflow (deploy-environment.yml, teardown-environment.yml, or validate-templates.yml), the system will:
 

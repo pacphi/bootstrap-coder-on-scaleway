@@ -119,7 +119,7 @@ jobs:
         id: check-existing
         run: |
           environment="${{ steps.validate.outputs.environment }}"
-          
+
           # Skip if environment is 'all' - will be handled in next step
           if [[ "$environment" == "all" ]]; then
             echo "checking_all_environments=true" >> $GITHUB_OUTPUT
@@ -150,7 +150,7 @@ jobs:
         id: bucket-names
         run: |
           environment="${{ steps.validate.outputs.environment }}"
-          
+
           if [[ "$environment" == "all" ]]; then
             echo "dev_bucket=terraform-state-coder-dev" >> $GITHUB_OUTPUT
             echo "staging_bucket=terraform-state-coder-staging" >> $GITHUB_OUTPUT
@@ -170,7 +170,7 @@ jobs:
           check_bucket_exists() {
             local bucket_name="$1"
             local temp_dir=$(mktemp -d)
-            
+
             # Create a minimal Terraform config to check bucket existence
             cat > "$temp_dir/main.tf" << EOF
           terraform {
@@ -203,7 +203,7 @@ jobs:
           EOF
 
             cd "$temp_dir"
-            
+
             # Initialize terraform
             if ! terraform init -backend=false > /dev/null 2>&1; then
               echo "not_exists"
@@ -216,7 +216,7 @@ jobs:
             if terraform plan > /dev/null 2>&1 && terraform apply -auto-approve > /dev/null 2>&1; then
               local exists=$(terraform output -raw bucket_exists 2>/dev/null || echo "false")
               local endpoint=$(terraform output -raw bucket_endpoint 2>/dev/null || echo "")
-              
+
               if [[ "$exists" == "true" ]]; then
                 echo "exists"
                 echo "$endpoint"
@@ -237,11 +237,11 @@ jobs:
             for env in dev staging prod; do
               bucket_name="terraform-state-coder-$env"
               echo "🔍 Checking bucket: $bucket_name"
-              
+
               result=$(check_bucket_exists "$bucket_name")
               status=$(echo "$result" | head -1)
               endpoint=$(echo "$result" | tail -1)
-              
+
               echo "${env}_bucket_exists=$status" >> $GITHUB_OUTPUT
               if [[ "$status" == "exists" ]] && [[ -n "$endpoint" ]]; then
                 echo "${env}_bucket_endpoint=$endpoint" >> $GITHUB_OUTPUT
@@ -250,11 +250,11 @@ jobs:
           else
             bucket_name="${{ steps.bucket-names.outputs.bucket_name }}"
             echo "🔍 Checking bucket: $bucket_name"
-            
+
             result=$(check_bucket_exists "$bucket_name")
             status=$(echo "$result" | head -1)
             endpoint=$(echo "$result" | tail -1)
-            
+
             echo "bucket_exists=$status" >> $GITHUB_OUTPUT
             if [[ "$status" == "exists" ]] && [[ -n "$endpoint" ]]; then
               echo "bucket_endpoint=$endpoint" >> $GITHUB_OUTPUT
@@ -383,7 +383,7 @@ jobs:
           validate_environment() {
             local env="$1"
             local env_dir="environments/$env"
-            
+
             echo "🔍 Validating backend configuration for: $env"
 
             # Check if environment directory exists
@@ -404,7 +404,7 @@ jobs:
             echo "  Initializing Terraform backend..."
             if terraform init 2>&1; then
               echo "✅ Backend initialization successful for $env"
-              
+
               # Test backend connectivity by checking remote state
               echo "  Testing backend connectivity..."
               if terraform state list > /dev/null 2>&1; then

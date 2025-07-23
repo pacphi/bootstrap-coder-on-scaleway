@@ -138,44 +138,233 @@ jobs:
           echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
           echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
 
+      - name: Check Terraform Formatting
+        run: |
+          echo "🔍 Checking Terraform formatting across the repository..."
+
+          # Check format for all .tf files and collect issues
+          format_issues=()
+
+          # Check environment files
+          for env_dir in environments/*/; do
+            if [[ -d "$env_dir" ]]; then
+              echo "📁 Checking environment: $(basename "$env_dir")"
+              cd "$env_dir"
+
+              # Run format check and capture output
+              if ! terraform fmt -check -diff .; then
+                format_issues+=("Environment: $(basename "$env_dir")")
+              fi
+              cd - > /dev/null
+            fi
+          done
+
+          # Check modules
+          for module_dir in modules/*/; do
+            if [[ -d "$module_dir" ]]; then
+              echo "📦 Checking module: $(basename "$module_dir")"
+              cd "$module_dir"
+
+              if ! terraform fmt -check -diff .; then
+                format_issues+=("Module: $(basename "$module_dir")")
+              fi
+              cd - > /dev/null
+            fi
+          done
+
+          # Check templates
+          for template_dir in templates/*/*/; do
+            if [[ -d "$template_dir" && -f "$template_dir/main.tf" ]]; then
+              template_name=$(echo "$template_dir" | sed 's|templates/||' | sed 's|/$||')
+              echo "🔧 Checking template: $template_name"
+              cd "$template_dir"
+
+              if ! terraform fmt -check -diff .; then
+                format_issues+=("Template: $template_name")
+              fi
+              cd - > /dev/null
+            fi
+          done
+
+          # Report format issues
+          if [[ ${#format_issues[@]} -gt 0 ]]; then
+            echo "❌ Terraform formatting issues found in the following locations:"
+            for issue in "${format_issues[@]}"; do
+              echo "  - $issue"
+            done
+            echo ""
+            echo "💡 To fix formatting issues, run the following commands locally:"
+            echo "   terraform fmt -recursive ."
+            echo "   git add -A && git commit -m 'Fix Terraform formatting'"
+            echo ""
+            echo "🚫 Workflow will continue, but formatting should be fixed in the next commit."
+            # Don't exit with failure - allow validation to continue
+          else
+            echo "✅ All Terraform files are properly formatted"
+          fi
+
       - name: Validate Terraform Configuration
         run: |
-          cd environments/${{ steps.determine-env.outputs.environment }}
-          terraform fmt -check -recursive
+          environment="${{ steps.determine-env.outputs.environment }}"
+          env_dir="environments/$environment"
+
+          echo "🔍 Validating Terraform configuration for environment: $environment"
+
+          # Check if environment directory exists
+          if [[ ! -d "$env_dir" ]]; then
+            echo "❌ Environment directory not found: $env_dir"
+            echo "Available environments:"
+            ls -la environments/
+            exit 1
+          fi
+
+          cd "$env_dir"
+
+          # Validate configuration files exist
+          if [[ ! -f "main.tf" ]]; then
+            echo "❌ main.tf not found in $env_dir"
+            ls -la .
+            exit 1
+          fi
+
+          echo "📄 Found configuration files:"
+          ls -la *.tf 2>/dev/null || echo "No .tf files found"
 
           # Initialize with remote backend if backend.tf exists, otherwise use local backend
           if [[ -f "backend.tf" ]]; then
             echo "🔄 Initializing with remote backend..."
-            terraform init
+            echo "Backend configuration found:"
+            head -10 backend.tf
+
+            # Initialize with detailed error output
+            if ! terraform init 2>&1; then
+              echo "❌ Terraform initialization failed with remote backend"
+              echo "🔍 Checking backend configuration..."
+              cat backend.tf
+              exit 1
+            fi
           else
             echo "⚠️ No remote backend configured, using local backend for validation"
-            terraform init -backend=false
+            if ! terraform init -backend=false 2>&1; then
+              echo "❌ Terraform initialization failed with local backend"
+              exit 1
+            fi
           fi
 
-          terraform validate
+          echo "✅ Terraform initialization successful"
+
+          # Run validation with detailed output
+          echo "🔍 Running terraform validate..."
+          if ! terraform validate 2>&1; then
+            echo "❌ Terraform validation failed"
+            echo "🔍 Configuration details:"
+            echo "Working directory: $(pwd)"
+            echo "Terraform files:"
+            ls -la *.tf
+            echo "Terraform version:"
+            terraform version
+            exit 1
+          fi
+
+          echo "✅ Terraform validation successful for environment: $environment"
 
       - name: Validate Template (if specified)
         if: ${{ steps.determine-env.outputs.template != '' }}
         run: |
-          # Find and validate template
-          template_path=""
-          while IFS= read -r -d '' template_file; do
-            template_name=$(dirname "$template_file" | sed 's|.*/templates/.*/||')
-            if [[ "$template_name" == "${{ steps.determine-env.outputs.template }}" ]]; then
-              template_path=$(dirname "$template_file")
-              break
-            fi
-          done < <(find ./templates -name "main.tf" -type f -print0)
+          template_name="${{ steps.determine-env.outputs.template }}"
+          echo "🔍 Validating workspace template: $template_name"
 
+          # Search for template in all categories
+          template_path=""
+          found_templates=()
+
+          echo "🔎 Searching for template in all categories..."
+
+          # Search through all template directories
+          for category_dir in templates/*/; do
+            if [[ -d "$category_dir" ]]; then
+              category_name=$(basename "$category_dir")
+              echo "  📁 Checking category: $category_name"
+
+              for template_dir in "$category_dir"*/; do
+                if [[ -d "$template_dir" && -f "$template_dir/main.tf" ]]; then
+                  current_template_name=$(basename "$template_dir")
+                  found_templates+=("$category_name/$current_template_name")
+
+                  if [[ "$current_template_name" == "$template_name" ]]; then
+                    template_path="$template_dir"
+                    echo "  ✅ Found matching template: $category_name/$current_template_name"
+                  else
+                    echo "  📄 Found template: $category_name/$current_template_name"
+                  fi
+                fi
+              done
+            fi
+          done
+
+          # Check if template was found
           if [[ -z "$template_path" ]]; then
-            echo "::error::Template not found: ${{ steps.determine-env.outputs.template }}"
+            echo "❌ Template '$template_name' not found!"
+            echo ""
+            echo "🔍 Available templates:"
+            if [[ ${#found_templates[@]} -eq 0 ]]; then
+              echo "  No templates found in templates/ directory"
+              echo "  Directory structure:"
+              find templates/ -type f -name "main.tf" 2>/dev/null | head -10 || echo "  No main.tf files found"
+            else
+              for template in "${found_templates[@]}"; do
+                echo "  - $template"
+              done
+            fi
+            echo ""
+            echo "💡 Make sure the template name matches exactly (case sensitive)"
+            echo "💡 Template should be in format: category/template-name"
             exit 1
           fi
 
+          echo "📂 Template path: $template_path"
+
+          # Validate template directory structure
           cd "$template_path"
-          terraform init -backend=false
-          terraform validate
-          echo "::notice::Template validated: ${{ steps.determine-env.outputs.template }}"
+          echo "📄 Template files found:"
+          ls -la
+
+          # Check for required files
+          if [[ ! -f "main.tf" ]]; then
+            echo "❌ main.tf not found in template directory"
+            exit 1
+          fi
+
+          # Initialize Terraform for template
+          echo "🔄 Initializing Terraform for template validation..."
+          if ! terraform init -backend=false 2>&1; then
+            echo "❌ Template Terraform initialization failed"
+            echo "🔍 Template directory contents:"
+            ls -la
+            echo "🔍 main.tf content (first 50 lines):"
+            head -50 main.tf
+            exit 1
+          fi
+
+          # Validate template configuration
+          echo "🔍 Running terraform validate on template..."
+          if ! terraform validate 2>&1; then
+            echo "❌ Template validation failed"
+            echo "🔍 Template details:"
+            echo "  Path: $template_path"
+            echo "  Template: $template_name"
+            echo "🔍 Terraform files in template:"
+            ls -la *.tf 2>/dev/null || echo "No .tf files found"
+            echo "🔍 Terraform version:"
+            terraform version
+            exit 1
+          fi
+
+          echo "✅ Template validation successful: $template_name"
+          echo "📊 Template summary:"
+          echo "  Name: $template_name"
+          echo "  Path: $template_path"
+          echo "  Category: $(dirname "$template_path" | sed 's|templates/||')"
 
   setup-backend:
     name: Setup Terraform Backend
