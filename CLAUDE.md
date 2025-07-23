@@ -310,6 +310,13 @@ kubectl exec -it deployment/coder -n coder -- env | grep DB_
 3. Apply appropriate Pod Security Standards based on environment
 4. Implement network policies for production environments
 
+### Integration Development
+1. All integrations are optional and activated via environment variables
+2. Use the comprehensive documentation in `docs/INTEGRATIONS.md`
+3. Test integrations using `test-runner.sh --suite=integrations`
+4. Follow the patterns in the hooks framework for consistent integration behavior
+5. Always implement graceful degradation when integrations are not configured
+
 ### Cost Optimization
 1. Use cost calculator before scaling or deploying
 2. Implement resource quotas and limits

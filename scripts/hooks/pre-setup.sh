@@ -122,12 +122,59 @@ log INFO "Running organization-specific pre-checks..."
 #     fi
 # fi
 
-# Example: Team notification
-# if [[ -n "${SLACK_WEBHOOK:-}" ]]; then
-#     curl -X POST -H 'Content-type: application/json' \
-#         --data '{"text":"🚀 Starting Coder deployment to '"$ENVIRONMENT"' environment"}' \
-#         "$SLACK_WEBHOOK" &>/dev/null || true
-# fi
+# Slack notification (optional - activated when SLACK_WEBHOOK is set)
+send_slack_notification() {
+    local message="$1"
+    local environment="$2"
+
+    # Use environment-specific webhook if available
+    local webhook="${SLACK_WEBHOOK:-}"
+    case "$environment" in
+        dev) webhook="${SLACK_WEBHOOK_DEV:-$webhook}" ;;
+        staging) webhook="${SLACK_WEBHOOK_STAGING:-$webhook}" ;;
+        prod) webhook="${SLACK_WEBHOOK_PROD:-$webhook}" ;;
+    esac
+
+    if [[ -n "$webhook" ]]; then
+        local response=$(curl -s -X POST -H 'Content-type: application/json' \
+            --max-time 10 \
+            --data '{
+                "attachments": [{
+                    "color": "good",
+                    "text": "'"$message"'",
+                    "fields": [
+                        {
+                            "title": "Environment",
+                            "value": "'"$environment"'",
+                            "short": true
+                        },
+                        {
+                            "title": "Phase",
+                            "value": "Pre-Setup",
+                            "short": true
+                        },
+                        {
+                            "title": "Timestamp",
+                            "value": "'"$(date -Iseconds)"'",
+                            "short": false
+                        }
+                    ]
+                }]
+            }' \
+            "$webhook" 2>/dev/null)
+
+        if [[ $? -eq 0 ]]; then
+            log INFO "Slack notification sent successfully"
+        else
+            log WARN "Slack notification failed (webhook may be unreachable)"
+        fi
+    else
+        log INFO "Slack integration not configured (SLACK_WEBHOOK not set)"
+    fi
+}
+
+# Send pre-setup notification
+send_slack_notification "🚀 Starting Coder deployment to $ENVIRONMENT environment" "$ENVIRONMENT"
 
 log INFO "Pre-setup hook completed successfully"
 

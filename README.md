@@ -221,6 +221,7 @@ Flutter, React Native, Ionic
 - **[📋 Usage Guide](docs/USAGE.md)** - Complete usage examples, GitHub Actions workflows, and troubleshooting
 - **[🏗️ Architecture Guide](docs/ARCHITECTURE.md)** - System design, components, CI/CD flows, and Mermaid diagrams
 - **[🤖 AI Assistant Context](CLAUDE.md)** - Technical context for Claude Code integration and new capabilities
+- **[🔌 Integrations Guide](docs/INTEGRATIONS.md)** - External integrations setup (Slack, JIRA, monitoring, compliance)
 - **[🔧 Hooks Framework](scripts/hooks/README.md)** - Extensible automation and integration examples
 - **[🧪 Testing Guide](scripts/test-runner.sh)** - Comprehensive validation and testing procedures
 - **[📊 Cost Management](scripts/utils/cost-calculator.sh)** - Real-time cost tracking and optimization
@@ -263,6 +264,9 @@ gh workflow run validate-templates.yml \
 
 # Run specific test suites
 ./scripts/test-runner.sh --suite=smoke,templates --format=json
+
+# Test external integrations
+./scripts/test-runner.sh --suite=integrations
 ```
 
 ### Environment Validation
@@ -309,6 +313,8 @@ gh workflow run validate-templates.yml \
 - **External monitoring** system registration
 - **Compliance checks** and audit logging
 - **User notifications** and workspace management
+
+📚 **[Complete Integration Setup Guide](docs/INTEGRATIONS.md)** - Detailed documentation for configuring all external integrations
 
 ## 🚀 Key Features
 
