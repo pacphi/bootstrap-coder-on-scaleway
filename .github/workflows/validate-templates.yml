@@ -55,48 +55,106 @@ jobs:
       - name: Discover Templates
         id: discover
         run: |
-          # Discover all available templates
-          templates_json="["
+          set -euo pipefail
+
+          echo "::group::Template Discovery"
+          echo "Starting template discovery..."
+          echo "Filter: ${{ github.event.inputs.template_filter || '*' }}"
+
+          # Initialize variables
+          templates_array=()
           template_count=0
-          first=true
+          filter="${{ github.event.inputs.template_filter || '*' }}"
 
+          # Find all main.tf files in templates directory
+          echo "Searching for templates..."
           while IFS= read -r -d '' template_file; do
-            # Extract template info
-            template_name=$(dirname "$template_file" | sed 's|.*/templates/.*/||')
-            template_category=$(dirname "$template_file" | sed 's|.*/templates/||' | sed 's|/.*||')
-            template_path=$(dirname "$template_file" | sed 's|./||')
+            echo "::debug::Found template file: $template_file"
 
-            if [[ -n "$template_name" ]]; then
-              # Apply filter if specified
-              filter="${{ github.event.inputs.template_filter || '*' }}"
+            # Extract relative path from templates directory
+            relative_path="${template_file#./templates/}"
+            echo "::debug::Relative path: $relative_path"
+
+            # Extract category and template name using parameter expansion
+            if [[ "$relative_path" =~ ^([^/]+)/([^/]+)/main\.tf$ ]]; then
+              template_category="${BASH_REMATCH[1]}"
+              template_name="${BASH_REMATCH[2]}"
+              template_path="templates/$template_category/$template_name"
+
+              echo "::debug::Parsed - Category: $template_category, Name: $template_name"
+
+              # Validate extracted values
+              if [[ -z "$template_category" ]] || [[ -z "$template_name" ]]; then
+                echo "::warning::Skipping invalid template path: $template_file"
+                continue
+              fi
+
+              # Apply filter
               if [[ "$filter" != "*" ]]; then
-                # Check if template matches filter
                 if [[ "$filter" == *"/"* ]]; then
                   # Category filter (e.g., "backend/*")
-                  category_filter=$(echo "$filter" | cut -d'/' -f1)
+                  category_filter="${filter%%/*}"
                   if [[ "$template_category" != "$category_filter" ]]; then
+                    echo "::debug::Skipping $template_name - category doesn't match filter"
                     continue
                   fi
                 else
                   # Specific template filter
                   if [[ "$template_name" != "$filter" ]]; then
+                    echo "::debug::Skipping $template_name - name doesn't match filter"
                     continue
                   fi
                 fi
               fi
 
-              [[ "$first" == "true" ]] && first=false || templates_json="$templates_json,"
-              templates_json="$templates_json{\"name\":\"$template_name\",\"category\":\"$template_category\",\"path\":\"$template_path\"}"
+              # Escape special characters for JSON
+              template_name_escaped=$(echo "$template_name" | sed 's/\\/\\\\/g; s/"/\\"/g')
+              template_category_escaped=$(echo "$template_category" | sed 's/\\/\\\\/g; s/"/\\"/g')
+              template_path_escaped=$(echo "$template_path" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+              # Add to array
+              templates_array+=("{\"name\":\"$template_name_escaped\",\"category\":\"$template_category_escaped\",\"path\":\"$template_path_escaped\"}")
               ((template_count++))
+
+              echo "✓ Found template: $template_name (category: $template_category)"
+            else
+              echo "::warning::Unexpected template structure: $template_file"
             fi
-          done < <(find ./templates -name "main.tf" -type f -print0)
+          done < <(find ./templates -name "main.tf" -type f -print0 | sort -z)
 
-          templates_json="$templates_json]"
+          # Construct JSON array
+          if [[ ${#templates_array[@]} -eq 0 ]]; then
+            templates_json="[]"
+            echo "::warning::No templates found matching filter: $filter"
+          else
+            # Join array elements with commas
+            templates_json="[$(IFS=,; echo "${templates_array[*]}")]"
+          fi
 
+          # Validate JSON
+          if ! echo "$templates_json" | jq . >/dev/null 2>&1; then
+            echo "::error::Failed to generate valid JSON for templates"
+            echo "::debug::Invalid JSON: $templates_json"
+            exit 1
+          fi
+
+          # Pretty print discovered templates
+          echo ""
+          echo "Templates JSON:"
+          echo "$templates_json" | jq .
+
+          # Set outputs
           echo "templates=$templates_json" >> $GITHUB_OUTPUT
           echo "template_count=$template_count" >> $GITHUB_OUTPUT
 
-          echo "Discovered $template_count templates matching filter: ${{ github.event.inputs.template_filter || '*' }}"
+          # Summary
+          echo ""
+          echo "================================================================"
+          echo "✅ Template discovery completed successfully"
+          echo "📊 Total templates found: $template_count"
+          echo "🔍 Filter applied: $filter"
+          echo "================================================================"
+          echo "::endgroup::"
 
   validate-syntax:
     name: Validate Template Syntax
