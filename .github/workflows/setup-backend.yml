@@ -274,7 +274,7 @@ jobs:
 
           echo "🏗️ Creating backend infrastructure for: $environment"
 
-          # Function to create a single bucket using Terraform
+          # Function to create a single bucket using the terraform-backend module
           create_bucket() {
             local env="$1"
             local bucket_name="terraform-state-coder-$env"
@@ -282,7 +282,10 @@ jobs:
             
             echo "📦 Creating bucket: $bucket_name"
             
-            # Create minimal Terraform config for bucket creation
+            # Copy the terraform-backend module to temp directory
+            cp -r "$GITHUB_WORKSPACE/modules/terraform-backend" "$temp_dir/"
+            
+            # Create Terraform config using the terraform-backend module
             cat > "$temp_dir/main.tf" << EOF
           terraform {
             required_providers {
@@ -294,23 +297,20 @@ jobs:
           }
 
           provider "scaleway" {
-            region = "$region"
+            region          = "$region"
+            zone            = "$region-1"
+            organization_id = var.organization_id
+            project_id      = var.project_id
           }
 
-          resource "scaleway_object_bucket" "terraform_state" {
-            name   = "$bucket_name"
-            region = "$region"
+          module "terraform_backend" {
+            source = "./terraform-backend"
 
-            versioning {
-              enabled = true
-            }
-
-            cors_rule {
-              allowed_headers = ["*"]
-              allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
-              allowed_origins = ["*"]
-              max_age_seconds = 3000
-            }
+            bucket_name               = "$bucket_name"
+            environment              = "$env"
+            region                   = "$region"
+            project_id               = var.project_id
+            generate_backend_config  = false
 
             tags = {
               Environment = "$env"
@@ -321,21 +321,61 @@ jobs:
           }
 
           output "bucket_name" {
-            value = scaleway_object_bucket.terraform_state.name
+            value = module.terraform_backend.bucket_name
           }
 
           output "bucket_endpoint" {
-            value = scaleway_object_bucket.terraform_state.endpoint
+            value = module.terraform_backend.bucket_endpoint
+          }
+
+          output "s3_endpoint" {
+            value = module.terraform_backend.s3_endpoint
+          }
+          EOF
+
+            # Create variables file with required variables
+            cat > "$temp_dir/variables.tf" << EOF
+          variable "organization_id" {
+            description = "Scaleway organization ID"
+            type        = string
+          }
+
+          variable "project_id" {
+            description = "Scaleway project ID"
+            type        = string
           }
           EOF
 
             cd "$temp_dir"
             
-            # Initialize and apply
-            if terraform init && terraform apply -auto-approve > /dev/null 2>&1; then
+            # Initialize and apply with proper error handling
+            echo "  Initializing Terraform..."
+            if ! terraform init; then
+              echo "❌ Failed to initialize Terraform for bucket: $bucket_name"
+              echo "🔍 Error details:"
+              cat terraform.log 2>/dev/null || echo "No detailed log available"
+              rm -rf "$temp_dir"
+              return 1
+            fi
+            
+            echo "  Planning infrastructure..."
+            if ! terraform plan -out=plan.tfplan \
+              -var="organization_id=${SCW_DEFAULT_ORGANIZATION_ID}" \
+              -var="project_id=${SCW_DEFAULT_PROJECT_ID}"; then
+              echo "❌ Failed to plan infrastructure for bucket: $bucket_name"
+              echo "🔍 Error details:"
+              cat terraform.log 2>/dev/null || echo "No detailed log available"
+              rm -rf "$temp_dir"
+              return 1
+            fi
+            
+            echo "  Applying infrastructure..."
+            if terraform apply -auto-approve plan.tfplan; then
               echo "✅ Created bucket: $bucket_name"
             else
               echo "❌ Failed to create bucket: $bucket_name"
+              echo "🔍 Error details:"
+              cat terraform.log 2>/dev/null || echo "No detailed log available"
               rm -rf "$temp_dir"
               return 1
             fi
