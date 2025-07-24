@@ -1,9 +1,5 @@
 terraform {
   required_version = ">= 1.12.0"
-
-  backend "local" {
-    path = "terraform.tfstate"
-  }
 }
 
 # Import shared configuration

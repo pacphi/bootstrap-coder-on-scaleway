@@ -1,12 +1,5 @@
 terraform {
   required_version = ">= 1.12.0"
-
-  backend "s3" {
-    # Configure remote backend for production
-    # bucket = "your-terraform-state-bucket"
-    # key    = "coder/production/terraform.tfstate"
-    # region = "fr-par"
-  }
 }
 
 # Import shared configuration

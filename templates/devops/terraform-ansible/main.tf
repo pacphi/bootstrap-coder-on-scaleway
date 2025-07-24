@@ -418,13 +418,6 @@ terraform {
       version = "~> 2.4"
     }
   }
-
-  # Configure backend (uncomment and modify as needed)
-  # backend "s3" {
-  #   bucket = "my-terraform-state"
-  #   key    = "infrastructure/terraform.tfstate"
-  #   region = "us-west-2"
-  # }
 }
 
 # Example provider configuration
