@@ -69,7 +69,7 @@ jobs:
 
           echo "::group::Template Discovery"
           echo "Starting template discovery..."
-          
+
           # Check dependencies
           if ! command -v jq >/dev/null 2>&1; then
             echo "::error::jq is required but not installed"
@@ -84,10 +84,10 @@ jobs:
 
           # Find all main.tf files in templates directory
           echo "Searching for templates..."
-          
+
           # Create empty JSON array to start
           echo '[]' > "$templates_file"
-          
+
           while IFS= read -r -d '' template_file; do
             echo "::debug::Found template file: $template_file"
 
@@ -136,7 +136,7 @@ jobs:
                    --arg path "$template_path" \
                    '. += [{"name": $name, "category": $category, "path": $path}]' \
                    "$templates_file" > "$tmp_file" && mv "$tmp_file" "$templates_file"
-                
+
                 if [[ $? -ne 0 ]]; then
                   echo "::error::Failed to add template $template_name to JSON"
                   rm -f "$templates_file" "$tmp_file" 2>/dev/null || true

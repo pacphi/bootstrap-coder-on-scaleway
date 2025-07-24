@@ -279,12 +279,12 @@ jobs:
             local env="$1"
             local bucket_name="terraform-state-coder-$env"
             local temp_dir=$(mktemp -d)
-            
+
             echo "📦 Creating bucket: $bucket_name"
-            
+
             # Copy the terraform-backend module to temp directory
             cp -r "$GITHUB_WORKSPACE/modules/terraform-backend" "$temp_dir/"
-            
+
             # Create Terraform config using the terraform-backend module
             cat > "$temp_dir/main.tf" << EOF
           terraform {
@@ -347,7 +347,7 @@ jobs:
           EOF
 
             cd "$temp_dir"
-            
+
             # Initialize and apply with proper error handling
             echo "  Initializing Terraform..."
             if ! terraform init; then
@@ -357,7 +357,7 @@ jobs:
               rm -rf "$temp_dir"
               return 1
             fi
-            
+
             echo "  Planning infrastructure..."
             if ! terraform plan -out=plan.tfplan \
               -var="organization_id=${SCW_DEFAULT_ORGANIZATION_ID}" \
@@ -368,7 +368,7 @@ jobs:
               rm -rf "$temp_dir"
               return 1
             fi
-            
+
             echo "  Applying infrastructure..."
             if terraform apply -auto-approve plan.tfplan; then
               echo "✅ Created bucket: $bucket_name"
@@ -379,7 +379,7 @@ jobs:
               rm -rf "$temp_dir"
               return 1
             fi
-            
+
             rm -rf "$temp_dir"
           }
 

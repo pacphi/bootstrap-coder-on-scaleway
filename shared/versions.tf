@@ -4,32 +4,32 @@ terraform {
   required_providers {
     scaleway = {
       source  = "scaleway/scaleway"
-      version = "~> 2.34"
+      version = "~> 2.57"
     }
 
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.24"
+      version = "~> 2.38"
     }
 
     helm = {
       source  = "hashicorp/helm"
-      version = "~> 2.12"
+      version = "~> 3.0"
     }
 
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.6"
+      version = "~> 3.7"
     }
 
     tls = {
       source  = "hashicorp/tls"
-      version = "~> 4.0"
+      version = "~> 4.1"
     }
 
     time = {
       source  = "hashicorp/time"
-      version = "~> 0.10"
+      version = "~> 0.13"
     }
   }
 }

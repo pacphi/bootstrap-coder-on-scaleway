@@ -9,7 +9,9 @@ Before deploying Coder on Scaleway, ensure you have the following:
 ### 1. Scaleway Account
 - **Create an account** at [scaleway.com](https://www.scaleway.com)
 - **Generate API keys** in the [Scaleway Console](https://console.scaleway.com/iam/api-keys)
-- **Note your Project ID** from the [Project Settings](https://console.scaleway.com/project/settings)
+- **Note your Project and Organization IDs** from the
+  - [Project Dashboard](https://console.scaleway.com/project/settings)
+  - [Organization Dashboard](https://console.scaleway.com/organization)
 
 ### 2. Required Tools
 Install the following tools on your local machine:
@@ -92,6 +94,7 @@ Set up your Scaleway credentials:
 export SCW_ACCESS_KEY="your-scaleway-access-key"
 export SCW_SECRET_KEY="your-scaleway-secret-key"
 export SCW_DEFAULT_PROJECT_ID="your-project-id"
+export SCW_DEFAULT_ORGANIZATION_ID="your-organization-id"
 
 # Optional: Set default region (defaults to fr-par)
 export SCW_DEFAULT_REGION="fr-par"
@@ -101,6 +104,7 @@ export SCW_DEFAULT_ZONE="fr-par-1"
 echo 'export SCW_ACCESS_KEY="your-scaleway-access-key"' >> ~/.bashrc
 echo 'export SCW_SECRET_KEY="your-scaleway-secret-key"' >> ~/.bashrc
 echo 'export SCW_DEFAULT_PROJECT_ID="your-project-id"' >> ~/.bashrc
+echo 'export SCW_DEFAULT_ORGANIZATION_ID="your-organization-id"' >> ~/.bashrc
 ```
 
 ### 4. Optional Tools
@@ -167,10 +171,11 @@ Deploy using GitHub Actions for better CI/CD integration:
 ```bash
 # Prerequisites: GitHub CLI (gh) must be installed
 # Fork the repository and configure secrets
-gh repo fork your-org/bootstrap-coder-on-scaleway
+gh repo fork pacphi/bootstrap-coder-on-scaleway
 gh secret set SCW_ACCESS_KEY --body "your-access-key"
 gh secret set SCW_SECRET_KEY --body "your-secret-key"
 gh secret set SCW_DEFAULT_PROJECT_ID --body "your-project-id"
+gh secret set SCW_DEFAULT_ORGANIZATION_ID --body "your-organziation-id"
 
 # Deploy via GitHub Actions
 gh workflow run deploy-environment.yml \

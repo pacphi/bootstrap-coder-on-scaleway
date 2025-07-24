@@ -2,7 +2,7 @@ terraform {
   required_providers {
     scaleway = {
       source  = "scaleway/scaleway"
-      version = "~> 2.34"
+      version = "~> 2.57"
     }
   }
 }
@@ -127,7 +127,7 @@ resource "scaleway_lb" "main" {
 # Load Balancer IP
 resource "scaleway_lb_ip" "main" {
   count = var.enable_load_balancer ? 1 : 0
-  
+
   # lb_id removed - IP is automatically associated with the load balancer
 }
 

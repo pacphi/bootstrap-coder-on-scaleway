@@ -90,6 +90,7 @@ Ensure you have the required credentials configured:
 export SCW_ACCESS_KEY="your-access-key"
 export SCW_SECRET_KEY="your-secret-key"
 export SCW_DEFAULT_PROJECT_ID="your-project-id"
+export SCW_DEFAULT_ORGANIZATION_ID="your-organization-id"
 ```
 
 ### 2. Automatic Backend Provisioning (Recommended)

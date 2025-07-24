@@ -2,7 +2,7 @@ terraform {
   required_providers {
     scaleway = {
       source  = "scaleway/scaleway"
-      version = "~> 2.34"
+      version = "~> 2.57"
     }
   }
 }

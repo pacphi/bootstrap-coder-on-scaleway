@@ -90,14 +90,12 @@ Advanced development environments with AI integration and enhanced capabilities.
 - **Description**: Basic Claude Code Flow integration for AI-assisted development
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Low (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `claude-flow-enterprise`
 - **Path**: `templates/ai-enhanced/claude-flow-enterprise/`
 - **Description**: Enterprise Claude Code Flow with 87 MCP tools and advanced features
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: High (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 
 ### 🖥️ Backend Templates (7)
@@ -109,49 +107,42 @@ Server-side development environments with database integration and API framework
 - **Description**: .NET Core development environment with C# tooling
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `go-fiber`
 - **Path**: `templates/backend/go-fiber/`
 - **Description**: Go development with Fiber web framework
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Low (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `java-spring`
 - **Path**: `templates/backend/java-spring/`
 - **Description**: Java Spring Boot development environment
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `php-symfony-neuron`
 - **Path**: `templates/backend/php-symfony-neuron/`
 - **Description**: PHP Symfony framework with Neuron integration
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `python-django-crewai`
 - **Path**: `templates/backend/python-django-crewai/`
 - **Description**: Python Django with CrewAI multi-agent workflow capabilities
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: High (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `ruby-rails`
 - **Path**: `templates/backend/ruby-rails/`
 - **Description**: Ruby on Rails development environment
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `rust-actix`
 - **Path**: `templates/backend/rust-actix/`
 - **Description**: Rust development with Actix web framework
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Low (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 
 ### 📊 Data/ML Templates (2)
@@ -163,14 +154,12 @@ Data science and machine learning development environments with specialized tool
 - **Description**: Jupyter notebooks with comprehensive Python data science stack
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: High (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `r-studio`
 - **Path**: `templates/data-ml/r-studio/`
 - **Description**: R Studio for statistical computing and data analysis
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 
 ### ⚙️ DevOps Templates (3)
@@ -182,21 +171,18 @@ Infrastructure and deployment tool environments for DevOps workflows.
 - **Description**: Docker Compose development environment
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Low (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `kubernetes-helm`
 - **Path**: `templates/devops/kubernetes-helm/`
 - **Description**: Kubernetes development with Helm package management
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `terraform-ansible`
 - **Path**: `templates/devops/terraform-ansible/`
 - **Description**: Infrastructure as Code with Terraform and Ansible
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 
 ### 🌐 Frontend Templates (4)
@@ -208,28 +194,24 @@ Modern frontend development environments with popular JavaScript frameworks.
 - **Description**: Angular development environment with TypeScript
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `react-typescript`
 - **Path**: `templates/frontend/react-typescript/`
 - **Description**: React development with TypeScript
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `svelte-kit`
 - **Path**: `templates/frontend/svelte-kit/`
 - **Description**: SvelteKit development environment
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Low (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `vue-nuxt`
 - **Path**: `templates/frontend/vue-nuxt/`
 - **Description**: Vue.js development with Nuxt.js framework
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 
 ### 📱 Mobile Templates (3)
@@ -241,21 +223,18 @@ Cross-platform mobile development environments with modern frameworks.
 - **Description**: Flutter cross-platform mobile development
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `ionic`
 - **Path**: `templates/mobile/ionic/`
 - **Description**: Ionic hybrid mobile development
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 #### `react-native`
 - **Path**: `templates/mobile/react-native/`
 - **Description**: React Native mobile development
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-- **Best For**: [Use case recommendations]
 
 
 ## Cost Considerations
