@@ -1559,41 +1559,54 @@ EOF
 
   EOT
 
-  # Metadata
-  metadata {
-    display_name = "Node.js Version"
-    key          = "node_version"
-    value        = data.coder_parameter.node_version.value
-  }
+}
 
-  metadata {
-    display_name = "UI Framework"
-    key          = "ui_framework"
-    value        = data.coder_parameter.ui_framework.value
+# Metadata
+resource "coder_metadata" "node_version" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "node_version"
+    value = data.coder_parameter.node_version.value
   }
+}
 
-  metadata {
-    display_name = "Adapter"
-    key          = "adapter"
-    value        = data.coder_parameter.adapter.value
+resource "coder_metadata" "ui_framework" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "ui_framework"
+    value = data.coder_parameter.ui_framework.value
   }
+}
 
-  metadata {
-    display_name = "PWA Enabled"
-    key          = "pwa_enabled"
-    value        = data.coder_parameter.enable_pwa.value
+resource "coder_metadata" "adapter" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "adapter"
+    value = data.coder_parameter.adapter.value
   }
+}
 
-  metadata {
-    display_name = "CPU"
-    key          = "cpu"
-    value        = data.coder_parameter.cpu.value
+resource "coder_metadata" "pwa_enabled" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "pwa_enabled"
+    value = data.coder_parameter.enable_pwa.value ? "enabled" : "disabled"
   }
+}
 
-  metadata {
-    display_name = "Memory"
-    key          = "memory"
-    value        = "${data.coder_parameter.memory.value}GB"
+resource "coder_metadata" "cpu_cores" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "cpu"
+    value = "${data.coder_parameter.cpu.value} cores"
+  }
+}
+
+resource "coder_metadata" "memory" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "memory"
+    value = "${data.coder_parameter.memory.value}GB"
   }
 }
 
@@ -1641,10 +1654,6 @@ resource "coder_app" "preview" {
 
 # Kubernetes resources
 resource "kubernetes_persistent_volume_claim" "home" {
-  metadata {
-    name      = "coder-${data.coder_workspace.me.id}-home"
-    namespace = var.namespace
-  }
 
   wait_until_bound = false
 
@@ -1664,28 +1673,11 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
 data "coder_workspace" "me" {}
 
+data "coder_workspace_owner" "me" {}
+
 resource "kubernetes_deployment" "main" {
   count = data.coder_workspace.me.start_count
 
-  metadata {
-    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-    namespace = var.namespace
-
-    labels = {
-      "app.kubernetes.io/name"     = "coder-workspace"
-      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-      "app.kubernetes.io/part-of"  = "coder"
-      "com.coder.resource"         = "true"
-      "com.coder.workspace.id"     = data.coder_workspace.me.id
-      "com.coder.workspace.name"   = data.coder_workspace.me.name
-      "com.coder.user.id"          = data.coder_workspace.me.owner_id
-      "com.coder.user.username"    = data.coder_workspace.me.owner
-    }
-
-    annotations = {
-      "com.coder.user.email" = data.coder_workspace.me.owner_email
-    }
-  }
 
   spec {
     replicas = 1
@@ -1693,7 +1685,7 @@ resource "kubernetes_deployment" "main" {
     selector {
       match_labels = {
         "app.kubernetes.io/name"     = "coder-workspace"
-        "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+        "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
       }
     }
 
@@ -1701,7 +1693,7 @@ resource "kubernetes_deployment" "main" {
       metadata {
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
         }
       }

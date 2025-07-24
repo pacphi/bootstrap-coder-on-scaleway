@@ -415,7 +415,7 @@ class ClaudeFlowJS {
   }
 
   async executeTask(task: string): Promise<void> {
-    console.log(`Executing task in ${this.mode} mode: ${task}`);
+    console.log(`Executing task in $${this.mode} mode: $${task}`);
 
     if (this.mode === 'swarm') {
       await this.swarmExecution(task);
@@ -470,37 +470,48 @@ EOF
 
     echo "✅ Claude Code Flow environment setup complete!"
 
-  EOT
+EOT
 
-  # Metadata
-  metadata {
-    display_name = "Claude Flow Mode"
-    key          = "claude_flow_mode"
-    value        = data.coder_parameter.claude_flow_mode.value
+}
+
+# Metadata
+resource "coder_metadata" "claude_flow_mode" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "mode"
+    value = data.coder_parameter.claude_flow_mode.value
   }
+}
 
-  metadata {
-    display_name = "Development Stack"
-    key          = "development_stack"
-    value        = data.coder_parameter.development_stack.value
+resource "coder_metadata" "development_stack" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "stack"
+    value = data.coder_parameter.development_stack.value
   }
+}
 
-  metadata {
-    display_name = "CPU Cores"
-    key          = "cpu"
-    value        = data.coder_parameter.cpu.value
+resource "coder_metadata" "cpu_cores" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "cpu"
+    value = "${data.coder_parameter.cpu.value} cores"
   }
+}
 
-  metadata {
-    display_name = "Memory"
-    key          = "memory"
-    value        = "${data.coder_parameter.memory.value}GB"
+resource "coder_metadata" "memory" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "memory"
+    value = "${data.coder_parameter.memory.value}GB"
   }
+}
 
-  metadata {
-    display_name = "GPU Support"
-    key          = "gpu_enabled"
-    value        = data.coder_parameter.enable_gpu.value
+resource "coder_metadata" "gpu_support" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "gpu"
+    value = data.coder_parameter.enable_gpu.value ? "enabled" : "disabled"
   }
 }
 
@@ -581,26 +592,28 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
 data "coder_workspace" "me" {}
 
+data "coder_workspace_owner" "me" {}
+
 resource "kubernetes_deployment" "main" {
   count = data.coder_workspace.me.start_count
 
   metadata {
-    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
     namespace = var.namespace
 
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
-      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
       "app.kubernetes.io/part-of"  = "coder"
       "com.coder.resource"         = "true"
       "com.coder.workspace.id"     = data.coder_workspace.me.id
       "com.coder.workspace.name"   = data.coder_workspace.me.name
-      "com.coder.user.id"          = data.coder_workspace.me.owner_id
-      "com.coder.user.username"    = data.coder_workspace.me.owner
+      "com.coder.user.id"          = data.coder_workspace_owner.me.id
+      "com.coder.user.username"    = data.coder_workspace_owner.me.name
     }
 
     annotations = {
-      "com.coder.user.email" = data.coder_workspace.me.owner_email
+      "com.coder.user.email" = data.coder_workspace_owner.me.email
     }
   }
 
@@ -610,15 +623,15 @@ resource "kubernetes_deployment" "main" {
     selector {
       match_labels = {
         "app.kubernetes.io/name"     = "coder-workspace"
-        "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+        "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
       }
     }
 
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
         }
       }

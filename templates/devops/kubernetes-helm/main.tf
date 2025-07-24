@@ -1387,41 +1387,54 @@ EOF
 
   EOT
 
-  # Metadata
-  metadata {
-    display_name = "Kubernetes Version"
-    key          = "k8s_version"
-    value        = data.coder_parameter.k8s_version.value
-  }
+}
 
-  metadata {
-    display_name = "Helm Version"
-    key          = "helm_version"
-    value        = data.coder_parameter.helm_version.value
+# Metadata
+resource "coder_metadata" "k8s_version" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "k8s_version"
+    value = data.coder_parameter.k8s_version.value
   }
+}
 
-  metadata {
-    display_name = "Additional Tools"
-    key          = "additional_tools"
-    value        = data.coder_parameter.additional_tools.value
+resource "coder_metadata" "helm_version" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "helm_version"
+    value = data.coder_parameter.helm_version.value
   }
+}
 
-  metadata {
-    display_name = "Monitoring Enabled"
-    key          = "monitoring_enabled"
-    value        = data.coder_parameter.enable_monitoring.value
+resource "coder_metadata" "additional_tools" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "additional_tools"
+    value = data.coder_parameter.additional_tools.value
   }
+}
 
-  metadata {
-    display_name = "CPU"
-    key          = "cpu"
-    value        = data.coder_parameter.cpu.value
+resource "coder_metadata" "monitoring_enabled" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "monitoring_enabled"
+    value = tostring(data.coder_parameter.enable_monitoring.value)
   }
+}
 
-  metadata {
-    display_name = "Memory"
-    key          = "memory"
-    value        = "${data.coder_parameter.memory.value}GB"
+resource "coder_metadata" "cpu_cores" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "cpu"
+    value = "${data.coder_parameter.cpu.value} cores"
+  }
+}
+
+resource "coder_metadata" "memory" {
+  resource_id = coder_agent.main.id
+  item {
+    key   = "memory"
+    value = "${data.coder_parameter.memory.value}GB"
   }
 }
 
@@ -1519,28 +1532,30 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
 data "coder_workspace" "me" {}
 
+data "coder_workspace_owner" "me" {}
+
 resource "kubernetes_deployment" "main" {
   count = data.coder_workspace.me.start_count
 
   metadata {
-    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
     namespace = var.namespace
 
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
-      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
       "app.kubernetes.io/part-of"  = "coder"
       "com.coder.resource"         = "true"
       "com.coder.workspace.id"     = data.coder_workspace.me.id
       "com.coder.workspace.name"   = data.coder_workspace.me.name
-      "com.coder.user.id"          = data.coder_workspace.me.owner_id
-      "com.coder.user.username"    = data.coder_workspace.me.owner
+      "com.coder.user.id"          = data.coder_workspace_owner.me.id
+      "com.coder.user.username"    = data.coder_workspace_owner.me.name
       "k8s-workspace"              = "true"
       "helm-enabled"               = "true"
     }
 
     annotations = {
-      "com.coder.user.email" = data.coder_workspace.me.owner_email
+      "com.coder.user.email" = data.coder_workspace_owner.me.email
     }
   }
 
@@ -1550,7 +1565,7 @@ resource "kubernetes_deployment" "main" {
     selector {
       match_labels = {
         "app.kubernetes.io/name"     = "coder-workspace"
-        "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+        "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
       }
     }
 
@@ -1558,7 +1573,7 @@ resource "kubernetes_deployment" "main" {
       metadata {
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
           "k8s-workspace"              = "true"
         }
