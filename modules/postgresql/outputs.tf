@@ -41,8 +41,6 @@ output "connection_pool_string" {
   sensitive   = true
 }
 
-# instance_status removed - status attribute not available in Scaleway provider v2.34+
-
 output "engine_version" {
   description = "Version of the PostgreSQL engine"
   value       = scaleway_rdb_instance.postgresql.engine

@@ -80,7 +80,6 @@ resource "scaleway_instance_security_group" "kubernetes" {
       port        = inbound_rule.value.port
       port_range  = inbound_rule.value.port_range
       ip_range    = inbound_rule.value.ip_range
-      # description field removed - not supported in Scaleway provider v2.34+
     }
   }
 
@@ -100,7 +99,6 @@ resource "scaleway_instance_security_group" "kubernetes" {
       port        = outbound_rule.value.port
       port_range  = outbound_rule.value.port_range
       ip_range    = outbound_rule.value.ip_range
-      # description field removed - not supported in Scaleway provider v2.34+
     }
   }
 

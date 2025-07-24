@@ -177,7 +177,7 @@ jobs:
             required_providers {
               scaleway = {
                 source  = "scaleway/scaleway"
-                version = "~> 2.34"
+                version = "~> 2.57"
               }
             }
           }
@@ -291,7 +291,7 @@ jobs:
             required_providers {
               scaleway = {
                 source  = "scaleway/scaleway"
-                version = "~> 2.34"
+                version = "~> 2.57"
               }
             }
           }
@@ -299,8 +299,6 @@ jobs:
           provider "scaleway" {
             region          = "$region"
             zone            = "$region-1"
-            organization_id = var.organization_id
-            project_id      = var.project_id
           }
 
           module "terraform_backend" {
@@ -333,19 +331,6 @@ jobs:
           }
           EOF
 
-            # Create variables file with required variables
-            cat > "$temp_dir/variables.tf" << EOF
-          variable "organization_id" {
-            description = "Scaleway organization ID"
-            type        = string
-          }
-
-          variable "project_id" {
-            description = "Scaleway project ID"
-            type        = string
-          }
-          EOF
-
             cd "$temp_dir"
 
             # Initialize and apply with proper error handling
@@ -359,9 +344,7 @@ jobs:
             fi
 
             echo "  Planning infrastructure..."
-            if ! terraform plan -out=plan.tfplan \
-              -var="organization_id=${SCW_DEFAULT_ORGANIZATION_ID}" \
-              -var="project_id=${SCW_DEFAULT_PROJECT_ID}"; then
+            if ! terraform plan -out=plan.tfplan; then
               echo "❌ Failed to plan infrastructure for bucket: $bucket_name"
               echo "🔍 Error details:"
               cat terraform.log 2>/dev/null || echo "No detailed log available"

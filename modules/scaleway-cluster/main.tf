@@ -14,8 +14,6 @@ resource "scaleway_k8s_cluster" "cluster" {
   version     = var.cluster_version
   cni         = var.cni
 
-  # enable_dashboard and ingress removed - deprecated in Scaleway provider v2.34+
-
   auto_upgrade {
     enable                        = var.auto_upgrade
     maintenance_window_start_hour = var.maintenance_window_start_hour
@@ -78,7 +76,6 @@ resource "scaleway_k8s_pool" "pools" {
   zone = each.value.zone != null ? each.value.zone : var.zone
 
   root_volume_type = each.value.root_volume_type
-  # root_volume_size removed - not supported in Scaleway provider v2.34+
 
   # Wait for cluster to be ready
   depends_on = [scaleway_k8s_cluster.cluster]
