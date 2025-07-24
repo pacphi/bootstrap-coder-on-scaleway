@@ -69,15 +69,25 @@ jobs:
 
           echo "::group::Template Discovery"
           echo "Starting template discovery..."
-          echo "Filter: ${{ github.event.inputs.template_filter || '*' }}"
+          
+          # Check dependencies
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "::error::jq is required but not installed"
+            exit 1
+          fi
 
           # Initialize variables
-          templates_array=()
-          template_count=0
           filter="${{ github.event.inputs.template_filter || '*' }}"
+          echo "Filter: $filter"
+          template_count=0
+          templates_file=$(mktemp)
 
           # Find all main.tf files in templates directory
           echo "Searching for templates..."
+          
+          # Create empty JSON array to start
+          echo '[]' > "$templates_file"
+          
           while IFS= read -r -d '' template_file; do
             echo "::debug::Found template file: $template_file"
 
@@ -100,52 +110,66 @@ jobs:
               fi
 
               # Apply filter
+              skip_template=false
               if [[ "$filter" != "*" ]]; then
                 if [[ "$filter" == *"/"* ]]; then
                   # Category filter (e.g., "backend/*")
                   category_filter="${filter%%/*}"
                   if [[ "$template_category" != "$category_filter" ]]; then
                     echo "::debug::Skipping $template_name - category doesn't match filter"
-                    continue
+                    skip_template=true
                   fi
                 else
                   # Specific template filter
                   if [[ "$template_name" != "$filter" ]]; then
                     echo "::debug::Skipping $template_name - name doesn't match filter"
-                    continue
+                    skip_template=true
                   fi
                 fi
               fi
 
-              # Escape special characters for JSON
-              template_name_escaped=$(echo "$template_name" | sed 's/\\/\\\\/g; s/"/\\"/g')
-              template_category_escaped=$(echo "$template_category" | sed 's/\\/\\\\/g; s/"/\\"/g')
-              template_path_escaped=$(echo "$template_path" | sed 's/\\/\\\\/g; s/"/\\"/g')
+              if [[ "$skip_template" == "false" ]]; then
+                # Use jq to safely add template to JSON array
+                tmp_file=$(mktemp)
+                jq --arg name "$template_name" \
+                   --arg category "$template_category" \
+                   --arg path "$template_path" \
+                   '. += [{"name": $name, "category": $category, "path": $path}]' \
+                   "$templates_file" > "$tmp_file" && mv "$tmp_file" "$templates_file"
+                
+                if [[ $? -ne 0 ]]; then
+                  echo "::error::Failed to add template $template_name to JSON"
+                  rm -f "$templates_file" "$tmp_file" 2>/dev/null || true
+                  exit 1
+                fi
 
-              # Add to array
-              templates_array+=("{\"name\":\"$template_name_escaped\",\"category\":\"$template_category_escaped\",\"path\":\"$template_path_escaped\"}")
-              ((template_count++))
-
-              echo "✓ Found template: $template_name (category: $template_category)"
+                ((template_count++))
+                echo "✓ Found template: $template_name (category: $template_category)"
+              fi
             else
               echo "::warning::Unexpected template structure: $template_file"
             fi
-          done < <(find ./templates -name "main.tf" -type f -print0 | sort -z)
+          done < <(find ./templates -name "main.tf" -type f -print0 2>/dev/null | sort -z)
 
-          # Construct JSON array
-          if [[ ${#templates_array[@]} -eq 0 ]]; then
-            templates_json="[]"
-            echo "::warning::No templates found matching filter: $filter"
+          # Read the final JSON
+          if [[ -f "$templates_file" ]]; then
+            templates_json=$(cat "$templates_file")
+            rm -f "$templates_file"
           else
-            # Join array elements with commas
-            templates_json="[$(IFS=,; echo "${templates_array[*]}")]"
+            templates_json="[]"
           fi
 
-          # Validate JSON
+          # Validate JSON (should always be valid now, but double-check)
           if ! echo "$templates_json" | jq . >/dev/null 2>&1; then
-            echo "::error::Failed to generate valid JSON for templates"
+            echo "::error::Generated invalid JSON despite using jq"
             echo "::debug::Invalid JSON: $templates_json"
             exit 1
+          fi
+
+          # Check results
+          if [[ $template_count -eq 0 ]]; then
+            echo "::warning::No templates found matching filter: $filter"
+            templates_json="[]"
           fi
 
           # Pretty print discovered templates
