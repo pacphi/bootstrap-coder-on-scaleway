@@ -118,81 +118,18 @@ get_bucket_name() {
 # Create temporary Terraform configuration for backend setup
 create_backend_config() {
     local env="$1"
-    local bucket_name
-    bucket_name=$(get_bucket_name "$env")
-
     local backend_dir="${TEMP_DIR}/${env}"
     mkdir -p "$backend_dir"
 
-    cat > "${backend_dir}/main.tf" << EOF
-terraform {
-  required_providers {
-    scaleway = {
-      source  = "scaleway/scaleway"
-      version = "~> 2.57"
-    }
-  }
-}
+    # Copy the shared backend-setup configuration
+    cp -r "${PROJECT_ROOT}/backend-setup"/* "$backend_dir/"
 
-provider "scaleway" {
-  region          = var.region
-  zone            = "\${var.region}-1"
-  organization_id = var.organization_id
-  project_id      = var.project_id
-}
-
-module "terraform_backend" {
-  source = "$PROJECT_ROOT/modules/terraform-backend"
-
-  bucket_name    = "$bucket_name"
-  environment    = "$env"
-  region         = var.region
-  project_id     = var.project_id
-
-  tags = {
-    Environment   = "$env"
-    Project       = "coder-platform"
-    Purpose       = "terraform-state"
-    ManagedBy     = "terraform"
-    CreatedBy     = "backend-setup-script"
-  }
-}
-
-output "bucket_name" {
-  value = module.terraform_backend.bucket_name
-}
-
-output "bucket_endpoint" {
-  value = module.terraform_backend.bucket_endpoint
-}
-
-output "s3_endpoint" {
-  value = module.terraform_backend.s3_endpoint
-}
-
-output "backend_config" {
-  value = module.terraform_backend.backend_config
-}
-EOF
-
-    cat > "${backend_dir}/variables.tf" << EOF
-variable "region" {
-  description = "Scaleway region"
-  type        = string
-  default     = "$REGION"
-}
-
-variable "organization_id" {
-  description = "Scaleway organization ID"
-  type        = string
-  default     = "${SCW_DEFAULT_ORGANIZATION_ID:-}"
-}
-
-variable "project_id" {
-  description = "Scaleway project ID"
-  type        = string
-  default     = "${SCW_DEFAULT_PROJECT_ID:-}"
-}
+    # Create terraform.tfvars for environment-specific values
+    cat > "${backend_dir}/terraform.tfvars" << EOF
+environment = "$env"
+region      = "$REGION"
+project_id  = "${SCW_DEFAULT_PROJECT_ID}"
+managed_by  = "backend-setup-script"
 EOF
 
     echo "$backend_dir"
@@ -201,9 +138,7 @@ EOF
 # Create backend configuration for environment
 create_environment_backend() {
     local env="$1"
-    local bucket_name
-    bucket_name=$(get_bucket_name "$env")
-
+    local backend_dir="$2"
     local env_dir="${PROJECT_ROOT}/environments/${env}"
 
     if [[ ! -d "$env_dir" ]]; then
@@ -211,45 +146,18 @@ create_environment_backend() {
         return 1
     fi
 
-    cat > "${env_dir}/backend.tf" << EOF
-# Terraform Backend Configuration for Scaleway Object Storage
-# This file configures remote state storage for the $env environment
+    # Get the backend configuration content from Terraform output
+    cd "$backend_dir"
+    local backend_content
+    backend_content=$(terraform output -raw backend_tf_content 2>/dev/null)
 
-terraform {
-  backend "s3" {
-    bucket = "$bucket_name"
-    key    = "$env/terraform.tfstate"
-    region = "$REGION"
+    if [[ -z "$backend_content" ]]; then
+        log_error "Failed to get backend configuration from Terraform output"
+        return 1
+    fi
 
-    # Scaleway Object Storage S3-compatible endpoint
-    endpoint = "https://s3.$REGION.scw.cloud"
-
-    # Required flags for S3-compatible storage
-    skip_credentials_validation = true
-    skip_region_validation      = true
-    skip_requesting_account_id  = true
-
-    # Use endpoints block for better compatibility
-    endpoints = {
-      s3 = "https://s3.$REGION.scw.cloud"
-    }
-
-    # Note: State locking is not supported with Scaleway Object Storage
-    # For teams, consider implementing external locking mechanism or
-    # use CI/CD pipelines to serialize terraform operations
-  }
-}
-
-# Backend configuration variables (for reference)
-locals {
-  backend_config = {
-    bucket   = "$bucket_name"
-    key      = "$env/terraform.tfstate"
-    region   = "$REGION"
-    endpoint = "https://s3.$REGION.scw.cloud"
-  }
-}
-EOF
+    # Write the backend configuration
+    echo "$backend_content" > "${env_dir}/backend.tf"
 
     log_success "Backend configuration created: ${env_dir}/backend.tf"
 }
@@ -269,7 +177,7 @@ setup_environment() {
         log "DRY RUN: Would create the following resources:"
         log "  - S3 bucket: $(get_bucket_name "$env")"
         log "  - Bucket versioning: enabled"
-        log "  - Lifecycle policy: ${STATE_RETENTION_DAYS:-90} day retention"
+        log "  - Lifecycle policy: 90 day retention (default)"
         log "  - Backend configuration: environments/$env/backend.tf"
         return 0
     fi
@@ -310,7 +218,7 @@ setup_environment() {
     log "  Endpoint: $s3_endpoint"
 
     # Create environment backend configuration
-    create_environment_backend "$env"
+    create_environment_backend "$env" "$backend_dir"
 
     log_success "Environment $env backend setup completed"
 }

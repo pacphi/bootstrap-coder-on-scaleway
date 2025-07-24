@@ -274,61 +274,22 @@ jobs:
 
           echo "🏗️ Creating backend infrastructure for: $environment"
 
-          # Function to create a single bucket using the terraform-backend module
+          # Function to create a single bucket using the shared backend-setup configuration
           create_bucket() {
             local env="$1"
-            local bucket_name="terraform-state-coder-$env"
             local temp_dir=$(mktemp -d)
 
-            echo "📦 Creating bucket: $bucket_name"
+            echo "📦 Creating bucket for environment: $env"
 
-            # Copy the terraform-backend module to temp directory
-            cp -r "$GITHUB_WORKSPACE/modules/terraform-backend" "$temp_dir/"
+            # Copy the shared backend-setup configuration
+            cp -r "$GITHUB_WORKSPACE/backend-setup"/* "$temp_dir/"
 
-            # Create Terraform config using the terraform-backend module
-            cat > "$temp_dir/main.tf" << EOF
-          terraform {
-            required_providers {
-              scaleway = {
-                source  = "scaleway/scaleway"
-                version = "~> 2.57"
-              }
-            }
-          }
-
-          provider "scaleway" {
-            region          = "$region"
-            zone            = "$region-1"
-          }
-
-          module "terraform_backend" {
-            source = "./terraform-backend"
-
-            bucket_name               = "$bucket_name"
-            environment              = "$env"
-            region                   = "$region"
-            project_id               = var.project_id
-            generate_backend_config  = false
-
-            tags = {
-              Environment = "$env"
-              Project     = "coder-platform"
-              Purpose     = "terraform-state"
-              ManagedBy   = "github-actions"
-            }
-          }
-
-          output "bucket_name" {
-            value = module.terraform_backend.bucket_name
-          }
-
-          output "bucket_endpoint" {
-            value = module.terraform_backend.bucket_endpoint
-          }
-
-          output "s3_endpoint" {
-            value = module.terraform_backend.s3_endpoint
-          }
+            # Create terraform.tfvars for environment-specific values
+            cat > "$temp_dir/terraform.tfvars" << EOF
+          environment = "$env"
+          region      = "$region"
+          project_id  = "$SCW_DEFAULT_PROJECT_ID"
+          managed_by  = "github-actions"
           EOF
 
             cd "$temp_dir"
@@ -336,29 +297,27 @@ jobs:
             # Initialize and apply with proper error handling
             echo "  Initializing Terraform..."
             if ! terraform init; then
-              echo "❌ Failed to initialize Terraform for bucket: $bucket_name"
-              echo "🔍 Error details:"
-              cat terraform.log 2>/dev/null || echo "No detailed log available"
+              echo "❌ Failed to initialize Terraform for environment: $env"
               rm -rf "$temp_dir"
               return 1
             fi
 
             echo "  Planning infrastructure..."
             if ! terraform plan -out=plan.tfplan; then
-              echo "❌ Failed to plan infrastructure for bucket: $bucket_name"
-              echo "🔍 Error details:"
-              cat terraform.log 2>/dev/null || echo "No detailed log available"
+              echo "❌ Failed to plan infrastructure for environment: $env"
               rm -rf "$temp_dir"
               return 1
             fi
 
             echo "  Applying infrastructure..."
             if terraform apply -auto-approve plan.tfplan; then
-              echo "✅ Created bucket: $bucket_name"
+              echo "✅ Created backend infrastructure for environment: $env"
+
+              # Store outputs for later use
+              echo "${env}_bucket_name=$(terraform output -raw bucket_name)" >> $GITHUB_OUTPUT
+              echo "${env}_s3_endpoint=$(terraform output -raw s3_endpoint)" >> $GITHUB_OUTPUT
             else
-              echo "❌ Failed to create bucket: $bucket_name"
-              echo "🔍 Error details:"
-              cat terraform.log 2>/dev/null || echo "No detailed log available"
+              echo "❌ Failed to create backend infrastructure for environment: $env"
               rm -rf "$temp_dir"
               return 1
             fi
@@ -390,13 +349,39 @@ jobs:
 
           configure_single_environment() {
             local env="$1"
-            local bucket_name="terraform-state-coder-$env"
             local env_dir="environments/$env"
+            local temp_dir=$(mktemp -d)
 
             echo "📝 Configuring backend for environment: $env"
 
-            # Create or update backend.tf
-            cat > "$env_dir/backend.tf" << EOF
+            # Copy the shared backend-setup configuration
+            cp -r "$GITHUB_WORKSPACE/backend-setup"/* "$temp_dir/"
+
+            # Create terraform.tfvars
+            cat > "$temp_dir/terraform.tfvars" << EOF
+          environment = "$env"
+          region      = "$region"
+          project_id  = "$SCW_DEFAULT_PROJECT_ID"
+          managed_by  = "github-actions"
+          EOF
+
+            cd "$temp_dir"
+
+            # Initialize Terraform to ensure we can read outputs
+            terraform init > /dev/null 2>&1 || true
+
+            # Try to refresh state to get outputs from existing infrastructure
+            terraform refresh > /dev/null 2>&1 || true
+
+            # Get the backend configuration content
+            local backend_content
+            if backend_content=$(terraform output -raw backend_tf_content 2>/dev/null); then
+              echo "$backend_content" > "$GITHUB_WORKSPACE/$env_dir/backend.tf"
+              echo "✅ Backend configuration created: $env_dir/backend.tf"
+            else
+              # Fallback: Generate backend.tf manually if output not available
+              local bucket_name="terraform-state-coder-$env"
+              cat > "$GITHUB_WORKSPACE/$env_dir/backend.tf" << EOF
           # Terraform Backend Configuration for Scaleway Object Storage
           # This file configures remote state storage for the $env environment
           # Auto-generated by GitHub Actions workflow
@@ -435,8 +420,10 @@ jobs:
             }
           }
           EOF
+              echo "✅ Backend configuration created (fallback): $env_dir/backend.tf"
+            fi
 
-            echo "✅ Backend configuration created: $env_dir/backend.tf"
+            rm -rf "$temp_dir"
             return 0
           }
 
