@@ -142,7 +142,7 @@ provider "scaleway" {
 }
 
 module "terraform_backend" {
-  source = "../../modules/terraform-backend"
+  source = "$PROJECT_ROOT/modules/terraform-backend"
 
   bucket_name    = "$bucket_name"
   environment    = "$env"
@@ -185,13 +185,13 @@ variable "region" {
 variable "organization_id" {
   description = "Scaleway organization ID"
   type        = string
-  default     = "\${env("SCW_DEFAULT_ORGANIZATION_ID")}"
+  default     = "${SCW_DEFAULT_ORGANIZATION_ID:-}"
 }
 
 variable "project_id" {
   description = "Scaleway project ID"
   type        = string
-  default     = "\${env("SCW_DEFAULT_PROJECT_ID")}"
+  default     = "${SCW_DEFAULT_PROJECT_ID:-}"
 }
 EOF
 
