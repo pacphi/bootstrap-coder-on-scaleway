@@ -25,32 +25,25 @@ resource "scaleway_object_bucket" "terraform_state" {
     max_age_seconds = 3000
   }
 
+  # Lifecycle configuration to manage state versions
+  lifecycle_rule {
+    id      = "terraform_state_lifecycle"
+    enabled = true
+
+    # Keep current version forever, but limit non-current versions
+    expiration {
+      days = var.state_retention_days
+    }
+
+    # Clean up incomplete multipart uploads
+    abort_incomplete_multipart_upload_days = 1
+  }
+
   tags = merge(var.tags, {
     Purpose     = "terraform-state"
     Environment = var.environment
     Project     = "coder-platform"
   })
-}
-
-# Create lifecycle configuration to manage state versions
-resource "scaleway_object_bucket_lifecycle_configuration" "terraform_state" {
-  bucket = scaleway_object_bucket.terraform_state.name
-  region = var.region
-
-  rule {
-    id     = "terraform_state_lifecycle"
-    status = "Enabled"
-
-    # Keep current version forever, but limit non-current versions
-    noncurrent_version_expiration {
-      noncurrent_days = var.state_retention_days
-    }
-
-    # Clean up incomplete multipart uploads
-    abort_incomplete_multipart_upload {
-      days_after_initiation = 1
-    }
-  }
 }
 
 # Create bucket policy for secure access
