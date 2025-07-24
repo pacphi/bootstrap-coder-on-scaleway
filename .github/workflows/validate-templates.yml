@@ -541,34 +541,37 @@ jobs:
           fi
 
       - name: Notify Slack
-        if: vars.SLACK_WEBHOOK_URL
         env:
-          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          status="${{ steps.status.outputs.overall_status }}"
-          emoji="${{ steps.status.outputs.emoji }}"
+          if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+            status="${{ steps.status.outputs.overall_status }}"
+            emoji="${{ steps.status.outputs.emoji }}"
 
-          case "$status" in
-            success) color="good"; text="Template validation completed successfully" ;;
-            failure) color="danger"; text="Template validation failed" ;;
-            *) color="warning"; text="Template validation completed with warnings" ;;
-          esac
+            case "$status" in
+              success) color="good"; text="Template validation completed successfully" ;;
+              failure) color="danger"; text="Template validation failed" ;;
+              *) color="warning"; text="Template validation completed with warnings" ;;
+            esac
 
-          payload="{
-            \"attachments\": [{
-              \"color\": \"$color\",
-              \"text\": \"$emoji $text\",
-              \"fields\": [
-                {\"title\": \"Templates Validated\", \"value\": \"${{ needs.discover-templates.outputs.template_count }}\", \"short\": true},
-                {\"title\": \"Filter Applied\", \"value\": \"${{ github.event.inputs.template_filter || '*' }}\", \"short\": true},
-                {\"title\": \"Comprehensive Test\", \"value\": \"${{ github.event.inputs.comprehensive_test || 'false' }}\", \"short\": true},
-                {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true}
-              ]
-            }]
-          }"
+            payload="{
+              \"attachments\": [{
+                \"color\": \"$color\",
+                \"text\": \"$emoji $text\",
+                \"fields\": [
+                  {\"title\": \"Templates Validated\", \"value\": \"${{ needs.discover-templates.outputs.template_count }}\", \"short\": true},
+                  {\"title\": \"Filter Applied\", \"value\": \"${{ github.event.inputs.template_filter || '*' }}\", \"short\": true},
+                  {\"title\": \"Comprehensive Test\", \"value\": \"${{ github.event.inputs.comprehensive_test || 'false' }}\", \"short\": true},
+                  {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true}
+                ]
+              }]
+            }"
 
-          curl -X POST -H 'Content-type: application/json' \
-            --data "$payload" "$SLACK_WEBHOOK_URL"
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$payload" "$SLACK_WEBHOOK_URL"
+          else
+            echo "Slack webhook not configured, skipping notification"
+          fi
 
       - name: Create Issue on Critical Failure
         if: steps.status.outputs.overall_status == 'failure'

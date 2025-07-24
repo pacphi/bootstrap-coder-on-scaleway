@@ -853,38 +853,41 @@ jobs:
 
     steps:
       - name: Notify Slack (if configured)
-        if: vars.SLACK_WEBHOOK_URL
         env:
-          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          status="${{ needs.deploy.result }}"
-          environment="${{ needs.validate.outputs.deploy_env }}"
+          if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+            status="${{ needs.deploy.result }}"
+            environment="${{ needs.validate.outputs.deploy_env }}"
 
-          if [[ "$status" == "success" ]]; then
-            color="good"
-            emoji="✅"
-            text="Coder environment deployment succeeded"
+            if [[ "$status" == "success" ]]; then
+              color="good"
+              emoji="✅"
+              text="Coder environment deployment succeeded"
+            else
+              color="danger"
+              emoji="❌"
+              text="Coder environment deployment failed"
+            fi
+
+            payload="{
+              \"attachments\": [{
+                \"color\": \"$color\",
+                \"text\": \"$emoji $text\",
+                \"fields\": [
+                  {\"title\": \"Environment\", \"value\": \"$environment\", \"short\": true},
+                  {\"title\": \"Template\", \"value\": \"${{ needs.validate.outputs.deploy_template || 'None' }}\", \"short\": true},
+                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true}
+                ]
+              }]
+            }"
+
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$payload" "$SLACK_WEBHOOK_URL"
           else
-            color="danger"
-            emoji="❌"
-            text="Coder environment deployment failed"
+            echo "Slack webhook not configured, skipping notification"
           fi
-
-          payload="{
-            \"attachments\": [{
-              \"color\": \"$color\",
-              \"text\": \"$emoji $text\",
-              \"fields\": [
-                {\"title\": \"Environment\", \"value\": \"$environment\", \"short\": true},
-                {\"title\": \"Template\", \"value\": \"${{ needs.validate.outputs.deploy_template || 'None' }}\", \"short\": true},
-                {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
-                {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true}
-              ]
-            }]
-          }"
-
-          curl -X POST -H 'Content-type: application/json' \
-            --data "$payload" "$SLACK_WEBHOOK_URL"
 
       - name: Create GitHub Issue on Failure
         if: needs.deploy.result == 'failure'
