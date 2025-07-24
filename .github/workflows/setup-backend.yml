@@ -366,9 +366,6 @@ jobs:
               key    = "$env/terraform.tfstate"
               region = "$region"
 
-              # Scaleway Object Storage S3-compatible endpoint
-              endpoint = "https://s3.$region.scw.cloud"
-
               # Required flags for S3-compatible storage
               skip_credentials_validation = true
               skip_region_validation      = true
@@ -381,16 +378,6 @@ jobs:
 
               # Note: State locking is not supported with Scaleway Object Storage
               # Team coordination should be handled through CI/CD pipelines
-            }
-          }
-
-          # Backend configuration reference
-          locals {
-            backend_config = {
-              bucket   = "$bucket_name"
-              key      = "$env/terraform.tfstate"
-              region   = "$region"
-              endpoint = "https://s3.$region.scw.cloud"
             }
           }
           EOF

@@ -83,15 +83,16 @@ locals {
     bucket = scaleway_object_bucket.terraform_state.name
     key    = "${var.environment}/terraform.tfstate"
     region = var.region
-    endpoint = "https://s3.${var.region}.scw.cloud"
 
     # S3-compatibility flags for Scaleway
     skip_credentials_validation = true
     skip_region_validation      = true
     skip_requesting_account_id  = true
 
-    # Workspace-specific state keys
-    workspace_key_prefix = "${var.environment}"
+    # Use endpoints block for better compatibility
+    endpoints = {
+      s3 = "https://s3.$region.scw.cloud"
+    }
   }
 }
 
@@ -104,7 +105,7 @@ resource "local_file" "backend_config" {
     bucket_name = scaleway_object_bucket.terraform_state.name
     state_key   = local.backend_config.key
     region      = var.region
-    endpoint    = local.backend_config.endpoint
+    endpoint    = local.backend_config.endpoints.s3
   })
 
   file_permission = "0644"
@@ -119,7 +120,7 @@ resource "local_file" "backend_env_config" {
     bucket_name = scaleway_object_bucket.terraform_state.name
     state_key   = local.backend_config.key
     region      = var.region
-    endpoint    = local.backend_config.endpoint
+    endpoint    = local.backend_config.endpoints.s3
   })
 
   file_permission = "0644"
