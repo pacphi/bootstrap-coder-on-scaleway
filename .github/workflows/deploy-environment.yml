@@ -71,21 +71,21 @@ on:
         type: boolean
         default: false
 
-  # Allow manual PR triggers for staging deployments
-  pull_request:
-    types: [opened, synchronize, labeled]
-    paths:
-      - 'environments/**'
-      - 'modules/**'
-      - 'templates/**'
-      - 'scripts/**'
+  # # Allow manual PR triggers for staging deployments
+  # pull_request:
+  #   types: [opened, synchronize, labeled]
+  #   paths:
+  #     - 'environments/**'
+  #     - 'modules/**'
+  #     - 'templates/**'
+  #     - 'scripts/**'
 
-  # Auto-deploy on push to main for staging
-  push:
-    branches: [main]
-    paths:
-      - 'environments/staging/**'
-      - 'modules/**'
+  # # Auto-deploy on push to main for staging
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'environments/staging/**'
+  #     - 'modules/**'
 
 env:
   TF_IN_AUTOMATION: true
