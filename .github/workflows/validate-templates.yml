@@ -183,8 +183,9 @@ jobs:
           echo "Templates JSON:"
           echo "$templates_json" | jq .
 
-          # Set outputs
-          echo "templates=$templates_json" >> $GITHUB_OUTPUT
+          # Set outputs (compact JSON for GitHub Actions)
+          templates_json_compact=$(echo "$templates_json" | jq -c . 2>/dev/null || echo "[]")
+          echo "templates=$templates_json_compact" >> $GITHUB_OUTPUT
           echo "template_count=$template_count" >> $GITHUB_OUTPUT
 
           # Summary
