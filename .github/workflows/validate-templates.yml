@@ -84,7 +84,6 @@ jobs:
           # Initialize variables
           filter="${{ github.event.inputs.template_filter || '*' }}"
           echo "Filter: $filter"
-          template_count=0
           templates_file=$(mktemp)
 
           # Find all main.tf files in templates directory
@@ -148,7 +147,6 @@ jobs:
                   exit 1
                 fi
 
-                ((template_count++))
                 echo "✓ Found template: $template_name (category: $template_category)"
               fi
             else
@@ -170,6 +168,9 @@ jobs:
             echo "::debug::Invalid JSON: $templates_json"
             exit 1
           fi
+
+          # Calculate template count from final JSON
+          template_count=$(echo "$templates_json" | jq '. | length' 2>/dev/null || echo "0")
 
           # Check results
           if [[ $template_count -eq 0 ]]; then
