@@ -61,3 +61,11 @@ terraform apply -var="environment=dev" -var="project_id=$SCW_DEFAULT_PROJECT_ID"
 The configuration automatically uses these environment variables:
 - `SCW_DEFAULT_PROJECT_ID` - Used when project_id not explicitly provided
 - Standard Scaleway authentication variables (SCW_ACCESS_KEY, SCW_SECRET_KEY)
+
+### S3 Backend Authentication
+
+When using the generated backend configuration, you must also set:
+- `AWS_ACCESS_KEY_ID` - Set to your SCW_ACCESS_KEY value
+- `AWS_SECRET_ACCESS_KEY` - Set to your SCW_SECRET_KEY value
+
+The Terraform S3 backend specifically looks for these AWS-named variables.

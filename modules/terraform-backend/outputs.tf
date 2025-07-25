@@ -45,6 +45,6 @@ output "backend_tf_content" {
     bucket_name = scaleway_object_bucket.terraform_state.name
     state_key   = local.backend_config.key
     region      = var.region
-    endpoint    = local.backend_config.endpoint
+    endpoint    = local.backend_config.endpoints.s3
   })
 }

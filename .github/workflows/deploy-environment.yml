@@ -161,6 +161,9 @@ jobs:
           echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
           echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
           echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+          # AWS environment variables for S3 backend (required by Terraform S3 backend)
+          echo "AWS_ACCESS_KEY_ID=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
 
       - name: Check Terraform Formatting
         run: |
@@ -498,12 +501,62 @@ jobs:
           echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
           echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
           echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+          # AWS environment variables for S3 backend (required by Terraform S3 backend)
+          echo "AWS_ACCESS_KEY_ID=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
 
       - name: Download Backend Configuration
         uses: actions/download-artifact@v4
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
           path: ./
+
+      - name: Verify Backend Configuration
+        run: |
+          echo "🔍 Verifying backend configuration..."
+
+          # Check if backend.tf exists and has correct content
+          BACKEND_FILE="environments/${{ needs.validate.outputs.deploy_env }}/backend.tf"
+          if [ -f "$BACKEND_FILE" ]; then
+            echo "✅ backend.tf found"
+
+            # Check for deprecated endpoint parameter
+            if grep -q "^[[:space:]]*endpoint[[:space:]]*=" "$BACKEND_FILE"; then
+              echo "❌ ERROR: backend.tf contains deprecated 'endpoint' parameter"
+              echo "Should use 'endpoints = { s3 = ... }' instead"
+              exit 1
+            fi
+
+            # Check for endpoints block
+            if grep -q "endpoints[[:space:]]*=" "$BACKEND_FILE"; then
+              echo "✅ Using correct 'endpoints' block"
+            else
+              echo "❌ ERROR: backend.tf missing 'endpoints' block"
+              exit 1
+            fi
+
+            # Check for skip_metadata_api_check
+            if grep -q "skip_metadata_api_check[[:space:]]*=" "$BACKEND_FILE"; then
+              echo "✅ Has skip_metadata_api_check flag"
+            else
+              echo "⚠️  WARNING: Missing skip_metadata_api_check flag"
+            fi
+
+            echo "📄 Backend configuration content:"
+            cat "$BACKEND_FILE"
+
+          else
+            echo "❌ backend.tf not found!"
+            echo "Expected at: $BACKEND_FILE"
+            echo "Available files:"
+            ls -la environments/${{ needs.validate.outputs.deploy_env }}/
+            exit 1
+          fi
+
+          # Verify credentials
+          echo -e "\n🔐 Checking S3 backend credentials..."
+          [ -n "$AWS_ACCESS_KEY_ID" ] && echo "✅ AWS_ACCESS_KEY_ID is set" || echo "❌ AWS_ACCESS_KEY_ID missing"
+          [ -n "$AWS_SECRET_ACCESS_KEY" ] && echo "✅ AWS_SECRET_ACCESS_KEY is set" || echo "❌ AWS_SECRET_ACCESS_KEY missing"
 
       - name: Initialize Terraform Backend
         run: |
@@ -647,6 +700,9 @@ jobs:
           echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
           echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
           echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+          # AWS environment variables for S3 backend (required by Terraform S3 backend)
+          echo "AWS_ACCESS_KEY_ID=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
 
       - name: Setup Deployment Flags
         id: setup-flags

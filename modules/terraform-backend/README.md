@@ -60,6 +60,7 @@ terraform {
     skip_credentials_validation = true
     skip_region_validation      = true
     skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
 
     endpoints = {
       s3 = "https://s3.fr-par.scw.cloud"
@@ -77,6 +78,18 @@ export SCW_ACCESS_KEY="your-access-key"
 export SCW_SECRET_KEY="your-secret-key"
 export SCW_DEFAULT_PROJECT_ID="your-project-id"
 ```
+
+### Important: AWS Environment Variables for S3 Backend
+
+The Terraform S3 backend requires AWS-style environment variables even when using S3-compatible storage like Scaleway. You must set:
+
+```bash
+# For Terraform S3 backend authentication
+export AWS_ACCESS_KEY_ID="$SCW_ACCESS_KEY"
+export AWS_SECRET_ACCESS_KEY="$SCW_SECRET_KEY"
+```
+
+This is required because the S3 backend is designed for AWS and looks for these specific environment variable names.
 
 Or using AWS CLI configuration (for S3 compatibility):
 
@@ -160,6 +173,9 @@ To migrate existing local state to the remote backend:
 
 **Region Mismatch**: Ensure the region matches your Scaleway configuration
 - Solution: Use consistent regions across your configuration
+
+**"No valid credential sources for S3 Backend found"**: Terraform S3 backend requires AWS environment variables
+- Solution: Export AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY with your Scaleway credentials
 
 ### Debugging
 

@@ -197,6 +197,10 @@ export SCW_ACCESS_KEY="your-access-key"
 export SCW_SECRET_KEY="your-secret-key"
 export SCW_DEFAULT_PROJECT_ID="your-project-id"
 
+# Required for Terraform S3 backend (uses Scaleway credentials)
+export AWS_ACCESS_KEY_ID="$SCW_ACCESS_KEY"
+export AWS_SECRET_ACCESS_KEY="$SCW_SECRET_KEY"
+
 # Optional: Default region and zone
 export SCW_DEFAULT_REGION="fr-par"
 export SCW_DEFAULT_ZONE="fr-par-1"
@@ -311,6 +315,10 @@ kubectl exec -it deployment/coder -n coder -- env | grep DB_
 # Backend auto-provisioning issues (check GitHub Actions logs for backend setup job)
 # Manual backend creation if auto-provisioning fails
 ./scripts/utils/setup-backend.sh --env=<env> --verbose
+
+# Ensure AWS environment variables are set for S3 backend
+export AWS_ACCESS_KEY_ID="$SCW_ACCESS_KEY"
+export AWS_SECRET_ACCESS_KEY="$SCW_SECRET_KEY"
 
 # Check state backend connectivity
 ./scripts/utils/state-manager.sh show --env=<env>
