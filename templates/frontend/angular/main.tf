@@ -693,7 +693,7 @@ export class DataService {
   constructor(private http: HttpClient) {}
 
   getUsers(): Observable<ApiResponse<User[]>> {
-    return this.http.get<ApiResponse<User[]>>(`${this.apiUrl}/users`)
+    return this.http.get<ApiResponse<User[]>>(`$${this.apiUrl}/users`)
       .pipe(
         retry(2),
         catchError(this.handleError)
@@ -701,7 +701,7 @@ export class DataService {
   }
 
   getUser(id: number): Observable<ApiResponse<User>> {
-    return this.http.get<ApiResponse<User>>(`${this.apiUrl}/users/${id}`)
+    return this.http.get<ApiResponse<User>>(`$${this.apiUrl}/users/$${id}`)
       .pipe(
         retry(2),
         catchError(this.handleError)
@@ -709,21 +709,21 @@ export class DataService {
   }
 
   createUser(user: Omit<User, 'id'>): Observable<ApiResponse<User>> {
-    return this.http.post<ApiResponse<User>>(`${this.apiUrl}/users`, user)
+    return this.http.post<ApiResponse<User>>(`$${this.apiUrl}/users`, user)
       .pipe(
         catchError(this.handleError)
       );
   }
 
   updateUser(id: number, user: Partial<User>): Observable<ApiResponse<User>> {
-    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${id}`, user)
+    return this.http.put<ApiResponse<User>>(`$${this.apiUrl}/users/$${id}`, user)
       .pipe(
         catchError(this.handleError)
       );
   }
 
   deleteUser(id: number): Observable<ApiResponse<void>> {
-    return this.http.delete<ApiResponse<void>>(`${this.apiUrl}/users/${id}`)
+    return this.http.delete<ApiResponse<void>>(`$${this.apiUrl}/users/$${id}`)
       .pipe(
         catchError(this.handleError)
       );
@@ -734,10 +734,10 @@ export class DataService {
 
     if (error.error instanceof ErrorEvent) {
       // Client-side error
-      errorMessage = `Error: ${error.error.message}`;
+      errorMessage = `Error: $${error.error.message}`;
     } else {
       // Server-side error
-      errorMessage = `Error Code: ${error.status}\nMessage: ${error.message}`;
+      errorMessage = `Error Code: $${error.status}\nMessage: $${error.message}`;
     }
 
     console.error('DataService Error:', errorMessage);
@@ -1173,6 +1173,10 @@ resource "coder_app" "cypress" {
 
 # Kubernetes resources
 resource "kubernetes_persistent_volume_claim" "home" {
+  metadata {
+    name      = "home-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+    namespace = var.namespace
+  }
 
   wait_until_bound = false
 
@@ -1197,6 +1201,10 @@ data "coder_workspace_owner" "me" {}
 resource "kubernetes_deployment" "main" {
   count = data.coder_workspace.me.start_count
 
+  metadata {
+    name      = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+    namespace = var.namespace
+  }
 
   spec {
     replicas = 1
@@ -1211,8 +1219,8 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
         }
       }

@@ -1075,7 +1075,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
   spec {
     access_modes       = ["ReadWriteOnce"]
-    storage_class_name = "fast-ssd"  # Use fast storage for DevOps workloads
+    storage_class_name = "fast-ssd" # Use fast storage for DevOps workloads
 
     resources {
       requests = {
@@ -1130,10 +1130,10 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
-          "devops-workspace"           = "true"
+          "devops-workspace"            = "true"
         }
       }
 
@@ -1154,7 +1154,7 @@ resource "kubernetes_deployment" "main" {
             run_as_user                = 1000
             allow_privilege_escalation = false
             capabilities {
-              add = ["SYS_ADMIN", "NET_ADMIN"]  # Additional capabilities for DevOps tools
+              add = ["SYS_ADMIN", "NET_ADMIN"] # Additional capabilities for DevOps tools
             }
           }
 

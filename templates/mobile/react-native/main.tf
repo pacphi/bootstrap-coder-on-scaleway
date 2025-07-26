@@ -475,7 +475,7 @@ class ApiService {
       async (config: AxiosRequestConfig) => {
         const token = await AsyncStorage.getItem('auth_token');
         if (token && config.headers) {
-          config.headers.Authorization = `Bearer ${token}`;
+          config.headers.Authorization = `Bearer $${token}`;
         }
         return config;
       },
@@ -872,21 +872,21 @@ EOF
   "configurations": [
     {
       "name": "Debug Android",
-      "cwd": "${workspaceFolder}",
+      "cwd": "$${workspaceFolder}",
       "type": "reactnativedirect",
       "request": "launch",
       "platform": "android"
     },
     {
       "name": "Debug iOS",
-      "cwd": "${workspaceFolder}",
+      "cwd": "$${workspaceFolder}",
       "type": "reactnativedirect",
       "request": "launch",
       "platform": "ios"
     },
     {
       "name": "Attach to packager",
-      "cwd": "${workspaceFolder}",
+      "cwd": "$${workspaceFolder}",
       "type": "reactnativedirect",
       "request": "attach"
     }
@@ -1077,8 +1077,8 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
         }
       }
@@ -1144,20 +1144,20 @@ resource "kubernetes_deployment" "main" {
           # Expose common React Native development ports
           port {
             container_port = 8081
-            name          = "metro"
-            protocol      = "TCP"
+            name           = "metro"
+            protocol       = "TCP"
           }
 
           port {
             container_port = 19000
-            name          = "expo"
-            protocol      = "TCP"
+            name           = "expo"
+            protocol       = "TCP"
           }
 
           port {
             container_port = 19002
-            name          = "expo-devtools"
-            protocol      = "TCP"
+            name           = "expo-devtools"
+            protocol       = "TCP"
           }
         }
 

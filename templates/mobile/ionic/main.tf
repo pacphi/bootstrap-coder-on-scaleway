@@ -406,7 +406,7 @@ export class DataService {
   }
 
   getUsers(): Observable<User[]> {
-    return this.http.get<User[]>(`${this.apiUrl}/users`)
+    return this.http.get<User[]>(`$${this.apiUrl}/users`)
       .pipe(
         retry(2),
         catchError(this.handleError)
@@ -414,7 +414,7 @@ export class DataService {
   }
 
   getUser(id: string): Observable<User> {
-    return this.http.get<User>(`${this.apiUrl}/users/${id}`)
+    return this.http.get<User>(`$${this.apiUrl}/users/$${id}`)
       .pipe(
         retry(2),
         catchError(this.handleError)
@@ -435,9 +435,9 @@ export class DataService {
     let errorMessage = 'An unknown error occurred';
 
     if (error.error instanceof ErrorEvent) {
-      errorMessage = `Error: ${error.error.message}`;
+      errorMessage = `Error: $${error.error.message}`;
     } else {
-      errorMessage = `Error Code: ${error.status}\nMessage: ${error.message}`;
+      errorMessage = `Error Code: $${error.status}\nMessage: $${error.message}`;
     }
 
     console.error('DataService Error:', errorMessage);
@@ -470,7 +470,7 @@ export function useApi<T>(url: string, dependencies: any[] = []): UseApiResult<T
       setError(null);
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: $${response.status}`);
       }
       const result = await response.json();
       setData(result);
@@ -521,7 +521,7 @@ export function useApi<T>(url: string) {
     try {
       const response = await window.fetch(url);
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: $${response.status}`);
       }
       state.data = await response.json();
     } catch (err) {
@@ -795,7 +795,7 @@ EOF
       "name": "Ionic: Serve",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/node_modules/@ionic/cli/bin/ionic",
+      "program": "$${workspaceFolder}/node_modules/@ionic/cli/bin/ionic",
       "args": ["serve"],
       "env": {
         "NODE_ENV": "development"
@@ -806,7 +806,7 @@ EOF
       "name": "Ionic: Android Debug",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/node_modules/@ionic/cli/bin/ionic",
+      "program": "$${workspaceFolder}/node_modules/@ionic/cli/bin/ionic",
       "args": ["capacitor", "run", "android", "--livereload"],
       "env": {
         "NODE_ENV": "development"
@@ -817,7 +817,7 @@ EOF
       "name": "Ionic: iOS Debug",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/node_modules/@ionic/cli/bin/ionic",
+      "program": "$${workspaceFolder}/node_modules/@ionic/cli/bin/ionic",
       "args": ["capacitor", "run", "ios", "--livereload"],
       "env": {
         "NODE_ENV": "development"
@@ -1124,8 +1124,8 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
         }
       }
@@ -1201,26 +1201,26 @@ resource "kubernetes_deployment" "main" {
           # Expose Ionic development ports
           port {
             container_port = 8100
-            name          = "ionic-serve"
-            protocol      = "TCP"
+            name           = "ionic-serve"
+            protocol       = "TCP"
           }
 
           port {
             container_port = 8200
-            name          = "ionic-lab"
-            protocol      = "TCP"
+            name           = "ionic-lab"
+            protocol       = "TCP"
           }
 
           port {
             container_port = 35729
-            name          = "livereload"
-            protocol      = "TCP"
+            name           = "livereload"
+            protocol       = "TCP"
           }
 
           port {
             container_port = 53703
-            name          = "ionic-dev"
-            protocol      = "TCP"
+            name           = "ionic-dev"
+            protocol       = "TCP"
           }
         }
 

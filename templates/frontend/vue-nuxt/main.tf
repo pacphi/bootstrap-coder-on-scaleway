@@ -580,15 +580,15 @@ const badgeClasses = computed(() => {
 
   switch (props.color) {
     case 'blue':
-      return `${baseClasses} bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100`
+      return `$${baseClasses} bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100`
     case 'green':
-      return `${baseClasses} bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100`
+      return `$${baseClasses} bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100`
     case 'purple':
-      return `${baseClasses} bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100`
+      return `$${baseClasses} bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100`
     case 'red':
-      return `${baseClasses} bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100`
+      return `$${baseClasses} bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100`
     default:
-      return `${baseClasses} bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`
+      return `$${baseClasses} bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`
   }
 })
 </script>
@@ -722,7 +722,7 @@ EOF
         </p>
 
         <NuxtLink
-          :to="`/blog/${post.slug}`"
+          :to="`/blog/$${post.slug}`"
           class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
         >
           Read more →
@@ -780,12 +780,12 @@ export const useApi = () => {
   const config = useRuntimeConfig()
 
   const get = async <T>(url: string): Promise<T> => {
-    const { data } = await $fetch<{ data: T }>(`${config.public.apiBase}${url}`)
+    const { data } = await $fetch<{ data: T }>(`$${config.public.apiBase}$${url}`)
     return data
   }
 
   const post = async <T, U>(url: string, body: U): Promise<T> => {
-    const { data } = await $fetch<{ data: T }>(`${config.public.apiBase}${url}`, {
+    const { data } = await $fetch<{ data: T }>(`$${config.public.apiBase}$${url}`, {
       method: 'POST',
       body
     })
@@ -979,27 +979,11 @@ resource "coder_metadata" "node_version" {
   }
 }
 
-resource "coder_metadata" "vue_version" {
-  resource_id = coder_agent.main.id
-  item {
-    key   = "vue_version"
-    value = data.coder_parameter.vue_version.value
-  }
-}
-
 resource "coder_metadata" "ui_framework" {
   resource_id = coder_agent.main.id
   item {
     key   = "ui_framework"
     value = data.coder_parameter.ui_framework.value
-  }
-}
-
-resource "coder_metadata" "features" {
-  resource_id = coder_agent.main.id
-  item {
-    key   = "features"
-    value = data.coder_parameter.nuxt_features.value
   }
 }
 
@@ -1063,6 +1047,10 @@ resource "coder_app" "storybook" {
 
 # Kubernetes resources
 resource "kubernetes_persistent_volume_claim" "home" {
+  metadata {
+    name      = "home-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+    namespace = var.namespace
+  }
 
   wait_until_bound = false
 
@@ -1087,6 +1075,14 @@ data "coder_workspace_owner" "me" {}
 resource "kubernetes_deployment" "main" {
   count = data.coder_workspace.me.start_count
 
+  metadata {
+    name      = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+    namespace = var.namespace
+    labels = {
+      "app.kubernetes.io/name"     = "coder-workspace"
+      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+    }
+  }
 
   spec {
     replicas = 1
@@ -1101,8 +1097,8 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
         }
       }

@@ -1074,7 +1074,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
   spec {
     access_modes       = ["ReadWriteOnce"]
-    storage_class_name = "fast-ssd"  # Use fast storage for ML workloads
+    storage_class_name = "fast-ssd" # Use fast storage for ML workloads
 
     resources {
       requests = {
@@ -1129,10 +1129,10 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
-          "ml-workspace"               = "true"
+          "ml-workspace"                = "true"
         }
       }
 
@@ -1144,12 +1144,9 @@ resource "kubernetes_deployment" "main" {
         }
 
         # Use node with GPU if requested
-        dynamic "node_selector" {
-          for_each = data.coder_parameter.enable_gpu.value ? [1] : []
-          content {
-            "accelerator" = "nvidia-tesla-k80"
-          }
-        }
+        node_selector = data.coder_parameter.enable_gpu.value ? {
+          accelerator = "nvidia-tesla-k80"
+        } : {}
 
         container {
           name              = "dev"

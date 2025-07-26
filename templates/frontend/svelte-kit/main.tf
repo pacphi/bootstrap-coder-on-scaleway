@@ -367,7 +367,7 @@ const config = {
   preprocess: vitePreprocess(),
 
   kit: {
-    adapter: adapter(${data.coder_parameter.adapter.value == "static" ? "{fallback: 'index.html'}" : ""})
+    adapter: adapter(${data.coder_parameter.adapter.value == "static" ? "{fallback: \\\"index.html\\\"}" : ""})
   }
 };
 
@@ -382,34 +382,7 @@ import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 
 export default defineConfig({
   plugins: [
-    sveltekit(),
-    ${data.coder_parameter.enable_pwa.value ? `SvelteKitPWA({
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.ts',
-      registerType: 'autoUpdate',
-      manifest: {
-        name: 'SvelteKit App',
-        short_name: 'SvelteKit',
-        description: 'A SvelteKit Progressive Web App',
-        theme_color: '#ff3e00',
-        background_color: '#ffffff',
-        display: 'standalone',
-        start_url: '/',
-        icons: [
-          {
-            src: '/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
-      }
-    })` : ""}
+    sveltekit()${data.coder_parameter.enable_pwa.value ? ",\n    SvelteKitPWA({\n      strategies: \\\"injectManifest\\\",\n      srcDir: \\\"src\\\",\n      filename: \\\"sw.ts\\\",\n      registerType: \\\"autoUpdate\\\",\n      manifest: {\n        name: \\\"SvelteKit App\\\",\n        short_name: \\\"SvelteKit\\\",\n        description: \\\"A SvelteKit Progressive Web App\\\",\n        theme_color: \\\"#ff3e00\\\",\n        background_color: \\\"#ffffff\\\",\n        display: \\\"standalone\\\",\n        start_url: \\\"/\\\",\n        icons: [\n          {\n            src: \\\"/icon-192.png\\\",\n            sizes: \\\"192x192\\\",\n            type: \\\"image/png\\\"\n          },\n          {\n            src: \\\"/icon-512.png\\\",\n            sizes: \\\"512x512\\\",\n            type: \\\"image/png\\\"\n          }\n        ]\n      }\n    })" : ""}
   ],
 
   test: {
@@ -1025,9 +998,9 @@ EOF
 
     # Create main CSS file
     cat > src/app.css << 'EOF'
-${data.coder_parameter.ui_framework.value == "tailwind" ? "@import 'tailwindcss/base';" : ""}
-${data.coder_parameter.ui_framework.value == "tailwind" ? "@import 'tailwindcss/components';" : ""}
-${data.coder_parameter.ui_framework.value == "tailwind" ? "@import 'tailwindcss/utilities';" : ""}
+${data.coder_parameter.ui_framework.value == "tailwind" ? "@import \"tailwindcss/base\";" : ""}
+${data.coder_parameter.ui_framework.value == "tailwind" ? "@import \"tailwindcss/components\";" : ""}
+${data.coder_parameter.ui_framework.value == "tailwind" ? "@import \"tailwindcss/utilities\";" : ""}
 
 :root {
   /* Light theme colors */
@@ -1193,12 +1166,12 @@ EOF
       </div>
 
       <div class="feature">
-        <h3>📱 ${data.coder_parameter.enable_pwa.value ? 'PWA Ready' : 'Mobile First'}</h3>
-        <p>${data.coder_parameter.enable_pwa.value ? 'Progressive Web App capabilities for native-like experience' : 'Responsive design that works great on all devices'}.</p>
+        <h3>📱 ${data.coder_parameter.enable_pwa.value ? "PWA Ready" : "Mobile First"}</h3>
+        <p>${data.coder_parameter.enable_pwa.value ? "Progressive Web App capabilities for native-like experience" : "Responsive design that works great on all devices"}.</p>
       </div>
 
       <div class="feature">
-        <h3>🚀 ${data.coder_parameter.adapter.value == 'static' ? 'Static Site' : 'Server-Side Rendering'}</h3>
+        <h3>🚀 ${data.coder_parameter.adapter.value == "static" ? "Static Site" : "Server-Side Rendering"}</h3>
         <p>Configured with @sveltejs/adapter-${data.coder_parameter.adapter.value} for optimal deployment.</p>
       </div>
 
@@ -1213,7 +1186,7 @@ EOF
       <div class="tech-badges">
         <span class="badge">SvelteKit</span>
         <span class="badge">TypeScript</span>
-        <span class="badge">${data.coder_parameter.ui_framework.value == 'tailwind' ? 'Tailwind CSS' : data.coder_parameter.ui_framework.value}</span>
+        <span class="badge">${data.coder_parameter.ui_framework.value == "tailwind" ? "Tailwind CSS" : data.coder_parameter.ui_framework.value}</span>
         <span class="badge">Vite</span>
         <span class="badge">Vitest</span>
         <span class="badge">Playwright</span>
@@ -1411,7 +1384,7 @@ EOF
       cat > src/sw.ts << 'EOF'
 import { build, files, version } from '$service-worker';
 
-const CACHE = `cache-${version}`;
+const CACHE = `cache-$${version}`;
 const ASSETS = [...build, ...files];
 
 self.addEventListener('install', (event) => {
@@ -1486,12 +1459,12 @@ COPY . .
 RUN npm run build
 
 # Runtime stage
-${data.coder_parameter.adapter.value == "node" ? "FROM node:" + data.coder_parameter.node_version.value + "-alpine" : "FROM nginx:alpine"}
+${data.coder_parameter.adapter.value == "node" ? "FROM node:${data.coder_parameter.node_version.value}-alpine" : "FROM nginx:alpine"}
 
-${data.coder_parameter.adapter.value == "node" ? "WORKDIR /app" : ""}
+${data.coder_parameter.adapter.value == "node" ? "WORKDIR /app" : "# Using nginx"}
 ${data.coder_parameter.adapter.value == "node" ? "COPY --from=build /app/build ." : "COPY --from=build /app/build /usr/share/nginx/html"}
-${data.coder_parameter.adapter.value == "node" ? "COPY --from=build /app/node_modules ./node_modules" : ""}
-${data.coder_parameter.adapter.value == "node" ? "COPY package.json ." : ""}
+${data.coder_parameter.adapter.value == "node" ? "COPY --from=build /app/node_modules ./node_modules" : "# No node_modules needed for nginx"}
+${data.coder_parameter.adapter.value == "node" ? "COPY package.json ." : "# No package.json needed for nginx"}
 
 ${data.coder_parameter.adapter.value == "node" ? "EXPOSE 3000" : "EXPOSE 80"}
 
@@ -1654,6 +1627,10 @@ resource "coder_app" "preview" {
 
 # Kubernetes resources
 resource "kubernetes_persistent_volume_claim" "home" {
+  metadata {
+    name      = "home-${data.coder_workspace.me.id}"
+    namespace = var.namespace
+  }
 
   wait_until_bound = false
 
@@ -1678,6 +1655,10 @@ data "coder_workspace_owner" "me" {}
 resource "kubernetes_deployment" "main" {
   count = data.coder_workspace.me.start_count
 
+  metadata {
+    name      = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+    namespace = var.namespace
+  }
 
   spec {
     replicas = 1
@@ -1692,8 +1673,8 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
         }
       }

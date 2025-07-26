@@ -559,7 +559,7 @@ if ! gem list foreman -i --silent; then
 fi
 
 # Default to port 3000 if not specified
-export PORT="${PORT:-3000}"
+export PORT="$${PORT:-3000}"
 
 exec foreman start -f Procfile.dev "$@"
 EOF
@@ -760,8 +760,8 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
         }
       }

@@ -173,8 +173,8 @@ provider "kubernetes" {
 
 # Workspace
 resource "coder_agent" "main" {
-  arch           = "amd64"
-  os             = "linux"
+  arch = "amd64"
+  os   = "linux"
   startup_script = <<-EOT
     #!/bin/bash
 
@@ -525,7 +525,7 @@ app.get('/api', (req, res) => {
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Backend server running on port ${PORT}`);
+  console.log("🚀 Backend server running on port $${PORT}");
 });
 EOF
 
@@ -1049,7 +1049,7 @@ EOF
 
 set -e
 
-STACK=${1:-${data.coder_parameter.stack_template.value}}
+STACK=$${1:-${data.coder_parameter.stack_template.value}}
 STACK_PATH="../stacks/$STACK"
 
 if [[ ! -d "$STACK_PATH" ]]; then
@@ -1090,7 +1090,7 @@ EOF
 
 set -e
 
-STACK=${1:-${data.coder_parameter.stack_template.value}}
+STACK=$${1:-${data.coder_parameter.stack_template.value}}
 STACK_PATH="../stacks/$STACK"
 
 echo "🛑 Stopping $STACK stack..."
@@ -1113,7 +1113,7 @@ EOF
 #!/bin/bash
 # View logs from Docker Compose services
 
-STACK=${1:-${data.coder_parameter.stack_template.value}}
+STACK=$${1:-${data.coder_parameter.stack_template.value}}
 SERVICE=${2}
 STACK_PATH="../stacks/$STACK"
 
@@ -1134,7 +1134,7 @@ EOF
 
 set -e
 
-STACK=${1:-${data.coder_parameter.stack_template.value}}
+STACK=$${1:-${data.coder_parameter.stack_template.value}}
 STACK_PATH="../stacks/$STACK"
 
 echo "🔄 Rebuilding $STACK stack..."
@@ -1395,18 +1395,18 @@ dive <image-name>
 ### ${data.coder_parameter.stack_template.value} Stack
 
 ${data.coder_parameter.stack_template.value == "fullstack" ?
-"- **Frontend:** React application (port 3000)\n- **Backend:** Express.js API (port 5000)\n- **Database:** PostgreSQL (port 5432)\n- **Cache:** Redis (port 6379)\n- **Proxy:** Nginx (port 80)" :
-data.coder_parameter.stack_template.value == "lamp" ?
-"- **Web Server:** Apache with PHP (port 80)\n- **Database:** MySQL (port 3306)\n- **Admin:** phpMyAdmin (port 8080)" :
-data.coder_parameter.stack_template.value == "mean" ?
-"- **Frontend:** Angular (port 4200)\n- **Backend:** Express.js (port 3000)\n- **Database:** MongoDB (port 27017)\n- **Admin:** Mongo Express (port 8081)" :
-"Custom microservices architecture with multiple services"
-}
+  "- **Frontend:** React application (port 3000)\n- **Backend:** Express.js API (port 5000)\n- **Database:** PostgreSQL (port 5432)\n- **Cache:** Redis (port 6379)\n- **Proxy:** Nginx (port 80)" :
+  data.coder_parameter.stack_template.value == "lamp" ?
+  "- **Web Server:** Apache with PHP (port 80)\n- **Database:** MySQL (port 3306)\n- **Admin:** phpMyAdmin (port 8080)" :
+  data.coder_parameter.stack_template.value == "mean" ?
+  "- **Frontend:** Angular (port 4200)\n- **Backend:** Express.js (port 3000)\n- **Database:** MongoDB (port 27017)\n- **Admin:** Mongo Express (port 8081)" :
+  "Custom microservices architecture with multiple services"
+  }
 
 ### Monitoring Stack (if enabled)
 
 ${data.coder_parameter.enable_monitoring.value ?
-"- **Prometheus:** Metrics collection (port 9090)\n- **Grafana:** Dashboards (port 3001) - admin/admin123\n- **Node Exporter:** System metrics (port 9100)\n- **cAdvisor:** Container metrics (port 8082)" :
+  "- **Prometheus:** Metrics collection (port 9090)\n- **Grafana:** Dashboards (port 3001) - admin/admin123\n- **Node Exporter:** System metrics (port 9100)\n- **cAdvisor:** Container metrics (port 8082)" :
 "Monitoring is disabled for this environment"}
 
 ## Development Workflow
@@ -1623,14 +1623,14 @@ resource "coder_app" "vscode" {
 resource "coder_app" "stack_app" {
   agent_id     = coder_agent.main.id
   slug         = "stack-app"
-  display_name = "${data.coder_parameter.stack_template.value == "fullstack" ? "Full Stack App" : data.coder_parameter.stack_template.value == "lamp" ? "LAMP App" : data.coder_parameter.stack_template.value == "mean" ? "MEAN App" : "Stack App"}"
-  url          = "${data.coder_parameter.stack_template.value == "fullstack" ? "http://localhost:80" : data.coder_parameter.stack_template.value == "lamp" ? "http://localhost:80" : data.coder_parameter.stack_template.value == "mean" ? "http://localhost:4200" : "http://localhost:3000"}"
+  display_name = data.coder_parameter.stack_template.value == "fullstack" ? "Full Stack App" : data.coder_parameter.stack_template.value == "lamp" ? "LAMP App" : data.coder_parameter.stack_template.value == "mean" ? "MEAN App" : "Stack App"
+  url          = data.coder_parameter.stack_template.value == "fullstack" ? "http://localhost:80" : data.coder_parameter.stack_template.value == "lamp" ? "http://localhost:80" : data.coder_parameter.stack_template.value == "mean" ? "http://localhost:4200" : "http://localhost:3000"
   icon         = "/icon/app.svg"
   subdomain    = true
   share        = "owner"
 
   healthcheck {
-    url       = "${data.coder_parameter.stack_template.value == "fullstack" ? "http://localhost:80" : data.coder_parameter.stack_template.value == "lamp" ? "http://localhost:80" : data.coder_parameter.stack_template.value == "mean" ? "http://localhost:4200" : "http://localhost:3000"}"
+    url       = data.coder_parameter.stack_template.value == "fullstack" ? "http://localhost:80" : data.coder_parameter.stack_template.value == "lamp" ? "http://localhost:80" : data.coder_parameter.stack_template.value == "mean" ? "http://localhost:4200" : "http://localhost:3000"
     interval  = 15
     threshold = 30
   }
@@ -1686,7 +1686,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
   spec {
     access_modes       = ["ReadWriteOnce"]
-    storage_class_name = "fast-ssd"  # Use fast storage for container workloads
+    storage_class_name = "fast-ssd" # Use fast storage for container workloads
 
     resources {
       requests = {
@@ -1742,10 +1742,10 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
-          "docker-workspace"           = "true"
+          "docker-workspace"            = "true"
         }
       }
 
@@ -1766,7 +1766,7 @@ resource "kubernetes_deployment" "main" {
             run_as_user                = 1000
             allow_privilege_escalation = false
             capabilities {
-              add = ["SYS_ADMIN"]  # Required for Docker-in-Docker
+              add = ["SYS_ADMIN"] # Required for Docker-in-Docker
             }
           }
 

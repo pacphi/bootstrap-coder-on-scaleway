@@ -457,14 +457,14 @@ class ApiService {
 
   Future<Map<String, dynamic>> get(String endpoint) async {
     return _makeRequest(() => _client.get(
-      Uri.parse('${AppConstants.baseUrl}$endpoint'),
+      Uri.parse('$${AppConstants.baseUrl}$$endpoint'),
       headers: await _getHeaders(),
     ));
   }
 
   Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> data) async {
     return _makeRequest(() => _client.post(
-      Uri.parse('${AppConstants.baseUrl}$endpoint'),
+      Uri.parse('$${AppConstants.baseUrl}$$endpoint'),
       headers: await _getHeaders(),
       body: json.encode(data),
     ));
@@ -472,7 +472,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> data) async {
     return _makeRequest(() => _client.put(
-      Uri.parse('${AppConstants.baseUrl}$endpoint'),
+      Uri.parse('$${AppConstants.baseUrl}$$endpoint'),
       headers: await _getHeaders(),
       body: json.encode(data),
     ));
@@ -480,7 +480,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> delete(String endpoint) async {
     return _makeRequest(() => _client.delete(
-      Uri.parse('${AppConstants.baseUrl}$endpoint'),
+      Uri.parse('$${AppConstants.baseUrl}$$endpoint'),
       headers: await _getHeaders(),
     ));
   }
@@ -503,7 +503,7 @@ class ApiService {
       return json.decode(response.body) as Map<String, dynamic>;
     } else {
       throw ServerException(
-        message: 'Request failed with status ${response.statusCode}',
+        message: 'Request failed with status $${response.statusCode}',
         statusCode: response.statusCode,
       );
     }
@@ -616,7 +616,7 @@ class AppRouter {
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
-        child: Text('Page not found: ${state.location}'),
+        child: Text('Page not found: $${state.location}'),
       ),
     ),
   );
@@ -1458,8 +1458,8 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
         }
       }
@@ -1535,26 +1535,26 @@ resource "kubernetes_deployment" "main" {
           # Expose Flutter development ports
           port {
             container_port = 3000
-            name          = "flutter-web"
-            protocol      = "TCP"
+            name           = "flutter-web"
+            protocol       = "TCP"
           }
 
           port {
             container_port = 8080
-            name          = "flutter-debug"
-            protocol      = "TCP"
+            name           = "flutter-debug"
+            protocol       = "TCP"
           }
 
           port {
             container_port = 9100
-            name          = "flutter-inspector"
-            protocol      = "TCP"
+            name           = "flutter-inspector"
+            protocol       = "TCP"
           }
 
           port {
             container_port = 9200
-            name          = "dart-devtools"
-            protocol      = "TCP"
+            name           = "dart-devtools"
+            protocol       = "TCP"
           }
         }
 

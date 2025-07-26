@@ -1003,7 +1003,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
     namespace = var.namespace
 
     labels = {
-      "r-workspace" = "true"
+      "r-workspace"  = "true"
       "data-science" = "true"
     }
   }
@@ -1012,7 +1012,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
   spec {
     access_modes       = ["ReadWriteOnce"]
-    storage_class_name = "fast-ssd"  # Use fast storage for data science
+    storage_class_name = "fast-ssd" # Use fast storage for data science
 
     resources {
       requests = {
@@ -1068,10 +1068,10 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
-          "r-workspace"                = "true"
+          "r-workspace"                 = "true"
         }
       }
 

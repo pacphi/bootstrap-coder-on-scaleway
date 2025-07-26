@@ -701,7 +701,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
     labels = {
       "enterprise" = "true"
-      "tier" = "premium"
+      "tier"       = "premium"
     }
   }
 
@@ -709,7 +709,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
   spec {
     access_modes       = ["ReadWriteOnce"]
-    storage_class_name = "fast-ssd"  # Use premium storage class
+    storage_class_name = "fast-ssd" # Use premium storage class
 
     resources {
       requests = {
@@ -744,7 +744,7 @@ resource "kubernetes_deployment" "main" {
       "com.coder.user.id"          = data.coder_workspace_owner.me.id
       "com.coder.user.username"    = data.coder_workspace_owner.me.name
       "enterprise"                 = "true"
-      "tier"                      = "premium"
+      "tier"                       = "premium"
     }
 
     annotations = {
@@ -765,10 +765,10 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/name"      = "coder-workspace"
+          "app.kubernetes.io/instance"  = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
           "app.kubernetes.io/component" = "workspace"
-          "enterprise"                 = "true"
+          "enterprise"                  = "true"
         }
 
         annotations = {
@@ -785,12 +785,9 @@ resource "kubernetes_deployment" "main" {
         }
 
         # Use node with GPU if requested
-        dynamic "node_selector" {
-          for_each = data.coder_parameter.enable_gpu.value ? [1] : []
-          content {
-            "accelerator" = "nvidia-tesla-k80"
-          }
-        }
+        node_selector = data.coder_parameter.enable_gpu.value ? {
+          accelerator = "nvidia-tesla-k80"
+        } : {}
 
         container {
           name              = "dev"
