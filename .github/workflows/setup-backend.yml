@@ -92,6 +92,9 @@ jobs:
           echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
           echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
           echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
+          # AWS environment variables for S3 backend (required by Terraform S3 backend)
+          echo "AWS_ACCESS_KEY_ID=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
 
       - name: Validate Environment
         id: validate
