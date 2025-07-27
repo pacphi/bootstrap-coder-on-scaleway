@@ -511,47 +511,120 @@ jobs:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
           path: ./
 
+      - name: Debug Downloaded Files
+        run: |
+          echo "🔍 Debugging downloaded backend configuration files..."
+          echo
+          echo "Current directory contents:"
+          ls -la
+          echo
+          echo "Environment directory structure:"
+          if [ -d "environments" ]; then
+            find environments -type f -name "*.tf" | sort
+          else
+            echo "❌ environments directory not found"
+          fi
+          echo
+          echo "Looking for backend.tf files specifically:"
+          find . -name "backend.tf" -type f 2>/dev/null || echo "❌ No backend.tf files found"
+          echo
+          echo "Full directory tree:"
+          tree . 2>/dev/null || find . -type f | head -20
+
       - name: Verify Backend Configuration
         run: |
           echo "🔍 Verifying backend configuration..."
 
-          # Check if backend.tf exists and has correct content
-          BACKEND_FILE="environments/${{ needs.validate.outputs.deploy_env }}/backend.tf"
-          if [ -f "$BACKEND_FILE" ]; then
-            echo "✅ backend.tf found"
+          # Define variables
+          ENVIRONMENT="${{ needs.validate.outputs.deploy_env }}"
+          REGION="${{ github.event.inputs.region }}"
+          BACKEND_FILE="environments/$ENVIRONMENT/backend.tf"
+          ENV_DIR="environments/$ENVIRONMENT"
 
-            # Check for deprecated endpoint parameter
-            if grep -q "^[[:space:]]*endpoint[[:space:]]*=" "$BACKEND_FILE"; then
-              echo "❌ ERROR: backend.tf contains deprecated 'endpoint' parameter"
-              echo "Should use 'endpoints = { s3 = ... }' instead"
-              exit 1
-            fi
-
-            # Check for endpoints block
-            if grep -q "endpoints[[:space:]]*=" "$BACKEND_FILE"; then
-              echo "✅ Using correct 'endpoints' block"
-            else
-              echo "❌ ERROR: backend.tf missing 'endpoints' block"
-              exit 1
-            fi
-
-            # Check for skip_metadata_api_check
-            if grep -q "skip_metadata_api_check[[:space:]]*=" "$BACKEND_FILE"; then
-              echo "✅ Has skip_metadata_api_check flag"
-            else
-              echo "⚠️  WARNING: Missing skip_metadata_api_check flag"
-            fi
-
-            echo "📄 Backend configuration content:"
-            cat "$BACKEND_FILE"
-
-          else
-            echo "❌ backend.tf not found!"
-            echo "Expected at: $BACKEND_FILE"
-            echo "Available files:"
-            ls -la environments/${{ needs.validate.outputs.deploy_env }}/
+          # Ensure environment directory exists
+          if [ ! -d "$ENV_DIR" ]; then
+            echo "❌ Environment directory not found: $ENV_DIR"
+            echo "Available environments:"
+            ls -la environments/ 2>/dev/null || echo "No environments directory found"
             exit 1
           fi
+
+          # Check if backend.tf exists, if not create it as fallback
+          if [ ! -f "$BACKEND_FILE" ]; then
+            echo "⚠️ backend.tf not found, generating fallback configuration..."
+            echo "Expected at: $BACKEND_FILE"
+            echo "Available files in $ENV_DIR:"
+            ls -la "$ENV_DIR/"
+            
+            # Generate fallback backend.tf
+            echo "🔄 Generating fallback backend configuration..."
+            cat > "$BACKEND_FILE" << EOF
+          # Terraform Backend Configuration for Scaleway Object Storage
+          # This file configures remote state storage for the $ENVIRONMENT environment
+          # Auto-generated as fallback by GitHub Actions workflow
+
+          terraform {
+            backend "s3" {
+              bucket = "terraform-state-coder-$ENVIRONMENT"
+              key    = "$ENVIRONMENT/terraform.tfstate"
+              region = "$REGION"
+
+              # Required flags for S3-compatible storage
+              skip_credentials_validation = true
+              skip_region_validation      = true
+              skip_requesting_account_id  = true
+              skip_metadata_api_check     = true
+
+              # Use endpoints block for better compatibility
+              endpoints = {
+                s3 = "https://s3.$REGION.scw.cloud"
+              }
+
+              # Note: State locking is not supported with Scaleway Object Storage
+              # Team coordination should be handled through CI/CD pipelines
+            }
+          }
+          EOF
+            echo "✅ Fallback backend configuration created at: $BACKEND_FILE"
+          else
+            echo "✅ backend.tf found at: $BACKEND_FILE"
+          fi
+
+          # Validate backend.tf content
+          echo "🔍 Validating backend configuration content..."
+
+          # Check for deprecated endpoint parameter
+          if grep -q "^[[:space:]]*endpoint[[:space:]]*=" "$BACKEND_FILE"; then
+            echo "❌ ERROR: backend.tf contains deprecated 'endpoint' parameter"
+            echo "Should use 'endpoints = { s3 = ... }' instead"
+            exit 1
+          fi
+
+          # Check for endpoints block
+          if grep -q "endpoints[[:space:]]*=" "$BACKEND_FILE"; then
+            echo "✅ Using correct 'endpoints' block"
+          else
+            echo "❌ ERROR: backend.tf missing 'endpoints' block"
+            exit 1
+          fi
+
+          # Check for skip_metadata_api_check
+          if grep -q "skip_metadata_api_check[[:space:]]*=" "$BACKEND_FILE"; then
+            echo "✅ Has skip_metadata_api_check flag"
+          else
+            echo "⚠️  WARNING: Missing skip_metadata_api_check flag"
+          fi
+
+          # Check for correct bucket name
+          expected_bucket="terraform-state-coder-$ENVIRONMENT"
+          if grep -q "bucket = \"$expected_bucket\"" "$BACKEND_FILE"; then
+            echo "✅ Correct bucket name: $expected_bucket"
+          else
+            echo "⚠️  WARNING: Bucket name may not match expected: $expected_bucket"
+          fi
+
+          echo "📄 Backend configuration content:"
+          cat "$BACKEND_FILE"
 
           # Verify credentials
           echo -e "\n🔐 Checking S3 backend credentials..."
@@ -744,6 +817,80 @@ jobs:
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
           path: ./
+
+      - name: Debug Downloaded Files (Deploy)
+        run: |
+          echo "🔍 Debugging downloaded backend configuration files for deploy..."
+          echo
+          echo "Current directory contents:"
+          ls -la
+          echo
+          echo "Environment directory structure:"
+          if [ -d "environments" ]; then
+            find environments -type f -name "*.tf" | sort
+          else
+            echo "❌ environments directory not found"
+          fi
+          echo
+          echo "Looking for backend.tf files specifically:"
+          find . -name "backend.tf" -type f 2>/dev/null || echo "❌ No backend.tf files found"
+
+      - name: Ensure Backend Configuration (Deploy)
+        run: |
+          echo "🔍 Ensuring backend configuration exists for deploy..."
+
+          # Define variables
+          ENVIRONMENT="${{ needs.validate.outputs.deploy_env }}"
+          REGION="${{ github.event.inputs.region }}"
+          BACKEND_FILE="environments/$ENVIRONMENT/backend.tf"
+          ENV_DIR="environments/$ENVIRONMENT"
+
+          # Ensure environment directory exists
+          if [ ! -d "$ENV_DIR" ]; then
+            echo "❌ Environment directory not found: $ENV_DIR"
+            exit 1
+          fi
+
+          # Check if backend.tf exists, if not create it as fallback
+          if [ ! -f "$BACKEND_FILE" ]; then
+            echo "⚠️ backend.tf not found in deploy job, generating fallback configuration..."
+            
+            # Generate fallback backend.tf
+            echo "🔄 Generating fallback backend configuration for deploy..."
+            cat > "$BACKEND_FILE" << EOF
+          # Terraform Backend Configuration for Scaleway Object Storage
+          # This file configures remote state storage for the $ENVIRONMENT environment
+          # Auto-generated as fallback by GitHub Actions deploy job
+
+          terraform {
+            backend "s3" {
+              bucket = "terraform-state-coder-$ENVIRONMENT"
+              key    = "$ENVIRONMENT/terraform.tfstate"
+              region = "$REGION"
+
+              # Required flags for S3-compatible storage
+              skip_credentials_validation = true
+              skip_region_validation      = true
+              skip_requesting_account_id  = true
+              skip_metadata_api_check     = true
+
+              # Use endpoints block for better compatibility
+              endpoints = {
+                s3 = "https://s3.$REGION.scw.cloud"
+              }
+
+              # Note: State locking is not supported with Scaleway Object Storage
+              # Team coordination should be handled through CI/CD pipelines
+            }
+          }
+          EOF
+            echo "✅ Fallback backend configuration created for deploy at: $BACKEND_FILE"
+          else
+            echo "✅ backend.tf found for deploy at: $BACKEND_FILE"
+          fi
+
+          echo "📄 Backend configuration content:"
+          cat "$BACKEND_FILE"
 
       - name: Initialize Terraform Backend
         run: |

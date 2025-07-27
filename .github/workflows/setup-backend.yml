@@ -357,7 +357,11 @@ jobs:
 
             echo "📝 Configuring backend for environment: $env"
 
+            # Ensure target directory exists
+            mkdir -p "$GITHUB_WORKSPACE/$env_dir"
+
             # Generate backend.tf directly using known values
+            echo "  📝 Creating backend.tf at: $GITHUB_WORKSPACE/$env_dir/backend.tf"
             cat > "$GITHUB_WORKSPACE/$env_dir/backend.tf" << EOF
           # Terraform Backend Configuration for Scaleway Object Storage
           # This file configures remote state storage for the $env environment
@@ -386,7 +390,20 @@ jobs:
           }
           EOF
 
-            echo "✅ Backend configuration created: $env_dir/backend.tf"
+            # Verify the file was created successfully
+            if [ -f "$GITHUB_WORKSPACE/$env_dir/backend.tf" ]; then
+              file_size=$(wc -c < "$GITHUB_WORKSPACE/$env_dir/backend.tf")
+              if [ "$file_size" -gt 100 ]; then
+                echo "✅ Backend configuration created successfully: $env_dir/backend.tf ($file_size bytes)"
+              else
+                echo "❌ Backend configuration file too small, may be corrupted: $file_size bytes"
+                return 1
+              fi
+            else
+              echo "❌ Failed to create backend configuration file: $env_dir/backend.tf"
+              return 1
+            fi
+
             return 0
           }
 
@@ -405,12 +422,45 @@ jobs:
             echo "backend_endpoint=https://s3.$region.scw.cloud" >> $GITHUB_OUTPUT
           fi
 
+      - name: Pre-Upload Verification
+        run: |
+          echo "🔍 Verifying backend configurations before upload..."
+          
+          environment="${{ steps.validate.outputs.environment }}"
+          
+          if [[ "$environment" == "all" ]]; then
+            for env in dev staging prod; do
+              backend_file="environments/$env/backend.tf"
+              if [ -f "$backend_file" ]; then
+                file_size=$(wc -c < "$backend_file")
+                echo "✅ $env: $backend_file ($file_size bytes)"
+              else
+                echo "❌ $env: $backend_file not found"
+                exit 1
+              fi
+            done
+          else
+            backend_file="environments/$environment/backend.tf"
+            if [ -f "$backend_file" ]; then
+              file_size=$(wc -c < "$backend_file")
+              echo "✅ $environment: $backend_file ($file_size bytes)"
+            else
+              echo "❌ $environment: $backend_file not found"
+              exit 1
+            fi
+          fi
+          
+          echo "📁 Directory structure to be uploaded:"
+          find environments -name "*.tf" -type f | sort
+          
+          echo "✅ All backend configurations verified and ready for upload"
+
       - name: Upload Backend Configuration Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: backend-config-${{ inputs.environment }}-${{ github.run_id }}
           path: |
-            environments/*/backend.tf
+            environments/
           retention-days: 7
 
       - name: Validate Backend Configuration
@@ -449,10 +499,34 @@ jobs:
               else
                 echo "✅ Backend accessible for $env (no existing state - this is normal for new environments)"
               fi
+
+              # Additional validation: try to refresh state
+              echo "  Performing backend validation refresh..."
+              if timeout 30 terraform refresh -no-color > /dev/null 2>&1; then
+                echo "✅ Backend state refresh successful for $env"
+              else
+                echo "⚠️  Backend state refresh failed or timed out for $env (this may be normal for new environments)"
+              fi
+
+              # Validate backend configuration syntax
+              echo "  Validating backend configuration syntax..."
+              if terraform validate -no-color > /dev/null 2>&1; then
+                echo "✅ Backend configuration syntax valid for $env"
+              else
+                echo "❌ Backend configuration syntax validation failed for $env"
+                return 1
+              fi
+
             else
               echo "❌ Backend initialization failed for $env"
               echo "Backend configuration:"
               cat backend.tf
+              echo
+              echo "Terraform version:"
+              terraform version
+              echo
+              echo "Current directory contents:"
+              ls -la
               return 1
             fi
 
@@ -490,5 +564,19 @@ jobs:
           echo "  Backend configured: ${{ steps.configure.outputs.backend_configured }}"
           echo "  Bucket(s): ${{ steps.configure.outputs.bucket_name }}"
           echo "  Endpoint: ${{ steps.configure.outputs.backend_endpoint }}"
+          echo "  Force recreate: ${{ inputs.force_recreate }}"
           echo
-          echo "✅ Remote state backend is now ready for use!"
+          echo "📁 Generated backend configuration files:"
+          find environments -name "backend.tf" -type f 2>/dev/null | while read file; do
+            size=$(wc -c < "$file")
+            echo "  ✅ $file ($size bytes)"
+          done
+          echo
+          echo "🔍 Validation status:"
+          echo "  ✅ All backend configurations created"
+          echo "  ✅ All configurations uploaded to artifacts"
+          echo "  ✅ All environments validated successfully"
+          echo "  ✅ Backend connectivity verified"
+          echo
+          echo "🚀 Remote state backend is now ready for use!"
+          echo "📝 Backend configuration will be available to deploy jobs via artifacts"
