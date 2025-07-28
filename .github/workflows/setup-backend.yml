@@ -463,7 +463,7 @@ jobs:
           done
 
           echo ""
-          echo "✅ Backend configurations verified for:$configured_envs"
+          echo "✅ Backend configurations verified for: $configured_envs"
           echo "These environment directories will be included in the artifact."
 
       - name: Upload Backend Configuration Artifacts

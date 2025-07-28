@@ -515,7 +515,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
-          path: ./
+          path: environments/
+          merge-multiple: true
 
       - name: Debug Downloaded Files
         run: |
@@ -803,7 +804,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
-          path: ./
+          path: environments/
+          merge-multiple: true
 
       - name: Debug Downloaded Files (Deploy)
         run: |
