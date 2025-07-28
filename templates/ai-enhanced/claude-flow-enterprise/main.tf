@@ -779,9 +779,10 @@ resource "kubernetes_deployment" "main" {
 
       spec {
         security_context {
-          run_as_user  = 1000
-          run_as_group = 1000
-          fs_group     = 1000
+          run_as_user     = 1000
+          run_as_group    = 1000
+          run_as_non_root = true
+          fs_group        = 1000
         }
 
         # Use node with GPU if requested
@@ -872,7 +873,7 @@ resource "kubernetes_deployment" "main" {
           # Additional mounts for enterprise features
           volume_mount {
             mount_path = "/tmp"
-            name       = "tmp"
+            name       = "tmp-volume"
             read_only  = false
           }
 
@@ -892,10 +893,8 @@ resource "kubernetes_deployment" "main" {
         }
 
         volume {
-          name = "tmp"
-          empty_dir {
-            size_limit = "10Gi"
-          }
+          name = "tmp-volume"
+          empty_dir {}
         }
 
         volume {
