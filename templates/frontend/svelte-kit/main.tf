@@ -1697,10 +1697,9 @@ resource "kubernetes_deployment" "main" {
             run_as_user                = 1000
             run_as_non_root            = true
             allow_privilege_escalation = false
-            read_only_root_filesystem  = false
+            read_only_root_filesystem  = true
             capabilities {
               drop = ["ALL"]
-              add  = ["SYS_ADMIN"]
             }
           }
 

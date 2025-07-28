@@ -1092,16 +1092,38 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = "ubuntu:22.04"
+          image             = "ubuntu@sha256:2e863c44b718727c860746568e1d54afd13b2fa71b160f5cd9058fc436217b30"
           image_pull_policy = "Always"
           command           = ["/bin/bash", "-c", coder_agent.main.init_script]
 
           security_context {
             run_as_user                = 1000
-            allow_privilege_escalation = true
+            run_as_non_root            = true
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
             capabilities {
-              add = ["SYS_ADMIN"]
+              drop = ["ALL"]
             }
+          }
+
+          liveness_probe {
+            exec {
+              command = ["pgrep", "-f", "coder"]
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 10
+            timeout_seconds       = 3
+            failure_threshold     = 3
+          }
+
+          readiness_probe {
+            exec {
+              command = ["pgrep", "-f", "coder"]
+            }
+            initial_delay_seconds = 5
+            period_seconds        = 10
+            timeout_seconds       = 3
+            failure_threshold     = 3
           }
 
           env {
@@ -1141,6 +1163,12 @@ resource "kubernetes_deployment" "main" {
             read_only  = false
           }
 
+          volume_mount {
+            mount_path = "/tmp"
+            name       = "tmp-volume"
+            read_only  = false
+          }
+
           # Expose common React Native development ports
           port {
             container_port = 8081
@@ -1167,6 +1195,11 @@ resource "kubernetes_deployment" "main" {
             claim_name = kubernetes_persistent_volume_claim.home.metadata.0.name
             read_only  = false
           }
+        }
+
+        volume {
+          name = "tmp-volume"
+          empty_dir {}
         }
 
         affinity {
