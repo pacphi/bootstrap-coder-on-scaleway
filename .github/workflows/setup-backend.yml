@@ -427,6 +427,7 @@ jobs:
           echo "🔍 Verifying backend configurations before upload..."
 
           environment="${{ steps.validate.outputs.environment }}"
+          configured_envs=""
 
           if [[ "$environment" == "all" ]]; then
             for env in dev staging prod; do
@@ -434,6 +435,7 @@ jobs:
               if [ -f "$backend_file" ]; then
                 file_size=$(wc -c < "$backend_file")
                 echo "✅ $env: $backend_file ($file_size bytes)"
+                configured_envs="$configured_envs $env"
               else
                 echo "❌ $env: $backend_file not found"
                 exit 1
@@ -444,34 +446,50 @@ jobs:
             if [ -f "$backend_file" ]; then
               file_size=$(wc -c < "$backend_file")
               echo "✅ $environment: $backend_file ($file_size bytes)"
+              configured_envs="$environment"
             else
               echo "❌ $environment: $backend_file not found"
               exit 1
             fi
           fi
 
+          echo ""
           echo "📁 Directory structure to be uploaded:"
-          find environments -name "*.tf" -type f | sort
+          find environments -type d -name "dev" -o -name "staging" -o -name "prod" | while read env_dir; do
+            if [ -f "$env_dir/backend.tf" ]; then
+              echo "  ✅ $env_dir/ (with backend.tf)"
+              ls -la "$env_dir/backend.tf"
+            fi
+          done
 
-          echo "✅ All backend configurations verified and ready for upload"
+          echo ""
+          echo "✅ Backend configurations verified for:$configured_envs"
+          echo "These environment directories will be included in the artifact."
 
       - name: Upload Backend Configuration Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: backend-config-${{ inputs.environment }}-${{ github.run_id }}
           path: |
-            environments/*/backend.tf
+            environments/
           retention-days: 7
 
       - name: Post-Upload Verification
         run: |
           echo "🔍 Verifying artifact upload completed successfully..."
           echo "Artifact name: backend-config-${{ inputs.environment }}-${{ github.run_id }}"
-          echo "Files that should have been uploaded:"
-          find environments -name "backend.tf" -type f | while read file; do
-            echo "  - $file"
+          echo ""
+          echo "📦 Environment directories included in artifact:"
+          configured_count=0
+          for env_dir in environments/*/; do
+            if [ -d "$env_dir" ] && [ -f "$env_dir/backend.tf" ]; then
+              env_name=$(basename "$env_dir")
+              echo "  ✅ $env_name environment (with backend.tf)"
+              configured_count=$((configured_count + 1))
+            fi
           done
-          echo "✅ Artifact upload completed"
+          echo ""
+          echo "✅ Artifact upload completed with $configured_count environment(s)"
 
       - name: Validate Backend Configuration
         run: |
@@ -562,7 +580,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ All backend configurations validated successfully"
+          echo "✅ Backend configurations validated successfully"
 
       - name: Summary
         run: |
@@ -577,15 +595,25 @@ jobs:
           echo "  Force recreate: ${{ inputs.force_recreate }}"
           echo
           echo "📁 Generated backend configuration files:"
-          find environments -name "backend.tf" -type f 2>/dev/null | while read file; do
+          configured_envs=""
+          configured_count=0
+          find environments -name "backend.tf" -type f 2>/dev/null | sort | while read file; do
             size=$(wc -c < "$file")
+            env_name=$(echo "$file" | cut -d'/' -f2)
             echo "  ✅ $file ($size bytes)"
+            configured_count=$((configured_count + 1))
           done
           echo
           echo "🔍 Validation status:"
-          echo "  ✅ All backend configurations created"
-          echo "  ✅ All configurations uploaded to artifacts"
-          echo "  ✅ All environments validated successfully"
+          if [[ "${{ inputs.environment }}" == "all" ]]; then
+            echo "  ✅ Backend configurations created for: dev, staging, prod"
+            echo "  ✅ All 3 environment configurations uploaded to artifacts"
+            echo "  ✅ All 3 environments validated successfully"
+          else
+            echo "  ✅ Backend configuration created for: ${{ inputs.environment }}"
+            echo "  ✅ Configuration uploaded to artifacts"
+            echo "  ✅ Environment validated successfully"
+          fi
           echo "  ✅ Backend connectivity verified"
           echo
           echo "🚀 Remote state backend is now ready for use!"
