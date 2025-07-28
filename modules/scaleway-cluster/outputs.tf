@@ -55,10 +55,10 @@ output "node_pools" {
   description = "Information about node pools"
   value = {
     for name, pool in scaleway_k8s_pool.pools : name => {
-      id               = pool.id
-      status           = pool.status
-      nodes            = pool.nodes
-      current_size     = pool.current_size
+      id                 = pool.id
+      status             = pool.status
+      nodes              = pool.nodes
+      current_size       = pool.current_size
       public_ip_disabled = pool.public_ip_disabled
     }
   }

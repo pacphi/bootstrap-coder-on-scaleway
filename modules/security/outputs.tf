@@ -71,9 +71,9 @@ output "security_configuration" {
   description = "Summary of security configuration"
   value = {
     pod_security_standards_enabled = var.enable_pod_security_standards
-    pod_security_standard         = var.pod_security_standard
-    network_policies_enabled      = var.enable_network_policies
-    rbac_enabled                 = var.enable_rbac
-    secured_namespaces_count     = length(concat([var.namespace], var.additional_namespaces))
+    pod_security_standard          = var.pod_security_standard
+    network_policies_enabled       = var.enable_network_policies
+    rbac_enabled                   = var.enable_rbac
+    secured_namespaces_count       = length(concat([var.namespace], var.additional_namespaces))
   }
 }

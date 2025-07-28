@@ -20,8 +20,8 @@ resource "scaleway_k8s_cluster" "cluster" {
     maintenance_window_day        = var.maintenance_window_day
   }
 
-  feature_gates      = var.feature_gates
-  admission_plugins  = var.admission_plugins
+  feature_gates       = var.feature_gates
+  admission_plugins   = var.admission_plugins
   apiserver_cert_sans = var.apiserver_cert_sans
 
   dynamic "open_id_connect_config" {

@@ -25,10 +25,10 @@ output "access_info" {
 output "database_info" {
   description = "Database connection information"
   value = {
-    endpoint = module.postgresql.endpoint
-    port     = module.postgresql.port
-    database = module.postgresql.database_name
-    username = module.postgresql.username
+    endpoint   = module.postgresql.endpoint
+    port       = module.postgresql.port
+    database   = module.postgresql.database_name
+    username   = module.postgresql.username
     ha_enabled = module.postgresql.is_ha_cluster
   }
   sensitive = true
@@ -49,17 +49,17 @@ output "networking_info" {
 # Security Information
 output "security_info" {
   description = "Security configuration"
-  value = module.security.security_configuration
+  value       = module.security.security_configuration
 }
 
 # High Availability Status
 output "ha_status" {
   description = "High availability configuration status"
   value = {
-    database_ha        = module.postgresql.is_ha_cluster
-    multi_zone_nodes  = true
-    backup_retention  = "${local.database_config.backup_schedule_retention} days"
-    backup_frequency  = "${local.database_config.backup_schedule_frequency} hours"
+    database_ha         = module.postgresql.is_ha_cluster
+    multi_zone_nodes    = true
+    backup_retention    = "${local.database_config.backup_schedule_retention} days"
+    backup_frequency    = "${local.database_config.backup_schedule_frequency} hours"
     cross_region_backup = true
   }
 }
@@ -68,12 +68,12 @@ output "ha_status" {
 output "cost_estimation" {
   description = "Estimated monthly costs in EUR"
   value = {
-    cluster_nodes = "€228.00"  # 5 × GP1-M
-    database     = "€73.80"    # DB-GP-M HA
-    load_balancer = "€45.60"   # LB-GP-M
-    networking   = "€2.10"     # VPC + Gateway
-    storage      = "€25.00"    # Additional storage
-    total        = "€374.50"   # Monthly total
+    cluster_nodes = "€228.00" # 5 × GP1-M
+    database      = "€73.80"  # DB-GP-M HA
+    load_balancer = "€45.60"  # LB-GP-M
+    networking    = "€2.10"   # VPC + Gateway
+    storage       = "€25.00"  # Additional storage
+    total         = "€374.50" # Monthly total
   }
 }
 
@@ -85,9 +85,9 @@ output "production_checklist" {
     security_policies = "✅ Restricted Pod Security Standards"
     network_policies  = "✅ Enabled"
     backup_strategy   = "✅ Cross-region backups every 6h"
-    monitoring       = "✅ Full stack monitoring"
-    ssl_certificates = "✅ Modern compatibility"
-    resource_limits  = "✅ Strict quotas applied"
+    monitoring        = "✅ Full stack monitoring"
+    ssl_certificates  = "✅ Modern compatibility"
+    resource_limits   = "✅ Strict quotas applied"
   }
 }
 

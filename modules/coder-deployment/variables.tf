@@ -104,8 +104,8 @@ variable "security_context" {
   description = "Container security context"
   type = object({
     allow_privilege_escalation = bool
-    run_as_non_root           = bool
-    run_as_user               = number
+    run_as_non_root            = bool
+    run_as_user                = number
     capabilities = object({
       drop = list(string)
     })
@@ -113,8 +113,8 @@ variable "security_context" {
   })
   default = {
     allow_privilege_escalation = false
-    run_as_non_root           = true
-    run_as_user               = 1000
+    run_as_non_root            = true
+    run_as_user                = 1000
     capabilities = {
       drop = ["ALL"]
     }
@@ -147,29 +147,29 @@ variable "health_check_config" {
   type = object({
     liveness_probe = object({
       initial_delay_seconds = number
-      period_seconds       = number
-      timeout_seconds      = number
-      failure_threshold    = number
+      period_seconds        = number
+      timeout_seconds       = number
+      failure_threshold     = number
     })
     readiness_probe = object({
       initial_delay_seconds = number
-      period_seconds       = number
-      timeout_seconds      = number
-      failure_threshold    = number
+      period_seconds        = number
+      timeout_seconds       = number
+      failure_threshold     = number
     })
   })
   default = {
     liveness_probe = {
       initial_delay_seconds = 60
-      period_seconds       = 30
-      timeout_seconds      = 10
-      failure_threshold    = 3
+      period_seconds        = 30
+      timeout_seconds       = 10
+      failure_threshold     = 3
     }
     readiness_probe = {
       initial_delay_seconds = 10
-      period_seconds       = 5
-      timeout_seconds      = 5
-      failure_threshold    = 3
+      period_seconds        = 5
+      timeout_seconds       = 5
+      failure_threshold     = 3
     }
   }
 }
@@ -203,11 +203,11 @@ variable "ingress_annotations" {
   description = "Ingress annotations"
   type        = map(string)
   default = {
-    "nginx.ingress.kubernetes.io/proxy-body-size"      = "0"
-    "nginx.ingress.kubernetes.io/proxy-read-timeout"   = "86400"
-    "nginx.ingress.kubernetes.io/proxy-send-timeout"   = "86400"
-    "nginx.ingress.kubernetes.io/ssl-redirect"         = "true"
-    "nginx.ingress.kubernetes.io/force-ssl-redirect"   = "true"
+    "nginx.ingress.kubernetes.io/proxy-body-size"    = "0"
+    "nginx.ingress.kubernetes.io/proxy-read-timeout" = "86400"
+    "nginx.ingress.kubernetes.io/proxy-send-timeout" = "86400"
+    "nginx.ingress.kubernetes.io/ssl-redirect"       = "true"
+    "nginx.ingress.kubernetes.io/force-ssl-redirect" = "true"
   }
 }
 
@@ -261,12 +261,12 @@ variable "oauth_config" {
   description = "OAuth configuration"
   type = object({
     github = optional(object({
-      client_id     = string
-      client_secret = string
-      allow_signups = bool
+      client_id      = string
+      client_secret  = string
+      allow_signups  = bool
       allow_everyone = bool
-      allowed_orgs  = list(string)
-      allowed_teams = list(string)
+      allowed_orgs   = list(string)
+      allowed_teams  = list(string)
     }))
     google = optional(object({
       client_id     = string

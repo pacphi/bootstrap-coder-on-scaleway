@@ -61,12 +61,12 @@ variable "resource_quotas" {
   description = "Resource quotas for namespaces"
   type = object({
     hard_limits = optional(map(string), {
-      "requests.cpu"    = "4"
-      "requests.memory" = "8Gi"
-      "limits.cpu"      = "8"
-      "limits.memory"   = "16Gi"
-      "pods"           = "10"
-      "services"       = "5"
+      "requests.cpu"           = "4"
+      "requests.memory"        = "8Gi"
+      "limits.cpu"             = "8"
+      "limits.memory"          = "16Gi"
+      "pods"                   = "10"
+      "services"               = "5"
       "persistentvolumeclaims" = "10"
     })
   })
@@ -76,14 +76,14 @@ variable "resource_quotas" {
 variable "network_policy_rules" {
   description = "Custom network policy rules"
   type = list(object({
-    name      = string
-    namespace = string
+    name         = string
+    namespace    = string
     pod_selector = map(string)
     ingress = optional(list(object({
       from = optional(list(object({
         pod_selector       = optional(map(string))
         namespace_selector = optional(map(string))
-        ip_block          = optional(object({
+        ip_block = optional(object({
           cidr   = string
           except = optional(list(string))
         }))
@@ -97,7 +97,7 @@ variable "network_policy_rules" {
       to = optional(list(object({
         pod_selector       = optional(map(string))
         namespace_selector = optional(map(string))
-        ip_block          = optional(object({
+        ip_block = optional(object({
           cidr   = string
           except = optional(list(string))
         }))

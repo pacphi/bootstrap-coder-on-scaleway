@@ -133,7 +133,7 @@ variable "domain_name" {
   type        = string
   default     = ""
   validation {
-    condition = var.domain_name == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9\\-]*[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9\\-]*[a-zA-Z0-9])?)*$", var.domain_name))
+    condition     = var.domain_name == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9\\-]*[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9\\-]*[a-zA-Z0-9])?)*$", var.domain_name))
     error_message = "Domain name must be a valid DNS name (e.g., example.com, my-site.co.uk) or empty for IP-based access."
   }
 }
@@ -143,7 +143,7 @@ variable "subdomain" {
   type        = string
   default     = ""
   validation {
-    condition = var.subdomain == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9\\-]*[a-zA-Z0-9])?$", var.subdomain))
+    condition     = var.subdomain == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9\\-]*[a-zA-Z0-9])?$", var.subdomain))
     error_message = "Subdomain must contain only letters, numbers, and hyphens, or be empty."
   }
 }

@@ -95,11 +95,11 @@ resource "kubernetes_config_map" "coder_config" {
 
   data = {
     "coder.yaml" = yamlencode({
-      accessURL          = var.access_url
-      wildcardAccessURL  = var.wildcard_access_url != "" ? var.wildcard_access_url : null
-      httpAddress        = "0.0.0.0:${var.container_port}"
-      prometheusAddress  = var.monitoring_enabled ? "0.0.0.0:2112" : null
-      pprofAddress       = "0.0.0.0:6060"
+      accessURL         = var.access_url
+      wildcardAccessURL = var.wildcard_access_url != "" ? var.wildcard_access_url : null
+      httpAddress       = "0.0.0.0:${var.container_port}"
+      prometheusAddress = var.monitoring_enabled ? "0.0.0.0:2112" : null
+      pprofAddress      = "0.0.0.0:6060"
 
       # Workspace configuration
       workspaceTrafficPolicy = var.workspace_traffic_policy
@@ -110,7 +110,7 @@ resource "kubernetes_config_map" "coder_config" {
       } : null
 
       # Security
-      secureAuthCookie = true
+      secureAuthCookie        = true
       strictTransportSecurity = 31536000
 
       # Telemetry
@@ -335,9 +335,9 @@ resource "kubernetes_deployment" "coder" {
 
           security_context {
             allow_privilege_escalation = var.security_context.allow_privilege_escalation
-            run_as_non_root           = var.security_context.run_as_non_root
-            run_as_user               = var.security_context.run_as_user
-            read_only_root_filesystem = var.security_context.read_only_root_filesystem
+            run_as_non_root            = var.security_context.run_as_non_root
+            run_as_user                = var.security_context.run_as_user
+            read_only_root_filesystem  = var.security_context.read_only_root_filesystem
 
             capabilities {
               drop = var.security_context.capabilities.drop
@@ -350,9 +350,9 @@ resource "kubernetes_deployment" "coder" {
               port = var.container_port
             }
             initial_delay_seconds = var.health_check_config.liveness_probe.initial_delay_seconds
-            period_seconds       = var.health_check_config.liveness_probe.period_seconds
-            timeout_seconds      = var.health_check_config.liveness_probe.timeout_seconds
-            failure_threshold    = var.health_check_config.liveness_probe.failure_threshold
+            period_seconds        = var.health_check_config.liveness_probe.period_seconds
+            timeout_seconds       = var.health_check_config.liveness_probe.timeout_seconds
+            failure_threshold     = var.health_check_config.liveness_probe.failure_threshold
           }
 
           readiness_probe {
@@ -361,9 +361,9 @@ resource "kubernetes_deployment" "coder" {
               port = var.container_port
             }
             initial_delay_seconds = var.health_check_config.readiness_probe.initial_delay_seconds
-            period_seconds       = var.health_check_config.readiness_probe.period_seconds
-            timeout_seconds      = var.health_check_config.readiness_probe.timeout_seconds
-            failure_threshold    = var.health_check_config.readiness_probe.failure_threshold
+            period_seconds        = var.health_check_config.readiness_probe.period_seconds
+            timeout_seconds       = var.health_check_config.readiness_probe.timeout_seconds
+            failure_threshold     = var.health_check_config.readiness_probe.failure_threshold
           }
         }
 
@@ -464,7 +464,7 @@ resource "kubernetes_ingress_v1" "coder" {
     dynamic "tls" {
       for_each = var.tls_enabled ? [1] : []
       content {
-        hosts = [replace(var.access_url, "https://", "")]
+        hosts       = [replace(var.access_url, "https://", "")]
         secret_name = var.tls_secret_name != "" ? var.tls_secret_name : "coder-tls"
       }
     }

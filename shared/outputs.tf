@@ -53,10 +53,10 @@ output "pod_security_standard" {
 output "estimated_monthly_cost" {
   description = "Estimated monthly cost in EUR"
   value = {
-    cluster   = local.cluster_cost
-    database  = local.database_cost
-    network   = local.network_cost
-    total     = local.total_cost
+    cluster  = local.cluster_cost
+    database = local.database_cost
+    network  = local.network_cost
+    total    = local.total_cost
   }
 }
 
@@ -71,14 +71,14 @@ locals {
   }
 
   db_costs = {
-    "DB-DEV-S" = 12.30  # 1 vCPU, 2GB RAM
-    "DB-GP-S"  = 18.45  # 2 vCPU, 4GB RAM
-    "DB-GP-M"  = 36.90  # 4 vCPU, 8GB RAM
-    "DB-GP-L"  = 73.80  # 8 vCPU, 16GB RAM
+    "DB-DEV-S" = 12.30 # 1 vCPU, 2GB RAM
+    "DB-GP-S"  = 18.45 # 2 vCPU, 4GB RAM
+    "DB-GP-M"  = 36.90 # 4 vCPU, 8GB RAM
+    "DB-GP-L"  = 73.80 # 8 vCPU, 16GB RAM
   }
 
   cluster_cost  = local.effective_config.node_count * lookup(local.node_costs, local.effective_config.node_type, 0)
   database_cost = lookup(local.db_costs, local.effective_config.database_node_type, 0)
-  network_cost  = var.enable_load_balancer ? 8.90 : 2.10  # LB + VPC costs
+  network_cost  = var.enable_load_balancer ? 8.90 : 2.10 # LB + VPC costs
   total_cost    = local.cluster_cost + local.database_cost + local.network_cost
 }

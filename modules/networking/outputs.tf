@@ -64,8 +64,8 @@ output "access_url" {
   value = var.enable_load_balancer ? (
     var.domain_name != "" ? (
       var.subdomain != "" ?
-        "https://${var.subdomain}.${var.domain_name}" :
-        "https://${var.domain_name}"
+      "https://${var.subdomain}.${var.domain_name}" :
+      "https://${var.domain_name}"
     ) :
     "https://${scaleway_lb_ip.main[0].ip_address}"
   ) : null
@@ -76,8 +76,8 @@ output "wildcard_access_url" {
   value = var.enable_load_balancer ? (
     var.domain_name != "" ? (
       var.subdomain != "" ?
-        "https://*.${var.subdomain}.${var.domain_name}" :
-        "https://*.${var.domain_name}"
+      "https://*.${var.subdomain}.${var.domain_name}" :
+      "https://*.${var.domain_name}"
     ) :
     "https://*.${scaleway_lb_ip.main[0].ip_address}.nip.io"
   ) : null

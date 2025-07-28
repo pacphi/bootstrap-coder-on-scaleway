@@ -92,22 +92,22 @@ variable "private_network_id" {
 variable "node_pools" {
   description = "Configuration for node pools"
   type = list(object({
-    name            = string
-    node_type       = string
-    size            = number
-    min_size        = number
-    max_size        = number
-    autoscaling     = bool
-    autohealing     = bool
-    container_runtime = string
+    name               = string
+    node_type          = string
+    size               = number
+    min_size           = number
+    max_size           = number
+    autoscaling        = bool
+    autohealing        = bool
+    container_runtime  = string
     placement_group_id = optional(string)
-    tags            = optional(list(string), [])
-    kubelet_args    = optional(map(string), {})
+    tags               = optional(list(string), [])
+    kubelet_args       = optional(map(string), {})
     upgrade_policy = optional(object({
       max_unavailable = optional(number)
       max_surge       = optional(number)
     }))
-    zone = optional(string)
+    zone             = optional(string)
     root_volume_type = optional(string, "l_ssd")
     root_volume_size = optional(number, 20)
   }))

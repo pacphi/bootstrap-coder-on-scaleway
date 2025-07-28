@@ -26,79 +26,79 @@ resource "scaleway_instance_security_group" "kubernetes" {
 
   # Allow all internal communication within VPC
   inbound_rule {
-    action      = "accept"
-    protocol    = "ANY"
-    ip_range    = "10.0.0.0/8"
+    action   = "accept"
+    protocol = "ANY"
+    ip_range = "10.0.0.0/8"
   }
 
   # Allow HTTPS from anywhere (for Coder web interface)
   inbound_rule {
-    action      = "accept"
-    protocol    = "TCP"
-    port        = 443
-    ip_range    = "0.0.0.0/0"
+    action   = "accept"
+    protocol = "TCP"
+    port     = 443
+    ip_range = "0.0.0.0/0"
   }
 
   # Allow HTTP from anywhere (for HTTP to HTTPS redirect)
   inbound_rule {
-    action      = "accept"
-    protocol    = "TCP"
-    port        = 80
-    ip_range    = "0.0.0.0/0"
+    action   = "accept"
+    protocol = "TCP"
+    port     = 80
+    ip_range = "0.0.0.0/0"
   }
 
   # Allow SSH from anywhere (for debugging)
   inbound_rule {
-    action      = "accept"
-    protocol    = "TCP"
-    port        = 22
-    ip_range    = "0.0.0.0/0"
+    action   = "accept"
+    protocol = "TCP"
+    port     = 22
+    ip_range = "0.0.0.0/0"
   }
 
   # Allow Kubernetes API server
   inbound_rule {
-    action      = "accept"
-    protocol    = "TCP"
-    port        = 6443
-    ip_range    = "0.0.0.0/0"
+    action   = "accept"
+    protocol = "TCP"
+    port     = 6443
+    ip_range = "0.0.0.0/0"
   }
 
   # Allow NodePort services (30000-32767)
   inbound_rule {
-    action      = "accept"
-    protocol    = "TCP"
-    port_range  = "30000-32767"
-    ip_range    = "0.0.0.0/0"
+    action     = "accept"
+    protocol   = "TCP"
+    port_range = "30000-32767"
+    ip_range   = "0.0.0.0/0"
   }
 
   # Custom security group rules
   dynamic "inbound_rule" {
     for_each = [for rule in var.security_group_rules : rule if rule.direction == "inbound"]
     content {
-      action      = inbound_rule.value.action
-      protocol    = inbound_rule.value.protocol
-      port        = inbound_rule.value.port
-      port_range  = inbound_rule.value.port_range
-      ip_range    = inbound_rule.value.ip_range
+      action     = inbound_rule.value.action
+      protocol   = inbound_rule.value.protocol
+      port       = inbound_rule.value.port
+      port_range = inbound_rule.value.port_range
+      ip_range   = inbound_rule.value.ip_range
     }
   }
 
   # Allow all outbound traffic
   outbound_rule {
-    action      = "accept"
-    protocol    = "ANY"
-    ip_range    = "0.0.0.0/0"
+    action   = "accept"
+    protocol = "ANY"
+    ip_range = "0.0.0.0/0"
   }
 
   # Custom outbound security group rules
   dynamic "outbound_rule" {
     for_each = [for rule in var.security_group_rules : rule if rule.direction == "outbound"]
     content {
-      action      = outbound_rule.value.action
-      protocol    = outbound_rule.value.protocol
-      port        = outbound_rule.value.port
-      port_range  = outbound_rule.value.port_range
-      ip_range    = outbound_rule.value.ip_range
+      action     = outbound_rule.value.action
+      protocol   = outbound_rule.value.protocol
+      port       = outbound_rule.value.port
+      port_range = outbound_rule.value.port_range
+      ip_range   = outbound_rule.value.ip_range
     }
   }
 
@@ -189,13 +189,13 @@ resource "scaleway_lb_frontend" "http" {
     action {
       type = "redirect"
       redirect {
-        type   = "scheme"
+        type = "scheme"
         # scheme removed - type="scheme" already indicates HTTPS redirect
-        code   = 301
+        code = 301
       }
     }
     match {
-      http_filter = "path_begin"
+      http_filter       = "path_begin"
       http_filter_value = ["/"]
     }
   }
@@ -229,7 +229,7 @@ resource "scaleway_vpc_public_gateway" "main" {
 resource "scaleway_vpc_gateway_network" "main" {
   gateway_id         = scaleway_vpc_public_gateway.main.id
   private_network_id = scaleway_vpc_private_network.private_network.id
-  dhcp_id           = scaleway_vpc_private_network.private_network.id
+  dhcp_id            = scaleway_vpc_private_network.private_network.id
   # cleanup_dhcp deprecated - using ipam_config instead
   ipam_config {
     push_default_route = true

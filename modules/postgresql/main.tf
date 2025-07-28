@@ -28,11 +28,11 @@ resource "scaleway_rdb_instance" "postgresql" {
   is_ha_cluster  = var.is_ha_cluster
   disable_backup = var.disable_backup
 
-  volume_type = var.volume_type
+  volume_type       = var.volume_type
   volume_size_in_gb = var.volume_size
 
-  backup_schedule_frequency  = var.backup_schedule_frequency
-  backup_schedule_retention  = var.backup_schedule_retention
+  backup_schedule_frequency = var.backup_schedule_frequency
+  backup_schedule_retention = var.backup_schedule_retention
   backup_same_region        = var.backup_same_region
 
   private_network {

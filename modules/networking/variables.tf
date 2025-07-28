@@ -37,7 +37,7 @@ variable "ssl_compatibility_level" {
   default     = "ssl_compatibility_level_modern"
 
   validation {
-    condition     = contains([
+    condition = contains([
       "ssl_compatibility_level_old",
       "ssl_compatibility_level_intermediate",
       "ssl_compatibility_level_modern"
@@ -79,13 +79,13 @@ variable "subdomain" {
 variable "security_group_rules" {
   description = "Security group rules"
   type = list(object({
-    direction      = string
-    action         = string
-    protocol       = string
-    port           = optional(number)
-    port_range     = optional(string)
-    ip_range       = string
-    description    = optional(string)
+    direction   = string
+    action      = string
+    protocol    = string
+    port        = optional(number)
+    port_range  = optional(string)
+    ip_range    = string
+    description = optional(string)
   }))
   default = []
 }

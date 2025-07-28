@@ -15,9 +15,9 @@ resource "kubernetes_namespace" "secured_namespaces" {
     name = each.value
 
     labels = merge({
-      "name" = each.value
+      "name"       = each.value
       "managed-by" = "terraform"
-    }, var.enable_pod_security_standards ? {
+      }, var.enable_pod_security_standards ? {
       "pod-security.kubernetes.io/enforce" = var.pod_security_standard
       "pod-security.kubernetes.io/audit"   = var.pod_security_standard
       "pod-security.kubernetes.io/warn"    = var.pod_security_standard
@@ -95,14 +95,14 @@ resource "kubernetes_cluster_role" "coder" {
 
   rule {
     api_groups = ["networking.k8s.io"]
-    resources = ["ingresses", "networkpolicies"]
-    verbs = ["*"]
+    resources  = ["ingresses", "networkpolicies"]
+    verbs      = ["*"]
   }
 
   rule {
     api_groups = ["metrics.k8s.io"]
-    resources = ["pods", "nodes"]
-    verbs = ["get", "list"]
+    resources  = ["pods", "nodes"]
+    verbs      = ["get", "list"]
   }
 }
 
@@ -214,7 +214,7 @@ resource "kubernetes_network_policy" "allow_coder_server" {
 
     # Allow egress to database and internet
     egress {
-      to {}  # Allow all egress for Coder server
+      to {} # Allow all egress for Coder server
     }
   }
 }

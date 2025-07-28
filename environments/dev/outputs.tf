@@ -47,18 +47,18 @@ output "networking_info" {
 # Security Information
 output "security_info" {
   description = "Security configuration"
-  value = module.security.security_configuration
+  value       = module.security.security_configuration
 }
 
 # Cost Estimation
 output "cost_estimation" {
   description = "Estimated monthly costs in EUR"
   value = {
-    cluster_nodes = "€30.40"  # 2 × GP1-XS
-    database     = "€12.30"   # DB-DEV-S
-    load_balancer = "€8.90"   # LB-S
-    networking   = "€2.10"    # VPC + Gateway
-    total        = "€53.70"   # Monthly total
+    cluster_nodes = "€30.40" # 2 × GP1-XS
+    database      = "€12.30" # DB-DEV-S
+    load_balancer = "€8.90"  # LB-S
+    networking    = "€2.10"  # VPC + Gateway
+    total         = "€53.70" # Monthly total
   }
 }
 

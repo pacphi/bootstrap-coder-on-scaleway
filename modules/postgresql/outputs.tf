@@ -59,8 +59,8 @@ output "is_ha_cluster" {
 output "backup_schedule" {
   description = "Backup schedule configuration"
   value = {
-    frequency  = scaleway_rdb_instance.postgresql.backup_schedule_frequency
-    retention  = scaleway_rdb_instance.postgresql.backup_schedule_retention
+    frequency   = scaleway_rdb_instance.postgresql.backup_schedule_frequency
+    retention   = scaleway_rdb_instance.postgresql.backup_schedule_retention
     same_region = scaleway_rdb_instance.postgresql.backup_same_region
   }
 }
@@ -68,7 +68,7 @@ output "backup_schedule" {
 output "volume_info" {
   description = "Volume information"
   value = {
-    type      = scaleway_rdb_instance.postgresql.volume_type
-    size_gb   = scaleway_rdb_instance.postgresql.volume_size_in_gb
+    type    = scaleway_rdb_instance.postgresql.volume_type
+    size_gb = scaleway_rdb_instance.postgresql.volume_size_in_gb
   }
 }

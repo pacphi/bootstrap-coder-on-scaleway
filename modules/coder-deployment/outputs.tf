@@ -52,8 +52,8 @@ output "deployment_status" {
 output "secrets" {
   description = "Names of created secrets"
   value = {
-    database    = kubernetes_secret.database_url.metadata[0].name
-    admin       = kubernetes_secret.admin_credentials.metadata[0].name
+    database     = kubernetes_secret.database_url.metadata[0].name
+    admin        = kubernetes_secret.admin_credentials.metadata[0].name
     oauth_github = var.oauth_config != null && var.oauth_config.github != null ? kubernetes_secret.oauth_github[0].metadata[0].name : null
     oauth_google = var.oauth_config != null && var.oauth_config.google != null ? kubernetes_secret.oauth_google[0].metadata[0].name : null
   }
@@ -120,10 +120,10 @@ output "workspace_configuration" {
 output "security_configuration" {
   description = "Security configuration applied"
   value = {
-    run_as_non_root                = var.pod_security_context.run_as_non_root
-    read_only_root_filesystem      = var.security_context.read_only_root_filesystem
-    allow_privilege_escalation     = var.security_context.allow_privilege_escalation
-    capabilities_dropped           = var.security_context.capabilities.drop
+    run_as_non_root            = var.pod_security_context.run_as_non_root
+    read_only_root_filesystem  = var.security_context.read_only_root_filesystem
+    allow_privilege_escalation = var.security_context.allow_privilege_escalation
+    capabilities_dropped       = var.security_context.capabilities.drop
   }
 }
 
@@ -135,8 +135,8 @@ output "cli_connection_info" {
     username = "admin"
     password = random_password.admin_password.result
     commands = {
-      login = "coder login ${var.access_url}"
-      templates = "coder templates list"
+      login      = "coder login ${var.access_url}"
+      templates  = "coder templates list"
       workspaces = "coder list"
     }
   }

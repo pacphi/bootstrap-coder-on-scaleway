@@ -7,16 +7,16 @@ locals {
 
   # Common tags for all resources
   common_tags = merge(var.tags, {
-    Environment   = var.environment
-    Project       = var.project_name
-    ManagedBy     = "terraform"
-    CreatedAt     = timestamp()
+    Environment = var.environment
+    Project     = var.project_name
+    ManagedBy   = "terraform"
+    CreatedAt   = timestamp()
   })
 
   # Environment-specific defaults
   environment_defaults = {
     dev = {
-      node_count                          = 2
+      node_count                         = 2
       node_type                          = "GP1-XS"
       min_size                           = 1
       max_size                           = 5
@@ -29,7 +29,7 @@ locals {
     }
 
     staging = {
-      node_count                          = 3
+      node_count                         = 3
       node_type                          = "GP1-S"
       min_size                           = 2
       max_size                           = 8
@@ -42,7 +42,7 @@ locals {
     }
 
     prod = {
-      node_count                          = 5
+      node_count                         = 5
       node_type                          = "GP1-M"
       min_size                           = 3
       max_size                           = 15
@@ -60,7 +60,7 @@ locals {
     local.environment_defaults[var.environment],
     {
       # Only override if variable was explicitly set (not default)
-      node_count                          = var.node_count
+      node_count                         = var.node_count
       node_type                          = var.node_type
       min_size                           = var.min_size
       max_size                           = var.max_size

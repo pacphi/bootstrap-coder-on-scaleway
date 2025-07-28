@@ -6,30 +6,30 @@ terraform {
 module "shared_config" {
   source = "../../shared"
 
-  environment                = local.environment
-  scaleway_organization_id   = var.scaleway_organization_id
-  scaleway_project_id        = var.scaleway_project_id
+  environment              = local.environment
+  scaleway_organization_id = var.scaleway_organization_id
+  scaleway_project_id      = var.scaleway_project_id
 }
 
 # Local variables for staging environment
 locals {
-  environment = "staging"
+  environment  = "staging"
   project_name = "coder"
 
   # Staging-specific overrides (production-like)
   cluster_config = {
-    node_count     = 3
-    node_type      = "GP1-S"  # 2 vCPU, 4GB RAM
-    min_size       = 2
-    max_size       = 8
-    auto_upgrade   = true
+    node_count   = 3
+    node_type    = "GP1-S" # 2 vCPU, 4GB RAM
+    min_size     = 2
+    max_size     = 8
+    auto_upgrade = true
   }
 
   database_config = {
-    node_type                      = "DB-GP-S"  # 2 vCPU, 4GB RAM
-    is_ha_cluster                  = false
-    backup_schedule_frequency      = 12  # Every 12 hours
-    backup_schedule_retention      = 30
+    node_type                 = "DB-GP-S" # 2 vCPU, 4GB RAM
+    is_ha_cluster             = false
+    backup_schedule_frequency = 12 # Every 12 hours
+    backup_schedule_retention = 30
   }
 
   security_config = {
@@ -44,7 +44,7 @@ locals {
   }
 
   # Networking
-  domain_name = ""  # Configure your domain here
+  domain_name = "" # Configure your domain here
   subdomain   = "coder-staging"
 }
 
@@ -58,8 +58,8 @@ module "networking" {
   load_balancer_type   = "LB-S"
 
   enable_load_balancer = true
-  domain_name         = local.domain_name
-  subdomain           = local.subdomain
+  domain_name          = local.domain_name
+  subdomain            = local.subdomain
 
   region = var.scaleway_region
   zone   = var.scaleway_zone
@@ -84,7 +84,7 @@ module "scaleway_cluster" {
 
   node_pools = [
     {
-      name               = "default"
+      name              = "default"
       node_type         = local.cluster_config.node_type
       size              = local.cluster_config.node_count
       min_size          = local.cluster_config.min_size
@@ -109,14 +109,14 @@ module "scaleway_cluster" {
 module "postgresql" {
   source = "../../modules/postgresql"
 
-  instance_name                   = "${local.project_name}-${local.environment}-db"
-  database_name                   = "${replace(local.project_name, "-", "_")}_${local.environment}_db"
-  user_name                       = "coder"
+  instance_name = "${local.project_name}-${local.environment}-db"
+  database_name = "${replace(local.project_name, "-", "_")}_${local.environment}_db"
+  user_name     = "coder"
 
-  node_type                      = local.database_config.node_type
-  is_ha_cluster                  = local.database_config.is_ha_cluster
-  backup_schedule_frequency      = local.database_config.backup_schedule_frequency
-  backup_schedule_retention      = local.database_config.backup_schedule_retention
+  node_type                 = local.database_config.node_type
+  is_ha_cluster             = local.database_config.is_ha_cluster
+  backup_schedule_frequency = local.database_config.backup_schedule_frequency
+  backup_schedule_retention = local.database_config.backup_schedule_retention
 
   # Enhanced settings for staging
   settings = {
@@ -124,14 +124,14 @@ module "postgresql" {
     "shared_preload_libraries"     = "pg_stat_statements,pg_stat_monitor"
     "log_min_duration_statement"   = "500"
     "log_connections"              = "on"
-    "log_disconnections"          = "on"
-    "log_lock_waits"              = "on"
-    "log_statement"               = "ddl"
-    "work_mem"                    = "8MB"
-    "maintenance_work_mem"        = "256MB"
+    "log_disconnections"           = "on"
+    "log_lock_waits"               = "on"
+    "log_statement"                = "ddl"
+    "work_mem"                     = "8MB"
+    "maintenance_work_mem"         = "256MB"
     "checkpoint_completion_target" = "0.9"
-    "wal_buffers"                 = "32MB"
-    "effective_cache_size"        = "512MB"
+    "wal_buffers"                  = "32MB"
+    "effective_cache_size"         = "512MB"
   }
 
   private_network_id = module.networking.private_network_id
@@ -161,13 +161,13 @@ module "security" {
   # Enhanced resource quotas for staging
   resource_quotas = {
     hard_limits = {
-      "requests.cpu"              = "8"
-      "requests.memory"           = "16Gi"
-      "limits.cpu"               = "16"
-      "limits.memory"            = "32Gi"
-      "pods"                     = "20"
-      "services"                 = "10"
-      "persistentvolumeclaims"   = "20"
+      "requests.cpu"           = "8"
+      "requests.memory"        = "16Gi"
+      "limits.cpu"             = "16"
+      "limits.memory"          = "32Gi"
+      "pods"                   = "20"
+      "services"               = "10"
+      "persistentvolumeclaims" = "20"
     }
   }
 
@@ -203,8 +203,8 @@ variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
   default = {
-    "managed-by" = "terraform"
-    "project"    = "coder"
+    "managed-by"  = "terraform"
+    "project"     = "coder"
     "environment" = "staging"
   }
 }
