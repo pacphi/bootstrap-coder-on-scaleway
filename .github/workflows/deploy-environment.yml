@@ -164,6 +164,9 @@ jobs:
           # AWS environment variables for S3 backend (required by Terraform S3 backend)
           echo "AWS_ACCESS_KEY_ID=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
           echo "AWS_SECRET_ACCESS_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
+          # Terraform-specific variables for project and organization IDs
+          echo "TF_VAR_scaleway_project_id=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
+          echo "TF_VAR_scaleway_organization_id=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
 
       - name: Check Terraform Formatting
         run: |
@@ -504,6 +507,9 @@ jobs:
           # AWS environment variables for S3 backend (required by Terraform S3 backend)
           echo "AWS_ACCESS_KEY_ID=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
           echo "AWS_SECRET_ACCESS_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
+          # Terraform-specific variables for project and organization IDs
+          echo "TF_VAR_scaleway_project_id=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
+          echo "TF_VAR_scaleway_organization_id=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
 
       - name: Download Backend Configuration
         uses: actions/download-artifact@v4
@@ -549,43 +555,21 @@ jobs:
             exit 1
           fi
 
-          # Check if backend.tf exists, if not create it as fallback
+          # Check if backend.tf exists
           if [ ! -f "$BACKEND_FILE" ]; then
-            echo "⚠️ backend.tf not found, generating fallback configuration..."
-            echo "Expected at: $BACKEND_FILE"
+            echo "❌ ERROR: backend.tf not found at: $BACKEND_FILE"
+            echo "This indicates the backend setup job failed or artifacts were not properly downloaded."
+            echo "Please check:"
+            echo "1. The setup-backend job completed successfully"
+            echo "2. The backend-config artifact was created"
+            echo "3. The artifact download step succeeded"
+            echo ""
             echo "Available files in $ENV_DIR:"
-            ls -la "$ENV_DIR/"
-            
-            # Generate fallback backend.tf
-            echo "🔄 Generating fallback backend configuration..."
-            cat > "$BACKEND_FILE" << EOF
-          # Terraform Backend Configuration for Scaleway Object Storage
-          # This file configures remote state storage for the $ENVIRONMENT environment
-          # Auto-generated as fallback by GitHub Actions workflow
-
-          terraform {
-            backend "s3" {
-              bucket = "terraform-state-coder-$ENVIRONMENT"
-              key    = "$ENVIRONMENT/terraform.tfstate"
-              region = "$REGION"
-
-              # Required flags for S3-compatible storage
-              skip_credentials_validation = true
-              skip_region_validation      = true
-              skip_requesting_account_id  = true
-              skip_metadata_api_check     = true
-
-              # Use endpoints block for better compatibility
-              endpoints = {
-                s3 = "https://s3.$REGION.scw.cloud"
-              }
-
-              # Note: State locking is not supported with Scaleway Object Storage
-              # Team coordination should be handled through CI/CD pipelines
-            }
-          }
-          EOF
-            echo "✅ Fallback backend configuration created at: $BACKEND_FILE"
+            ls -la "$ENV_DIR/" || echo "Directory not found"
+            echo ""
+            echo "Current directory structure:"
+            find . -name "backend.tf" -type f 2>/dev/null || echo "No backend.tf files found anywhere"
+            exit 1
           else
             echo "✅ backend.tf found at: $BACKEND_FILE"
           fi
@@ -776,6 +760,9 @@ jobs:
           # AWS environment variables for S3 backend (required by Terraform S3 backend)
           echo "AWS_ACCESS_KEY_ID=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
           echo "AWS_SECRET_ACCESS_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
+          # Terraform-specific variables for project and organization IDs
+          echo "TF_VAR_scaleway_project_id=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
+          echo "TF_VAR_scaleway_organization_id=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
 
       - name: Setup Deployment Flags
         id: setup-flags
@@ -851,40 +838,21 @@ jobs:
             exit 1
           fi
 
-          # Check if backend.tf exists, if not create it as fallback
+          # Check if backend.tf exists
           if [ ! -f "$BACKEND_FILE" ]; then
-            echo "⚠️ backend.tf not found in deploy job, generating fallback configuration..."
-            
-            # Generate fallback backend.tf
-            echo "🔄 Generating fallback backend configuration for deploy..."
-            cat > "$BACKEND_FILE" << EOF
-          # Terraform Backend Configuration for Scaleway Object Storage
-          # This file configures remote state storage for the $ENVIRONMENT environment
-          # Auto-generated as fallback by GitHub Actions deploy job
-
-          terraform {
-            backend "s3" {
-              bucket = "terraform-state-coder-$ENVIRONMENT"
-              key    = "$ENVIRONMENT/terraform.tfstate"
-              region = "$REGION"
-
-              # Required flags for S3-compatible storage
-              skip_credentials_validation = true
-              skip_region_validation      = true
-              skip_requesting_account_id  = true
-              skip_metadata_api_check     = true
-
-              # Use endpoints block for better compatibility
-              endpoints = {
-                s3 = "https://s3.$REGION.scw.cloud"
-              }
-
-              # Note: State locking is not supported with Scaleway Object Storage
-              # Team coordination should be handled through CI/CD pipelines
-            }
-          }
-          EOF
-            echo "✅ Fallback backend configuration created for deploy at: $BACKEND_FILE"
+            echo "❌ ERROR: backend.tf not found in deploy job at: $BACKEND_FILE"
+            echo "This indicates the backend setup job failed or artifacts were not properly downloaded."
+            echo "Please check:"
+            echo "1. The setup-backend job completed successfully"
+            echo "2. The backend-config artifact was created and uploaded"
+            echo "3. The artifact download step in this job succeeded"
+            echo ""
+            echo "Available files in $ENV_DIR:"
+            ls -la "$ENV_DIR/" || echo "Directory not found"
+            echo ""
+            echo "Current directory structure:"
+            find . -name "backend.tf" -type f 2>/dev/null || echo "No backend.tf files found anywhere"
+            exit 1
           else
             echo "✅ backend.tf found for deploy at: $BACKEND_FILE"
           fi

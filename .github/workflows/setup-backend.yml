@@ -425,9 +425,9 @@ jobs:
       - name: Pre-Upload Verification
         run: |
           echo "🔍 Verifying backend configurations before upload..."
-          
+
           environment="${{ steps.validate.outputs.environment }}"
-          
+
           if [[ "$environment" == "all" ]]; then
             for env in dev staging prod; do
               backend_file="environments/$env/backend.tf"
@@ -449,10 +449,10 @@ jobs:
               exit 1
             fi
           fi
-          
+
           echo "📁 Directory structure to be uploaded:"
           find environments -name "*.tf" -type f | sort
-          
+
           echo "✅ All backend configurations verified and ready for upload"
 
       - name: Upload Backend Configuration Artifacts
@@ -460,8 +460,18 @@ jobs:
         with:
           name: backend-config-${{ inputs.environment }}-${{ github.run_id }}
           path: |
-            environments/
+            environments/*/backend.tf
           retention-days: 7
+
+      - name: Post-Upload Verification
+        run: |
+          echo "🔍 Verifying artifact upload completed successfully..."
+          echo "Artifact name: backend-config-${{ inputs.environment }}-${{ github.run_id }}"
+          echo "Files that should have been uploaded:"
+          find environments -name "backend.tf" -type f | while read file; do
+            echo "  - $file"
+          done
+          echo "✅ Artifact upload completed"
 
       - name: Validate Backend Configuration
         run: |
