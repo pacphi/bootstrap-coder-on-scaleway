@@ -98,7 +98,7 @@ CI/CD Integration:
 
     - name: Upload Screenshots
       if: failure()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: e2e-screenshots
         path: screenshots/

@@ -56,3 +56,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "environments_dir" {
+  description = "Path to the environments directory for backend config generation"
+  type        = string
+  default     = ""
+}
+
+variable "enable_bucket_policy" {
+  description = "Whether to create a bucket policy (may not be supported on all Scaleway regions)"
+  type        = bool
+  default     = false
+}

@@ -11,6 +11,18 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
+      bucket_name:
+        description: 'Name of the bucket in object store that will hold Terraform state'
+        required: false
+        type: string
+      region:
+        description: 'Scaleway region'
+        required: true
+        type: choice
+        options:
+          - fr-par
+          - nl-ams
+          - pl-waw
       template_filter:
         description: 'Template filter (e.g., "backend/*", "ai-enhanced/*", or specific template name)'
         required: false
@@ -339,8 +351,9 @@ jobs:
       success()
     uses: ./.github/workflows/setup-backend.yml
     with:
-      environment: ${{ github.event.inputs.test_environment || 'dev' }}
-      region: ${{ vars.SCALEWAY_REGION || 'fr-par' }}
+      bucket_name: ${{ github.event.inputs.bucket_name }}
+      environment: ${{ github.event.inputs.test_environment }}
+      region: ${{ github.event.inputs.region }}
       force_recreate: false
     secrets: inherit
 
@@ -373,7 +386,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: 'v1.32.0'
 

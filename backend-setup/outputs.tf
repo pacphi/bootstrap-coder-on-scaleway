@@ -45,4 +45,3 @@ output "backend_tf_content" {
   description = "Rendered backend.tf content from the module"
   value       = module.terraform_backend.backend_tf_content
 }
-

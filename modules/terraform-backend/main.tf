@@ -46,8 +46,11 @@ resource "scaleway_object_bucket" "terraform_state" {
   })
 }
 
-# Create bucket policy for secure access
+# Create bucket policy for secure access (optional - disabled by default)
+# Note: Scaleway Object Storage bucket policies have limited support
+# Access control is typically handled via Scaleway IAM and API keys
 resource "scaleway_object_bucket_policy" "terraform_state" {
+  count  = var.enable_bucket_policy ? 1 : 0
   bucket = scaleway_object_bucket.terraform_state.name
   region = var.region
 
@@ -57,21 +60,22 @@ resource "scaleway_object_bucket_policy" "terraform_state" {
       {
         Sid    = "AllowTerraformStateAccess"
         Effect = "Allow"
-        Principal = {
-          SCW = "project_id:${var.project_id}"
-        }
+        Principal = "*"
         Action = [
           "s3:GetObject",
           "s3:PutObject",
           "s3:DeleteObject",
-          "s3:ListBucket",
-          "s3:GetBucketVersioning",
-          "s3:GetBucketLocation"
+          "s3:ListBucket"
         ]
         Resource = [
-          "arn:scw:s3:::${var.bucket_name}",
-          "arn:scw:s3:::${var.bucket_name}/*"
+          "${var.bucket_name}",
+          "${var.bucket_name}/*"
         ]
+        Condition = {
+          StringEquals = {
+            "scw:project" = var.project_id
+          }
+        }
       }
     ]
   })
@@ -91,31 +95,18 @@ locals {
 
     # Use endpoints block for better compatibility
     endpoints = {
-      s3 = "https://s3.$region.scw.cloud"
+      s3 = "https://s3.${var.region}.scw.cloud"
     }
   }
 }
 
-# Create backend configuration file
-resource "local_file" "backend_config" {
-  count = var.generate_backend_config ? 1 : 0
-
-  filename = "${path.root}/backend-${var.environment}.tf"
-  content = templatefile("${path.module}/templates/backend.tf.tpl", {
-    bucket_name = scaleway_object_bucket.terraform_state.name
-    state_key   = local.backend_config.key
-    region      = var.region
-    endpoint    = local.backend_config.endpoints.s3
-  })
-
-  file_permission = "0644"
-}
 
 # Create environment-specific backend configuration
 resource "local_file" "backend_env_config" {
-  count = var.generate_backend_config ? 1 : 0
+  count = var.generate_backend_config && var.environments_dir != "" ? 1 : 0
 
-  filename = "${path.root}/../../environments/${var.environment}/backend.tf"
+  # Use path.root (module caller's root) with relative path
+  filename = "${path.root}/${var.environments_dir}/${var.environment}/backend.tf"
   content = templatefile("${path.module}/templates/backend.tf.tpl", {
     bucket_name = scaleway_object_bucket.terraform_state.name
     state_key   = local.backend_config.key

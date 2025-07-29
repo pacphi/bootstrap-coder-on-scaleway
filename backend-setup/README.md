@@ -69,3 +69,22 @@ When using the generated backend configuration, you must also set:
 - `AWS_SECRET_ACCESS_KEY` - Set to your SCW_SECRET_KEY value
 
 The Terraform S3 backend specifically looks for these AWS-named variables.
+
+## Troubleshooting
+
+### Recreating a bucket with the same name as one that had existed previously
+
+If you see
+
+```
+│ Error: operation error S3: CreateBucket, https response error StatusCode: 409, RequestID: txg092eddc974474cbd9542-00688904b1, HostID: txg092eddc974474cbd9542-00688904b1, BucketAlreadyOwnedByYou:
+│
+│   with module.terraform_backend.scaleway_object_bucket.terraform_state,
+│   on ../modules/terraform-backend/main.tf line 11, in resource "scaleway_object_bucket" "terraform_state":
+│   11: resource "scaleway_object_bucket" "terraform_state" {
+```
+
+Choose one of the following options to resolve:
+
+a) Change the value of `bucket_name` in your .tfvars file
+b) Wait 24 hours. See https://www.scaleway.com/en/docs/object-storage/faq/#can-i-create-a-bucket-with-the-same-name-as-a-previously-deleted-one.

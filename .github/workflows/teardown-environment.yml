@@ -10,6 +10,10 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
+      bucket_name:
+        description: 'Name of the bucket in object store that will hold Terraform state'
+        required: false
+        type: string
       environment:
         description: 'Environment to teardown'
         required: true
@@ -118,7 +122,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: 'v1.32.0'
 
@@ -184,7 +188,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: 'v1.32.0'
 
@@ -227,8 +231,9 @@ jobs:
     if: needs.validate-request.outputs.confirmed == 'true'
     uses: ./.github/workflows/setup-backend.yml
     with:
+      bucket_name: ${{ github.event.inputs.bucket_name }}
       environment: ${{ github.event.inputs.environment }}
-      region: ${{ vars.SCALEWAY_REGION || 'fr-par' }}
+      region: ${{ github.event.inputs.region }}
       force_recreate: false
     secrets: inherit
 
@@ -256,7 +261,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: 'v1.32.0'
 

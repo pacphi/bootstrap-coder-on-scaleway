@@ -1,11 +1,15 @@
 name: Setup Terraform Backend
 
-# Reusable workflow for setting up remote Terraform state backend
 # This workflow ensures backend infrastructure exists and creates backend.tf files
+# Reusable workflow for setting up remote Terraform state backend
 
 on:
   workflow_call:
     inputs:
+      bucket_name:
+        description: 'Name of the bucket in object store that will hold Terraform state'
+        required: false
+        type: string
       environment:
         description: 'Environment to setup backend for'
         required: true
@@ -33,6 +37,10 @@ on:
 
   workflow_dispatch:
     inputs:
+      bucket_name:
+        description: 'Name of the bucket in object store that will hold Terraform state'
+        required: false
+        type: string
       environment:
         description: 'Environment to setup backend for'
         required: true
@@ -41,7 +49,6 @@ on:
           - dev
           - staging
           - prod
-          - all
       region:
         description: 'Scaleway region'
         required: false
@@ -59,12 +66,10 @@ on:
 
 env:
   TF_IN_AUTOMATION: true
-  # Consolidated Scaleway credentials and mappings
   SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
   SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
   SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
   SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
-  # AWS variables for S3 backend compatibility
   AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
 
@@ -73,11 +78,11 @@ jobs:
     name: Setup Backend Infrastructure
     runs-on: ubuntu-latest
     permissions:
-      contents: read  # Read repository code
+      contents: read
     outputs:
-      backend_configured: ${{ steps.configure.outputs.backend_configured }}
-      bucket_name: ${{ steps.configure.outputs.bucket_name }}
-      backend_endpoint: ${{ steps.configure.outputs.backend_endpoint }}
+      backend_configured: ${{ steps.setup.outputs.backend_configured }}
+      bucket_name: ${{ steps.setup.outputs.bucket_name }}
+      backend_endpoint: ${{ steps.setup.outputs.backend_endpoint }}
 
     steps:
       - name: Checkout Code
@@ -89,526 +94,106 @@ jobs:
           terraform_version: "~1.12.0"
           terraform_wrapper: false
 
-
-      - name: Validate Environment
-        id: validate
+      - name: Setup Backend Infrastructure
+        id: setup
+        working-directory: backend-setup
         run: |
           environment="${{ inputs.environment }}"
           region="${{ inputs.region }}"
+          force_recreate="${{ inputs.force_recreate }}"
+          bucket_name="${{ inputs.bucket_name }}"
 
-          # Validate environment
-          if [[ ! "$environment" =~ ^(dev|staging|prod|all)$ ]]; then
-            echo "❌ Invalid environment: $environment"
+          echo "🔧 Setting up backend for environment: $environment"
+
+          # Create terraform.tfvars for this environment
+          cat > terraform.tfvars << EOF
+          environment = "$environment"
+          region = "$region"
+          project_id = "$SCW_DEFAULT_PROJECT_ID"
+          generate_backend_config = true
+          managed_by = "github-actions"
+          EOF
+
+          if [[ -n "$bucket_name" ]]; then
+            echo "bucket_name = \"$bucket_name\"" >> terraform.tfvars
+          fi
+
+          # Clean up any existing state if force_recreate is true
+          if [[ "$force_recreate" == "true" ]]; then
+            echo "🗑️ Force recreate enabled - cleaning up existing state"
+            rm -rf .terraform .terraform.lock.hcl terraform.tfstate*
+          fi
+
+          # Initialize Terraform
+          echo "📦 Initializing Terraform..."
+          if ! terraform init; then
+            echo "❌ Failed to initialize Terraform for $environment"
             exit 1
           fi
 
-          # Validate region
-          if [[ ! "$region" =~ ^(fr-par|nl-ams|pl-waw)$ ]]; then
-            echo "❌ Invalid region: $region"
-            exit 1
-          fi
+          # Apply the backend infrastructure
+          echo "🚀 Applying backend infrastructure..."
+          if terraform apply -auto-approve; then
+            echo "✅ Backend infrastructure created/verified for $environment"
 
-          echo "✅ Environment and region validation passed"
-          echo "environment=$environment" >> $GITHUB_OUTPUT
-          echo "region=$region" >> $GITHUB_OUTPUT
+            # Extract outputs for GitHub Actions
+            bucket_name=$(terraform output -raw bucket_name)
+            s3_endpoint=$(terraform output -raw s3_endpoint)
 
-      - name: Check Existing Backend Configuration
-        id: check-existing
-        run: |
-          environment="${{ steps.validate.outputs.environment }}"
+            echo "📊 Outputs for $environment:"
+            echo "  Bucket: $bucket_name"
+            echo "  Endpoint: $s3_endpoint"
 
-          # Skip if environment is 'all' - will be handled in next step
-          if [[ "$environment" == "all" ]]; then
-            echo "checking_all_environments=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          env_dir="environments/$environment"
-          backend_exists=false
-          bucket_configured=false
-
-          # Check if backend.tf exists
-          if [[ -f "$env_dir/backend.tf" ]] && [[ "${{ inputs.force_recreate }}" != "true" ]]; then
-            echo "📄 Backend configuration file exists: $env_dir/backend.tf"
-            backend_exists=true
-
-            # Extract bucket name from existing backend.tf
-            if bucket_name=$(grep -o 'bucket = "[^"]*"' "$env_dir/backend.tf" | cut -d'"' -f2); then
-              echo "🪣 Found bucket name: $bucket_name"
-              echo "existing_bucket_name=$bucket_name" >> $GITHUB_OUTPUT
-              bucket_configured=true
-            fi
-          fi
-
-          echo "backend_exists=$backend_exists" >> $GITHUB_OUTPUT
-          echo "bucket_configured=$bucket_configured" >> $GITHUB_OUTPUT
-
-      - name: Generate Bucket Names
-        id: bucket-names
-        run: |
-          environment="${{ steps.validate.outputs.environment }}"
-
-          if [[ "$environment" == "all" ]]; then
-            echo "dev_bucket=terraform-state-coder-dev" >> $GITHUB_OUTPUT
-            echo "staging_bucket=terraform-state-coder-staging" >> $GITHUB_OUTPUT
-            echo "prod_bucket=terraform-state-coder-prod" >> $GITHUB_OUTPUT
-          else
-            bucket_name="terraform-state-coder-$environment"
+            echo "backend_configured=true" >> $GITHUB_OUTPUT
             echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
+            echo "backend_endpoint=$s3_endpoint" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to apply backend infrastructure for $environment"
+            exit 1
           fi
 
-      - name: Check Bucket Existence
-        id: check-buckets
+      - name: Verify Backend Configuration
         run: |
-          environment="${{ steps.validate.outputs.environment }}"
-          region="${{ steps.validate.outputs.region }}"
+          echo "🔍 Verifying generated backend configuration..."
 
-          # Function to check if bucket exists using Terraform data source
-          check_bucket_exists() {
-            local bucket_name="$1"
-            local temp_dir=$(mktemp -d)
+          environment="${{ inputs.environment }}"
+          backend_file="environments/$environment/backend.tf"
 
-            # Create a minimal Terraform config to check bucket existence
-            cat > "$temp_dir/main.tf" << EOF
-          terraform {
-            required_providers {
-              scaleway = {
-                source  = "scaleway/scaleway"
-                version = "~> 2.57"
-              }
-            }
-          }
+          if [[ -f "$backend_file" ]]; then
+            echo "✅ Backend configuration created: $backend_file"
 
-          provider "scaleway" {
-            region = "$region"
-          }
-
-          # Use try() to gracefully handle non-existent buckets
-          data "scaleway_object_bucket" "check" {
-            count  = 1
-            name   = "$bucket_name"
-            region = "$region"
-          }
-
-          output "bucket_exists" {
-            value = length(data.scaleway_object_bucket.check) > 0
-          }
-
-          output "bucket_endpoint" {
-            value = length(data.scaleway_object_bucket.check) > 0 ? data.scaleway_object_bucket.check[0].endpoint : ""
-          }
-          EOF
-
-            cd "$temp_dir"
-
-            # Initialize terraform
-            if ! terraform init -backend=false > /dev/null 2>&1; then
-              echo "not_exists"
-              echo ""
-              rm -rf "$temp_dir"
-              return
-            fi
-
-            # Try to plan and apply to check bucket existence
-            if terraform plan > /dev/null 2>&1 && terraform apply -auto-approve > /dev/null 2>&1; then
-              local exists=$(terraform output -raw bucket_exists 2>/dev/null || echo "false")
-              local endpoint=$(terraform output -raw bucket_endpoint 2>/dev/null || echo "")
-
-              if [[ "$exists" == "true" ]]; then
-                echo "exists"
-                echo "$endpoint"
-              else
-                echo "not_exists"
-                echo ""
-              fi
+            # Test syntax
+            cd "environments/$environment"
+            if terraform init -backend=false > /dev/null 2>&1; then
+              echo "✅ Backend configuration syntax valid"
             else
-              echo "not_exists"
-              echo ""
-            fi
-
-            rm -rf "$temp_dir"
-          }
-
-          if [[ "$environment" == "all" ]]; then
-            # Check all environment buckets
-            for env in dev staging prod; do
-              bucket_name="terraform-state-coder-$env"
-              echo "🔍 Checking bucket: $bucket_name"
-
-              result=$(check_bucket_exists "$bucket_name")
-              status=$(echo "$result" | head -1)
-              endpoint=$(echo "$result" | tail -1)
-
-              echo "${env}_bucket_exists=$status" >> $GITHUB_OUTPUT
-              if [[ "$status" == "exists" ]] && [[ -n "$endpoint" ]]; then
-                echo "${env}_bucket_endpoint=$endpoint" >> $GITHUB_OUTPUT
-              fi
-            done
-          else
-            bucket_name="${{ steps.bucket-names.outputs.bucket_name }}"
-            echo "🔍 Checking bucket: $bucket_name"
-
-            result=$(check_bucket_exists "$bucket_name")
-            status=$(echo "$result" | head -1)
-            endpoint=$(echo "$result" | tail -1)
-
-            echo "bucket_exists=$status" >> $GITHUB_OUTPUT
-            if [[ "$status" == "exists" ]] && [[ -n "$endpoint" ]]; then
-              echo "bucket_endpoint=$endpoint" >> $GITHUB_OUTPUT
-            fi
-          fi
-
-      - name: Create Backend Infrastructure
-        id: create-infrastructure
-        if: |
-          steps.check-buckets.outputs.bucket_exists == 'not_exists' ||
-          steps.check-buckets.outputs.dev_bucket_exists == 'not_exists' ||
-          steps.check-buckets.outputs.staging_bucket_exists == 'not_exists' ||
-          steps.check-buckets.outputs.prod_bucket_exists == 'not_exists'
-        run: |
-          environment="${{ steps.validate.outputs.environment }}"
-          region="${{ steps.validate.outputs.region }}"
-
-          echo "🏗️ Creating backend infrastructure for: $environment"
-
-          # Function to create a single bucket using the shared backend-setup configuration
-          create_bucket() {
-            local env="$1"
-            local temp_dir=$(mktemp -d)
-
-            echo "📦 Creating bucket for environment: $env"
-
-            # Copy the shared backend-setup configuration
-            cp -r "$GITHUB_WORKSPACE/backend-setup"/* "$temp_dir/"
-
-            # Create terraform.tfvars for environment-specific values
-            cat > "$temp_dir/terraform.tfvars" << EOF
-          environment = "$env"
-          region      = "$region"
-          project_id  = "$SCW_DEFAULT_PROJECT_ID"
-          managed_by  = "github-actions"
-          EOF
-
-            cd "$temp_dir"
-
-            # Initialize and apply with proper error handling
-            echo "  Initializing Terraform..."
-            if ! terraform init; then
-              echo "❌ Failed to initialize Terraform for environment: $env"
-              rm -rf "$temp_dir"
-              return 1
-            fi
-
-            echo "  Planning infrastructure..."
-            if ! terraform plan -out=plan.tfplan; then
-              echo "❌ Failed to plan infrastructure for environment: $env"
-              rm -rf "$temp_dir"
-              return 1
-            fi
-
-            echo "  Applying infrastructure..."
-            if terraform apply -auto-approve plan.tfplan; then
-              echo "✅ Created backend infrastructure for environment: $env"
-
-              # Store outputs for later use
-              echo "${env}_bucket_name=$(terraform output -raw bucket_name)" >> $GITHUB_OUTPUT
-              echo "${env}_s3_endpoint=$(terraform output -raw s3_endpoint)" >> $GITHUB_OUTPUT
-            else
-              echo "❌ Failed to create backend infrastructure for environment: $env"
-              rm -rf "$temp_dir"
-              return 1
-            fi
-
-            rm -rf "$temp_dir"
-          }
-
-          # Create buckets based on environment
-          if [[ "$environment" == "all" ]]; then
-            for env in dev staging prod; do
-              if [[ "$(eval echo \${{ '${' }}steps.check-buckets.outputs.${env}_bucket_exists})" == "not_exists" ]]; then
-                create_bucket "$env"
-              fi
-            done
-          else
-            if [[ "${{ steps.check-buckets.outputs.bucket_exists }}" == "not_exists" ]]; then
-              create_bucket "$environment"
-            fi
-          fi
-
-          echo "infrastructure_created=true" >> $GITHUB_OUTPUT
-          echo "✅ Backend infrastructure creation completed"
-
-      - name: Configure Backend Files
-        id: configure
-        run: |
-          environment="${{ steps.validate.outputs.environment }}"
-          region="${{ steps.validate.outputs.region }}"
-
-          configure_single_environment() {
-            local env="$1"
-            local env_dir="environments/$env"
-            local bucket_name="terraform-state-coder-$env"
-
-            echo "📝 Configuring backend for environment: $env"
-
-            # Ensure target directory exists
-            mkdir -p "$GITHUB_WORKSPACE/$env_dir"
-
-            # Generate backend.tf directly using known values
-            echo "  📝 Creating backend.tf at: $GITHUB_WORKSPACE/$env_dir/backend.tf"
-            cat > "$GITHUB_WORKSPACE/$env_dir/backend.tf" << EOF
-          # Terraform Backend Configuration for Scaleway Object Storage
-          # This file configures remote state storage for the $env environment
-          # Auto-generated by GitHub Actions workflow
-
-          terraform {
-            backend "s3" {
-              bucket = "$bucket_name"
-              key    = "$env/terraform.tfstate"
-              region = "$region"
-
-              # Required flags for S3-compatible storage
-              skip_credentials_validation = true
-              skip_region_validation      = true
-              skip_requesting_account_id  = true
-              skip_metadata_api_check     = true
-
-              # Use endpoints block for better compatibility
-              endpoints = {
-                s3 = "https://s3.$region.scw.cloud"
-              }
-
-              # Note: State locking is not supported with Scaleway Object Storage
-              # Team coordination should be handled through CI/CD pipelines
-            }
-          }
-          EOF
-
-            # Verify the file was created successfully
-            if [ -f "$GITHUB_WORKSPACE/$env_dir/backend.tf" ]; then
-              file_size=$(wc -c < "$GITHUB_WORKSPACE/$env_dir/backend.tf")
-              if [ "$file_size" -gt 100 ]; then
-                echo "✅ Backend configuration created successfully: $env_dir/backend.tf ($file_size bytes)"
-              else
-                echo "❌ Backend configuration file too small, may be corrupted: $file_size bytes"
-                return 1
-              fi
-            else
-              echo "❌ Failed to create backend configuration file: $env_dir/backend.tf"
-              return 1
-            fi
-
-            return 0
-          }
-
-          # Configure environments
-          if [[ "$environment" == "all" ]]; then
-            for env in dev staging prod; do
-              configure_single_environment "$env"
-            done
-            echo "backend_configured=true" >> $GITHUB_OUTPUT
-            echo "bucket_name=terraform-state-coder-{dev,staging,prod}" >> $GITHUB_OUTPUT
-            echo "backend_endpoint=https://s3.$region.scw.cloud" >> $GITHUB_OUTPUT
-          else
-            configure_single_environment "$environment"
-            echo "backend_configured=true" >> $GITHUB_OUTPUT
-            echo "bucket_name=terraform-state-coder-$environment" >> $GITHUB_OUTPUT
-            echo "backend_endpoint=https://s3.$region.scw.cloud" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Pre-Upload Verification
-        run: |
-          echo "🔍 Verifying backend configurations before upload..."
-
-          environment="${{ steps.validate.outputs.environment }}"
-          configured_envs=""
-
-          if [[ "$environment" == "all" ]]; then
-            for env in dev staging prod; do
-              backend_file="environments/$env/backend.tf"
-              if [ -f "$backend_file" ]; then
-                file_size=$(wc -c < "$backend_file")
-                echo "✅ $env: $backend_file ($file_size bytes)"
-                configured_envs="$configured_envs $env"
-              else
-                echo "❌ $env: $backend_file not found"
-                exit 1
-              fi
-            done
-          else
-            backend_file="environments/$environment/backend.tf"
-            if [ -f "$backend_file" ]; then
-              file_size=$(wc -c < "$backend_file")
-              echo "✅ $environment: $backend_file ($file_size bytes)"
-              configured_envs="$environment"
-            else
-              echo "❌ $environment: $backend_file not found"
+              echo "❌ Backend configuration syntax invalid"
+              cat backend.tf
               exit 1
             fi
+            cd - > /dev/null
+          else
+            echo "❌ Backend configuration missing: $backend_file"
+            exit 1
           fi
 
-          echo ""
-          echo "📁 Directory structure to be uploaded:"
-          find environments -type d -name "dev" -o -name "staging" -o -name "prod" | while read env_dir; do
-            if [ -f "$env_dir/backend.tf" ]; then
-              echo "  ✅ $env_dir/ (with backend.tf)"
-              ls -la "$env_dir/backend.tf"
-            fi
-          done
-
-          echo ""
-          echo "✅ Backend configurations verified for: $configured_envs"
-          echo "These environment directories will be included in the artifact."
-
-      - name: Upload Backend Configuration Artifacts
+      - name: Upload Backend Configuration
         uses: actions/upload-artifact@v4
         with:
           name: backend-config-${{ inputs.environment }}-${{ github.run_id }}
           path: |
-            environments/
+            environments/${{ inputs.environment }}/backend.tf
           retention-days: 7
-
-      - name: Post-Upload Verification
-        run: |
-          echo "🔍 Verifying artifact upload completed successfully..."
-          echo "Artifact name: backend-config-${{ inputs.environment }}-${{ github.run_id }}"
-          echo ""
-          echo "📦 Environment directories included in artifact:"
-          configured_count=0
-          for env_dir in environments/*/; do
-            if [ -d "$env_dir" ] && [ -f "$env_dir/backend.tf" ]; then
-              env_name=$(basename "$env_dir")
-              echo "  ✅ $env_name environment (with backend.tf)"
-              configured_count=$((configured_count + 1))
-            fi
-          done
-          echo ""
-          echo "✅ Artifact upload completed with $configured_count environment(s)"
-
-      - name: Validate Backend Configuration
-        run: |
-          environment="${{ steps.validate.outputs.environment }}"
-
-          validate_environment() {
-            local env="$1"
-            local env_dir="environments/$env"
-
-            echo "🔍 Validating backend configuration for: $env"
-
-            # Check if environment directory exists
-            if [[ ! -d "$env_dir" ]]; then
-              echo "❌ Environment directory not found: $env_dir"
-              return 1
-            fi
-
-            # Check if backend.tf was created
-            if [[ ! -f "$env_dir/backend.tf" ]]; then
-              echo "❌ Backend configuration file not found: $env_dir/backend.tf"
-              return 1
-            fi
-
-            cd "$env_dir"
-
-            # Initialize with verbose error output
-            echo "  Initializing Terraform backend..."
-            if terraform init 2>&1; then
-              echo "✅ Backend initialization successful for $env"
-
-              # Test backend connectivity by checking remote state
-              echo "  Testing backend connectivity..."
-              if terraform state list > /dev/null 2>&1; then
-                echo "✅ Backend connectivity verified for $env"
-              else
-                echo "✅ Backend accessible for $env (no existing state - this is normal for new environments)"
-              fi
-
-              # Additional validation: try to refresh state
-              echo "  Performing backend validation refresh..."
-              if timeout 30 terraform refresh -no-color > /dev/null 2>&1; then
-                echo "✅ Backend state refresh successful for $env"
-              else
-                echo "⚠️  Backend state refresh failed or timed out for $env (this may be normal for new environments)"
-              fi
-
-              # Validate backend configuration syntax
-              echo "  Validating backend configuration syntax..."
-              if terraform validate -no-color > /dev/null 2>&1; then
-                echo "✅ Backend configuration syntax valid for $env"
-              else
-                echo "❌ Backend configuration syntax validation failed for $env"
-                return 1
-              fi
-
-            else
-              echo "❌ Backend initialization failed for $env"
-              echo "Backend configuration:"
-              cat backend.tf
-              echo
-              echo "Terraform version:"
-              terraform version
-              echo
-              echo "Current directory contents:"
-              ls -la
-              return 1
-            fi
-
-            cd - > /dev/null
-          }
-
-          # Validate environments
-          validation_failed=false
-          if [[ "$environment" == "all" ]]; then
-            for env in dev staging prod; do
-              if ! validate_environment "$env"; then
-                validation_failed=true
-              fi
-            done
-          else
-            if ! validate_environment "$environment"; then
-              validation_failed=true
-            fi
-          fi
-
-          if [[ "$validation_failed" == "true" ]]; then
-            echo "❌ Backend validation failed for one or more environments"
-            exit 1
-          fi
-
-          echo "✅ Backend configurations validated successfully"
 
       - name: Summary
         run: |
           echo "🎉 Backend setup completed successfully!"
           echo
           echo "📊 Summary:"
-          echo "  Environment(s): ${{ inputs.environment }}"
+          echo "  Environment: ${{ inputs.environment }}"
           echo "  Region: ${{ inputs.region }}"
-          echo "  Backend configured: ${{ steps.configure.outputs.backend_configured }}"
-          echo "  Bucket(s): ${{ steps.configure.outputs.bucket_name }}"
-          echo "  Endpoint: ${{ steps.configure.outputs.backend_endpoint }}"
-          echo "  Force recreate: ${{ inputs.force_recreate }}"
+          echo "  Bucket: ${{ steps.setup.outputs.bucket_name }}"
+          echo "  Endpoint: ${{ steps.setup.outputs.backend_endpoint }}"
+          echo "  Backend file: environments/${{ inputs.environment }}/backend.tf"
           echo
-          echo "📁 Generated backend configuration files:"
-          configured_envs=""
-          configured_count=0
-          find environments -name "backend.tf" -type f 2>/dev/null | sort | while read file; do
-            size=$(wc -c < "$file")
-            env_name=$(echo "$file" | cut -d'/' -f2)
-            echo "  ✅ $file ($size bytes)"
-            configured_count=$((configured_count + 1))
-          done
-          echo
-          echo "🔍 Validation status:"
-          if [[ "${{ inputs.environment }}" == "all" ]]; then
-            echo "  ✅ Backend configurations created for: dev, staging, prod"
-            echo "  ✅ All 3 environment configurations uploaded to artifacts"
-            echo "  ✅ All 3 environments validated successfully"
-          else
-            echo "  ✅ Backend configuration created for: ${{ inputs.environment }}"
-            echo "  ✅ Configuration uploaded to artifacts"
-            echo "  ✅ Environment validated successfully"
-          fi
-          echo "  ✅ Backend connectivity verified"
-          echo
-          echo "🚀 Remote state backend is now ready for use!"
-          echo "📝 Backend configuration will be available to deploy jobs via artifacts"
+          echo "🚀 Backend infrastructure is ready for use!"

@@ -8,6 +8,12 @@ variable "environment" {
   }
 }
 
+variable "environments_dir" {
+  description = "Path to the environments directory for backend config generation"
+  type        = string
+  default     = "../environments"
+}
+
 variable "bucket_name" {
   description = "Name of the S3 bucket for Terraform state storage"
   type        = string
@@ -40,7 +46,7 @@ variable "state_retention_days" {
 variable "generate_backend_config" {
   description = "Whether to generate backend configuration files"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "tags" {
@@ -53,6 +59,12 @@ variable "managed_by" {
   description = "Who is managing this backend (terraform, github-actions, etc)"
   type        = string
   default     = "terraform"
+}
+
+variable "enable_bucket_policy" {
+  description = "Whether to create a bucket policy (disabled by default due to Scaleway compatibility issues)"
+  type        = bool
+  default     = false
 }
 
 locals {
