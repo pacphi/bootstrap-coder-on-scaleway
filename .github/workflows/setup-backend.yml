@@ -59,6 +59,14 @@ on:
 
 env:
   TF_IN_AUTOMATION: true
+  # Consolidated Scaleway credentials and mappings
+  SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+  SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+  SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+  SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+  # AWS variables for S3 backend compatibility
+  AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
 
 jobs:
   setup-backend:
@@ -81,20 +89,6 @@ jobs:
           terraform_version: "~1.12.0"
           terraform_wrapper: false
 
-      - name: Configure Scaleway Credentials
-        env:
-          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
-          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
-        run: |
-          echo "SCW_ACCESS_KEY=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
-          echo "SCW_SECRET_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
-          echo "SCW_DEFAULT_PROJECT_ID=${SCW_DEFAULT_PROJECT_ID}" >> $GITHUB_ENV
-          echo "SCW_DEFAULT_ORGANIZATION_ID=${SCW_DEFAULT_ORGANIZATION_ID}" >> $GITHUB_ENV
-          # AWS environment variables for S3 backend (required by Terraform S3 backend)
-          echo "AWS_ACCESS_KEY_ID=${SCW_ACCESS_KEY}" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${SCW_SECRET_KEY}" >> $GITHUB_ENV
 
       - name: Validate Environment
         id: validate
