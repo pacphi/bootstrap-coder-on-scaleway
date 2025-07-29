@@ -116,7 +116,6 @@ resource "scaleway_lb" "main" {
 
   private_network {
     private_network_id = scaleway_vpc_private_network.private_network.id
-    dhcp_config        = true
   }
 
   tags = var.tags
@@ -219,18 +218,17 @@ resource "scaleway_vpc_public_gateway_ip" "main" {
 
 # Gateway for private network (enables internet access)
 resource "scaleway_vpc_public_gateway" "main" {
-  name  = "${var.vpc_name}-gateway"
-  type  = "VPC-GW-S"
-  ip_id = scaleway_vpc_public_gateway_ip.main.id
-  tags  = var.tags
+  name         = "${var.vpc_name}-gateway"
+  type         = "VPC-GW-S"
+  ip_id        = scaleway_vpc_public_gateway_ip.main.id
+  move_to_ipam = true
+  tags         = var.tags
 }
 
 # Attach gateway to private network
 resource "scaleway_vpc_gateway_network" "main" {
   gateway_id         = scaleway_vpc_public_gateway.main.id
   private_network_id = scaleway_vpc_private_network.private_network.id
-  dhcp_id            = scaleway_vpc_private_network.private_network.id
-  # cleanup_dhcp deprecated - using ipam_config instead
   ipam_config {
     push_default_route = true
   }

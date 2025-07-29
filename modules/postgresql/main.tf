@@ -36,7 +36,8 @@ resource "scaleway_rdb_instance" "postgresql" {
   backup_same_region        = var.backup_same_region
 
   private_network {
-    pn_id = var.private_network_id
+    pn_id       = var.private_network_id
+    enable_ipam = true
   }
 
   settings = merge(var.settings, var.init_settings)
