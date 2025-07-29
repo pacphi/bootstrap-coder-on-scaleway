@@ -21,7 +21,7 @@ Before deploying your first Coder environment, ensure you have the following too
 ```bash
 # Check required versions
 terraform version    # >= 1.12.0
-kubectl version      # >= 1.28.0
+kubectl version      # >= 1.32.0
 helm version         # >= 3.12.0
 ```
 
@@ -1321,7 +1321,7 @@ ERROR: Terraform not found or version < 1.12.0
 # Solution
 # 1. Check versions
 terraform version    # Should be >= 1.12.0
-kubectl version      # Should be >= 1.28.0
+kubectl version      # Should be >= 1.32.0
 helm version         # Should be >= 3.12.0
 
 # 2. Install missing tools

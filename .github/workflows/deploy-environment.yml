@@ -143,7 +143,7 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: 'v1.28.0'
+          version: 'v1.32.0'
 
       - name: Setup Helm
         uses: azure/setup-helm@v3
@@ -740,7 +740,7 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: 'v1.28.0'
+          version: 'v1.32.0'
 
       - name: Setup Helm
         uses: azure/setup-helm@v3

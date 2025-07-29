@@ -264,7 +264,7 @@ test_prerequisites_versions() {
     # Check kubectl version
     if command -v kubectl &> /dev/null; then
         local kubectl_version=$(kubectl version --client -o json 2>/dev/null | jq -r '.clientVersion.gitVersion' | sed 's/v//' || echo "unknown")
-        local kubectl_min_version="1.28.0"
+        local kubectl_min_version="1.32.0"
 
         if [[ "$kubectl_version" != "unknown" ]]; then
             if printf '%s\n%s\n' "$kubectl_min_version" "$kubectl_version" | sort -V -C; then

@@ -185,7 +185,7 @@ Each `environments/{env}/` directory contains:
 
 ### Required Tools and Versions
 - **Terraform** ≥1.12.0
-- **kubectl** ≥1.28.0
+- **kubectl** ≥1.32.0
 - **Helm** ≥3.12.0
 - **Git** for version control
 - **jq** for JSON processing in scripts

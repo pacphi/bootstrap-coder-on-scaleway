@@ -86,7 +86,6 @@ variable "settings" {
     "log_temp_files"               = "0"
     "work_mem"                     = "4MB"
     "maintenance_work_mem"         = "128MB"
-    "checkpoint_completion_target" = "0.9"
     "wal_buffers"                  = "16MB"
     "default_statistics_target"    = "100"
     "random_page_cost"             = "1.1"

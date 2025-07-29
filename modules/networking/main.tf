@@ -188,9 +188,9 @@ resource "scaleway_lb_frontend" "http" {
     action {
       type = "redirect"
       redirect {
-        type = "scheme"
-        # scheme removed - type="scheme" already indicates HTTPS redirect
-        code = 301
+        type   = "scheme"
+        target = "https"
+        code   = 301
       }
     }
     match {

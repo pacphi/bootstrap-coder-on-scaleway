@@ -75,7 +75,7 @@ module "scaleway_cluster" {
 
   cluster_name        = "${local.project_name}-${local.environment}-cluster"
   cluster_description = "Staging Kubernetes cluster for Coder (Production-like)"
-  cluster_version     = "1.29"
+  cluster_version     = "1.32"
 
   enable_dashboard = false
   auto_upgrade     = local.cluster_config.auto_upgrade
@@ -129,7 +129,7 @@ module "postgresql" {
     "log_statement"                = "ddl"
     "work_mem"                     = "8MB"
     "maintenance_work_mem"         = "256MB"
-    "checkpoint_completion_target" = "0.9"
+    # "checkpoint_completion_target" = "0.9" # Removed - not supported by Scaleway provider
     "wal_buffers"                  = "32MB"
     "effective_cache_size"         = "512MB"
   }

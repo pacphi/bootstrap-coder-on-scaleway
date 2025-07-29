@@ -12,7 +12,7 @@ variable "cluster_description" {
 variable "cluster_version" {
   description = "Version of Kubernetes to deploy"
   type        = string
-  default     = "1.30"
+  default     = "1.32"
 }
 
 variable "cni" {

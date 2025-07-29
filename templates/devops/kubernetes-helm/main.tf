@@ -89,20 +89,20 @@ data "coder_parameter" "k8s_version" {
   name         = "k8s_version"
   display_name = "Kubernetes Version"
   description  = "Kubernetes version to work with"
-  default      = "1.28"
+  default      = "1.32"
   icon         = "/icon/kubernetes.svg"
   mutable      = false
   option {
-    name  = "Kubernetes 1.27"
-    value = "1.27"
+    name  = "Kubernetes 1.31"
+    value = "1.31"
   }
   option {
-    name  = "Kubernetes 1.28"
-    value = "1.28"
+    name  = "Kubernetes 1.32"
+    value = "1.32"
   }
   option {
-    name  = "Kubernetes 1.29"
-    value = "1.29"
+    name  = "Kubernetes 1.33"
+    value = "1.33"
   }
 }
 

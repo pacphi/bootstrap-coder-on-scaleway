@@ -75,7 +75,7 @@ module "scaleway_cluster" {
 
   cluster_name        = "${local.project_name}-${local.environment}-cluster"
   cluster_description = "Development Kubernetes cluster for Coder"
-  cluster_version     = "1.29"
+  cluster_version     = "1.32"
 
   enable_dashboard = false
   auto_upgrade     = local.cluster_config.auto_upgrade
