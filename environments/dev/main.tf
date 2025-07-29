@@ -7,8 +7,6 @@ module "shared_config" {
   source = "../../shared"
 
   environment              = local.environment
-  scaleway_organization_id = var.scaleway_organization_id
-  scaleway_project_id      = var.scaleway_project_id
 }
 
 # Local variables for development environment
@@ -156,18 +154,6 @@ variable "scaleway_region" {
   description = "Scaleway region"
   type        = string
   default     = "fr-par"
-}
-
-variable "scaleway_organization_id" {
-  description = "Scaleway organization ID"
-  type        = string
-  sensitive   = true
-}
-
-variable "scaleway_project_id" {
-  description = "Scaleway project ID"
-  type        = string
-  sensitive   = true
 }
 
 variable "tags" {

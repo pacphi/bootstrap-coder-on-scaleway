@@ -30,8 +30,6 @@ terraform {
 provider "scaleway" {
   zone            = var.scaleway_zone
   region          = var.scaleway_region
-  organization_id = var.scaleway_organization_id
-  project_id      = var.scaleway_project_id
 }
 
 provider "kubernetes" {

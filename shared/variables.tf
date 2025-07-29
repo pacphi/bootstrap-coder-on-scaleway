@@ -11,18 +11,6 @@ variable "scaleway_region" {
   default     = "fr-par"
 }
 
-variable "scaleway_organization_id" {
-  description = "Scaleway organization ID"
-  type        = string
-  sensitive   = true
-}
-
-variable "scaleway_project_id" {
-  description = "Scaleway project ID"
-  type        = string
-  sensitive   = true
-}
-
 # Environment Configuration
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
