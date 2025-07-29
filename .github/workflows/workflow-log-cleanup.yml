@@ -1,0 +1,19 @@
+---
+name: Cleanup Old Workflow Runs
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Every Sunday at midnight UTC
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean old workflow runs
+        uses: igorjs/gh-actions-clean-workflow@v6
+        with:
+          runs_older_than: "7"  # Delete runs older than 7 days
