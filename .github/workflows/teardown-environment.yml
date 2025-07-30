@@ -428,7 +428,7 @@ jobs:
 
           # Verify resource count hasn't changed significantly
           current_count=$(terraform state list | wc -l)
-          expected_count="${{ needs.prepare-teardown.outputs.resource_count }}"
+          expected_count="${{ steps.validate-state.outputs.resource_count }}"
 
           if [[ "$current_count" != "$expected_count" ]]; then
             difference=$((current_count - expected_count))
