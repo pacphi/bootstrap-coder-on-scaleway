@@ -261,23 +261,13 @@ jobs:
           default-project-id: ${{ env.SCW_DEFAULT_PROJECT_ID }}
           default-organization-id: ${{ env.SCW_DEFAULT_ORGANIZATION_ID }}
 
-      - name: Setup s3cmd for Object Storage Operations
-        uses: s3-actions/s3cmd@v2.0.0
-        with:
-          provider: custom
-          access_key: ${{ env.SCW_ACCESS_KEY }}
-          secret_key: ${{ env.SCW_SECRET_KEY }}
-        env:
-          S3_ENDPOINT: https://s3.${{ github.event.inputs.region }}.scw.cloud
+      - name: Install s3cmd
+        run: sudo apt-get update && sudo apt-get install -y s3cmd
 
-      - name: Configure s3cmd for Scaleway
+      - name: Generate s3cmd configuration using Scaleway CLI
         run: |
-          s3cmd --configure --access_key="${{ env.SCW_ACCESS_KEY }}" \
-            --secret_key="${{ env.SCW_SECRET_KEY }}" \
-            --host="s3.${{ github.event.inputs.region }}.scw.cloud" \
-            --host-bucket="%(bucket)s.s3.${{ github.event.inputs.region }}.scw.cloud" \
-            --no-ssl=false \
-            --dump-config > ~/.s3cfg
+          scw object config get type=s3cmd > ~/.s3cfg
+          echo "✅ s3cmd configured for Scaleway Object Storage"
 
       - name: Discover Existing Backend Bucket
         id: discover
