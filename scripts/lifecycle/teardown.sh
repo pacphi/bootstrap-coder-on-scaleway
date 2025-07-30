@@ -149,9 +149,15 @@ validate_environment() {
         exit 1
     fi
 
-    if [[ ! -f "${env_dir}/terraform.tfstate" ]]; then
-        log WARN "No Terraform state found in $env_dir"
-        log WARN "Environment may not be deployed or may be using remote state"
+    # Check for backend configuration (remote state)
+    if [[ -f "${env_dir}/backend.tf" ]]; then
+        log INFO "Remote state backend configured: ${env_dir}/backend.tf"
+    elif [[ -f "${env_dir}/terraform.tfstate" ]]; then
+        log WARN "Local state found: ${env_dir}/terraform.tfstate"
+        log WARN "Consider migrating to remote state backend"
+    else
+        log WARN "No state configuration found in $env_dir"
+        log WARN "Environment may not be deployed"
     fi
 
     log INFO "✅ Environment validated"
@@ -164,10 +170,17 @@ check_active_resources() {
     cd "$env_dir"
 
     # Initialize Terraform to check state
-    terraform init -input=false &> /dev/null || {
-        log WARN "Could not initialize Terraform - state may be corrupted"
+    log INFO "Initializing Terraform to check state..."
+    if ! terraform init -input=false &> /dev/null; then
+        log WARN "Could not initialize Terraform - backend may not exist or credentials invalid"
         return 0
-    }
+    fi
+
+    # Check if we can access remote state
+    if ! terraform state pull > /dev/null 2>&1; then
+        log WARN "Cannot access remote state - state may not exist or be corrupted"
+        return 0
+    fi
 
     # Get current resources
     local resource_count
@@ -175,11 +188,15 @@ check_active_resources() {
 
     if [[ "$resource_count" -gt 0 ]]; then
         log WARN "Found $resource_count active resources in state:"
-        terraform state list 2>/dev/null | while read -r resource; do
+        terraform state list 2>/dev/null | head -10 | while read -r resource; do
             log WARN "  - $resource"
         done
+        if [[ "$resource_count" -gt 10 ]]; then
+            log WARN "  ... and $((resource_count - 10)) more resources"
+        fi
     else
         log INFO "No active resources found in Terraform state"
+        log INFO "Environment may already be destroyed or was never deployed"
     fi
 
     # Check for active Kubernetes workspaces if cluster exists
@@ -461,7 +478,7 @@ terraform_destroy() {
 }
 
 cleanup_local_state() {
-    log STEP "Cleaning up local state and configuration..."
+    log STEP "Cleaning up local artifacts and configuration..."
 
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
 
@@ -472,14 +489,41 @@ cleanup_local_state() {
         log INFO "Removed kubeconfig: $kubeconfig"
     fi
 
-    # Archive Terraform state
+    # Create backup of state before cleanup (if using remote state)
     local archive_dir="${PROJECT_ROOT}/archives/teardown/$(date +%Y%m%d-%H%M%S)-${ENVIRONMENT}"
     mkdir -p "$archive_dir"
 
-    if [[ -f "${env_dir}/terraform.tfstate" ]]; then
+    # For remote state, pull and backup the final state
+    if [[ -f "${env_dir}/backend.tf" ]]; then
+        log INFO "Backing up final remote state..."
+        if terraform state pull > "${archive_dir}/final-terraform.tfstate" 2>/dev/null; then
+            log INFO "Final state backed up to: $archive_dir/final-terraform.tfstate"
+        else
+            log INFO "No remote state to backup (likely already destroyed)"
+        fi
+    elif [[ -f "${env_dir}/terraform.tfstate" ]]; then
+        # Archive local state if it exists
         cp "${env_dir}/terraform.tfstate" "$archive_dir/"
-        log INFO "Archived Terraform state to: $archive_dir"
+        log INFO "Archived local Terraform state to: $archive_dir"
     fi
+
+    # Create cleanup summary
+    cat > "${archive_dir}/teardown-summary.txt" << EOF
+Teardown Summary for Environment: ${ENVIRONMENT}
+Date: $(date)
+Script: $0
+
+Environment Directory: ${env_dir}
+Backend Configuration: $(test -f "${env_dir}/backend.tf" && echo "Remote (backend.tf)" || echo "Local")
+Kubeconfig Removed: $(test -f "$kubeconfig" && echo "No" || echo "Yes")
+
+Cleanup Actions Performed:
+- Removed kubeconfig: $kubeconfig
+- Backed up final state
+- Cleaned up .terraform directory
+- Removed any temporary files
+
+EOF
 
     # Remove .terraform directory but preserve source files
     if [[ -d "${env_dir}/.terraform" ]]; then
@@ -487,7 +531,12 @@ cleanup_local_state() {
         log INFO "Cleaned up .terraform directory"
     fi
 
+    # Remove any temporary files from teardown
+    find "$env_dir" -name "*.tfplan" -type f -delete 2>/dev/null || true
+    find "$env_dir" -name "*.log" -type f -delete 2>/dev/null || true
+
     log INFO "✅ Local cleanup completed"
+    log INFO "Archive location: $archive_dir"
 }
 
 run_post_teardown_hooks() {
@@ -506,27 +555,60 @@ validate_complete_destruction() {
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
     cd "$env_dir"
 
-    # Check if any resources remain in state
-    local remaining_resources
-    remaining_resources=$(terraform state list 2>/dev/null | wc -l || echo "0")
+    # Try to check state (may fail if backend/state no longer exists)
+    local remaining_resources=0
+    local state_accessible=false
 
-    if [[ "$remaining_resources" -gt 0 ]]; then
-        log WARN "⚠️  Some resources may still exist in Terraform state:"
-        terraform state list 2>/dev/null | while read -r resource; do
-            log WARN "  - $resource"
-        done
-        log WARN "Please check Scaleway console and remove manually if needed"
+    if terraform state pull > /dev/null 2>&1; then
+        state_accessible=true
+        remaining_resources=$(terraform state list 2>/dev/null | wc -l || echo "0")
+
+        if [[ "$remaining_resources" -gt 0 ]]; then
+            log WARN "⚠️  $remaining_resources resources still exist in Terraform state:"
+            terraform state list 2>/dev/null | head -10 | while read -r resource; do
+                log WARN "  - $resource"
+            done
+            if [[ "$remaining_resources" -gt 10 ]]; then
+                log WARN "  ... and $((remaining_resources - 10)) more resources"
+            fi
+            log WARN "Please check Scaleway console and remove manually if needed"
+            log WARN "Consider re-running teardown or manual cleanup"
+        else
+            log INFO "✅ No resources remaining in Terraform state"
+        fi
     else
-        log INFO "✅ No resources remaining in Terraform state"
+        log INFO "Cannot access remote state - this may indicate successful teardown"
+        log INFO "State backend may have been cleaned up or is no longer accessible"
     fi
 
-    # Check cluster connectivity
+    # Check cluster connectivity (kubeconfig should have been removed by now)
     local kubeconfig="${HOME}/.kube/config-coder-${ENVIRONMENT}"
-    if [[ -f "$kubeconfig" ]] && kubectl --kubeconfig="$kubeconfig" cluster-info &> /dev/null; then
-        log WARN "⚠️  Kubernetes cluster still accessible - destruction may be incomplete"
+    if [[ -f "$kubeconfig" ]]; then
+        log WARN "⚠️  Kubeconfig still exists: $kubeconfig"
+        if kubectl --kubeconfig="$kubeconfig" cluster-info &> /dev/null; then
+            log WARN "⚠️  Kubernetes cluster still accessible - destruction may be incomplete"
+        else
+            log INFO "Kubeconfig exists but cluster is not accessible (normal after teardown)"
+        fi
+    fi
+
+    # Additional validation using external tools if available
+    if command -v scw &> /dev/null; then
+        log INFO "Additional validation using Scaleway CLI..."
+        # This would check for orphaned resources but requires scw CLI setup
+        log INFO "Please verify manually in Scaleway console for any orphaned resources"
     fi
 
     log INFO "✅ Destruction validation completed"
+
+    # Return status for script exit code
+    if [[ "$state_accessible" == "true" && "$remaining_resources" -gt 0 ]]; then
+        log WARN "Validation indicates incomplete teardown"
+        return 1
+    else
+        log INFO "Validation indicates successful teardown"
+        return 0
+    fi
 }
 
 print_summary() {

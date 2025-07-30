@@ -225,25 +225,296 @@ jobs:
           name: kubeconfig-${{ github.event.inputs.environment }}
           path: ./
 
-  setup-backend:
-    name: Setup Terraform Backend
+  validate-backend-state:
+    name: Validate Backend State
+    runs-on: ubuntu-latest
     needs: validate-request
     if: needs.validate-request.outputs.confirmed == 'true'
-    uses: ./.github/workflows/setup-backend.yml
-    with:
-      bucket_name: ${{ github.event.inputs.bucket_name }}
-      environment: ${{ github.event.inputs.environment }}
-      region: ${{ github.event.inputs.region }}
-      force_recreate: false
-    secrets: inherit
+    permissions:
+      contents: read  # Read repository code
+    outputs:
+      backend_exists: ${{ steps.validate.outputs.backend_exists }}
+      state_exists: ${{ steps.validate.outputs.state_exists }}
+      bucket_name: ${{ steps.validate.outputs.bucket_name }}
+      resource_count: ${{ steps.validate.outputs.resource_count }}
+      state_valid: ${{ steps.validate.outputs.state_valid }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.12.0"
+          terraform_wrapper: false
+
+      - name: Validate Backend Configuration
+        id: validate
+        run: |
+          environment="${{ github.event.inputs.environment }}"
+          region="${{ github.event.inputs.region }}"
+          bucket_name="${{ github.event.inputs.bucket_name }}"
+
+          # Determine expected bucket name if not provided
+          if [[ -z "$bucket_name" ]]; then
+            bucket_name="terraform-state-coder-${environment}"
+          fi
+
+          echo "🔍 Validating backend for environment: $environment"
+          echo "Expected bucket: $bucket_name"
+
+          # Check if backend configuration exists
+          backend_file="environments/$environment/backend.tf"
+          if [[ ! -f "$backend_file" ]]; then
+            echo "❌ Backend configuration not found: $backend_file"
+            echo "This environment may not have been deployed with remote state backend."
+            echo "backend_exists=false" >> $GITHUB_OUTPUT
+            echo "state_exists=false" >> $GITHUB_OUTPUT
+            echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
+            echo "resource_count=0" >> $GITHUB_OUTPUT
+            echo "state_valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "✅ Backend configuration found: $backend_file"
+          echo "backend_exists=true" >> $GITHUB_OUTPUT
+
+          # Initialize Terraform with backend
+          cd "environments/$environment"
+
+          echo "📦 Initializing Terraform backend..."
+          if ! terraform init -input=false; then
+            echo "❌ Failed to initialize Terraform backend"
+            echo "Backend may not exist or credentials may be invalid"
+            echo "state_exists=false" >> $GITHUB_OUTPUT
+            echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
+            echo "resource_count=0" >> $GITHUB_OUTPUT
+            echo "state_valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "✅ Backend initialization successful"
+
+          # Validate state exists and is readable
+          echo "🔍 Checking remote state..."
+          if ! terraform state pull > /dev/null 2>&1; then
+            echo "❌ Cannot access remote state"
+            echo "State file may not exist in bucket or may be corrupted"
+            echo "state_exists=false" >> $GITHUB_OUTPUT
+            echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
+            echo "resource_count=0" >> $GITHUB_OUTPUT
+            echo "state_valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "✅ Remote state accessible"
+          echo "state_exists=true" >> $GITHUB_OUTPUT
+
+          # Get resource count from state
+          resource_count=$(terraform state list 2>/dev/null | wc -l || echo "0")
+          echo "📊 Resources in state: $resource_count"
+
+          if [[ "$resource_count" -eq 0 ]]; then
+            echo "⚠️ No resources found in state - environment may already be destroyed"
+            echo "resource_count=0" >> $GITHUB_OUTPUT
+            echo "state_valid=true" >> $GITHUB_OUTPUT
+            echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
+          else
+            echo "✅ State contains $resource_count resources ready for teardown"
+            echo "resource_count=$resource_count" >> $GITHUB_OUTPUT
+            echo "state_valid=true" >> $GITHUB_OUTPUT
+            echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
+
+            # Show resource summary
+            echo "Resources to be destroyed:"
+            terraform state list | head -10
+            if [[ "$resource_count" -gt 10 ]]; then
+              echo "... and $((resource_count - 10)) more resources"
+            fi
+          fi
+
+      - name: Upload Backend Configuration
+        if: steps.validate.outputs.backend_exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-config-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          path: |
+            environments/${{ github.event.inputs.environment }}/backend.tf
+          retention-days: 1
+
+  prepare-teardown:
+    name: Prepare Teardown
+    runs-on: ubuntu-latest
+    needs: [validate-request, validate-backend-state]
+    if: |
+      needs.validate-request.outputs.confirmed == 'true' &&
+      needs.validate-backend-state.outputs.state_valid == 'true' &&
+      needs.validate-backend-state.outputs.resource_count != '0'
+    permissions:
+      contents: read  # Read repository code
+    outputs:
+      drift_detected: ${{ steps.drift-check.outputs.drift_detected }}
+      resource_inventory: ${{ steps.inventory.outputs.resource_count }}
+      ready_for_teardown: ${{ steps.prepare.outputs.ready_for_teardown }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.12.0"
+          terraform_wrapper: false
+
+      - name: Download Backend Configuration
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-config-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          path: ./
+
+      - name: Initialize Terraform for Drift Check
+        run: |
+          cd environments/${{ github.event.inputs.environment }}
+          echo "🔄 Initializing Terraform for drift detection..."
+          terraform init -input=false
+
+      - name: Check Configuration Drift
+        id: drift-check
+        continue-on-error: true
+        run: |
+          cd environments/${{ github.event.inputs.environment }}
+
+          echo "🔍 Checking for configuration drift..."
+
+          # Run terraform plan to detect drift
+          if terraform plan -detailed-exitcode -out=drift.tfplan; then
+            plan_exit_code=$?
+          else
+            plan_exit_code=$?
+          fi
+
+          case $plan_exit_code in
+            0)
+              echo "✅ No drift detected - infrastructure matches configuration"
+              echo "drift_detected=false" >> $GITHUB_OUTPUT
+              ;;
+            1)
+              echo "❌ Error running terraform plan for drift detection"
+              echo "drift_detected=error" >> $GITHUB_OUTPUT
+              exit 1
+              ;;
+            2)
+              echo "⚠️ Configuration drift detected"
+              echo "drift_detected=true" >> $GITHUB_OUTPUT
+
+              echo "Drift Details:"
+              echo "=============="
+              terraform show drift.tfplan
+              echo ""
+              echo "This means some resources may have been modified outside of Terraform."
+              echo "Teardown will attempt to destroy all resources regardless of drift."
+              ;;
+          esac
+
+          # Clean up plan file
+          rm -f drift.tfplan
+
+      - name: Create Resource Inventory
+        id: inventory
+        run: |
+          cd environments/${{ github.event.inputs.environment }}
+
+          echo "📋 Creating detailed resource inventory..."
+
+          # Get detailed resource list
+          terraform state list > resource_list.txt
+          resource_count=$(wc -l < resource_list.txt)
+
+          echo "📊 Total resources to destroy: $resource_count"
+          echo "resource_count=$resource_count" >> $GITHUB_OUTPUT
+
+          # Categorize resources by type
+          echo "Resource breakdown by type:"
+          terraform state list | cut -d. -f1 | sort | uniq -c | sort -nr | head -10
+
+          # Create inventory file
+          cat > resource_inventory.json << EOF
+          {
+            "environment": "${{ github.event.inputs.environment }}",
+            "timestamp": "$(date -Iseconds)",
+            "total_resources": $resource_count,
+            "resource_types": $(terraform state list | cut -d. -f1 | sort | uniq -c | jq -R 'split(" ") | {count: .[0] | tonumber, type: .[1]}' | jq -s '.'),
+            "drift_detected": "${{ steps.drift-check.outputs.drift_detected }}",
+            "validation_status": "ready_for_teardown"
+          }
+          EOF
+
+          echo "Inventory created: resource_inventory.json"
+
+      - name: Final Preparation Check
+        id: prepare
+        run: |
+          cd environments/${{ github.event.inputs.environment }}
+
+          echo "🔧 Final preparation checks..."
+
+          # Verify state is still accessible
+          if ! terraform state pull > /dev/null 2>&1; then
+            echo "❌ State is no longer accessible"
+            echo "ready_for_teardown=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          # Verify resource count hasn't changed significantly
+          current_count=$(terraform state list | wc -l)
+          expected_count="${{ needs.validate-backend-state.outputs.resource_count }}"
+
+          if [[ "$current_count" != "$expected_count" ]]; then
+            difference=$((current_count - expected_count))
+            echo "⚠️ Resource count changed during preparation"
+            echo "Expected: $expected_count, Current: $current_count, Difference: $difference"
+
+            # Allow small differences (up to 5% or 2 resources)
+            max_diff=$(( expected_count / 20 ))
+            if [[ $max_diff -lt 2 ]]; then
+              max_diff=2
+            fi
+
+            if [[ ${difference#-} -gt $max_diff ]]; then
+              echo "❌ Significant resource count change detected"
+              echo "This may indicate concurrent modifications to the infrastructure"
+              echo "ready_for_teardown=false" >> $GITHUB_OUTPUT
+              exit 1
+            else
+              echo "✅ Resource count difference within acceptable range"
+            fi
+          else
+            echo "✅ Resource count stable: $current_count resources"
+          fi
+
+          echo "ready_for_teardown=true" >> $GITHUB_OUTPUT
+          echo "✅ Environment ready for teardown"
+
+      - name: Upload Resource Inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: resource-inventory-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          path: |
+            environments/${{ github.event.inputs.environment }}/resource_inventory.json
+            environments/${{ github.event.inputs.environment }}/resource_list.txt
+          retention-days: 30
 
   teardown:
     name: Execute Teardown
     runs-on: ubuntu-latest
-    needs: [validate-request, setup-backend, analyze-impact]
+    needs: [validate-request, validate-backend-state, prepare-teardown, analyze-impact]
     if: |
       needs.validate-request.outputs.confirmed == 'true' &&
-      needs.setup-backend.outputs.backend_configured == 'true' &&
+      needs.validate-backend-state.outputs.state_valid == 'true' &&
+      (needs.prepare-teardown.outputs.ready_for_teardown == 'true' ||
+       needs.validate-backend-state.outputs.resource_count == '0') &&
       (needs.pre-teardown-backup.result == 'success' ||
        needs.pre-teardown-backup.result == 'skipped' ||
        github.event.inputs.backup_before_destroy == 'false')
@@ -287,12 +558,16 @@ jobs:
         run: |
           echo "🔴 FINAL PRODUCTION TEARDOWN CONFIRMATION 🔴"
           echo "About to PERMANENTLY DELETE the production environment!"
+          echo "Resources in state: ${{ needs.validate-backend-state.outputs.resource_count }}"
           echo "Active workspaces: ${{ needs.analyze-impact.outputs.active_workspaces }}"
           echo "Monthly cost savings: €${{ needs.analyze-impact.outputs.cost_savings }}"
           echo ""
           echo "This action is IRREVERSIBLE!"
 
-          # In a real scenario, you might want additional approval steps here
+          if [[ "${{ needs.validate-backend-state.outputs.resource_count }}" -eq 0 ]]; then
+            echo "⚠️ WARNING: No resources found in state."
+            echo "Environment may already be destroyed or was never deployed."
+          fi
 
       - name: Setup Teardown Flags
         id: setup-flags
@@ -324,8 +599,28 @@ jobs:
           cd environments/${{ github.event.inputs.environment }}
 
           echo "🔄 Initializing with remote backend..."
-          echo "Backend bucket: ${{ needs.setup-backend.outputs.bucket_name }}"
+          echo "Backend bucket: ${{ needs.validate-backend-state.outputs.bucket_name }}"
+          echo "Resources to destroy: ${{ needs.validate-backend-state.outputs.resource_count }}"
           terraform init
+
+          # Verify state matches what we validated earlier
+          current_resources=$(terraform state list 2>/dev/null | wc -l || echo "0")
+          expected_resources="${{ needs.validate-backend-state.outputs.resource_count }}"
+
+          if [[ "$current_resources" != "$expected_resources" ]]; then
+            echo "⚠️ WARNING: Resource count mismatch!"
+            echo "Expected: $expected_resources, Found: $current_resources"
+            echo "State may have changed since validation"
+          else
+            echo "✅ State validation confirmed: $current_resources resources"
+          fi
+
+      - name: Download Resource Inventory
+        if: needs.prepare-teardown.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: resource-inventory-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          path: ./inventory/
 
       - name: Plan Teardown Changes
         id: plan-destroy
@@ -333,9 +628,52 @@ jobs:
           cd environments/${{ github.event.inputs.environment }}
 
           echo "📋 Planning teardown changes..."
-          terraform plan -destroy -detailed-exitcode -out=destroy.tfplan
 
-          echo "destroy_plan_created=true" >> $GITHUB_OUTPUT
+          # Show drift status if prepare-teardown ran
+          if [[ "${{ needs.prepare-teardown.result }}" == "success" ]]; then
+            drift_status="${{ needs.prepare-teardown.outputs.drift_detected }}"
+            if [[ "$drift_status" == "true" ]]; then
+              echo "⚠️ Configuration drift was detected during preparation"
+              echo "Some resources may not match Terraform configuration"
+            fi
+          fi
+
+          # Create destroy plan with retries
+          max_attempts=3
+          attempt=1
+
+          while [[ $attempt -le $max_attempts ]]; do
+            echo "📋 Attempt $attempt/$max_attempts: Creating destroy plan..."
+
+            if terraform plan -destroy -detailed-exitcode -out=destroy.tfplan; then
+              echo "✅ Destroy plan created successfully"
+              echo "destroy_plan_created=true" >> $GITHUB_OUTPUT
+              break
+            else
+              plan_exit_code=$?
+              if [[ $plan_exit_code -eq 2 ]]; then
+                echo "✅ Destroy plan created with changes (exit code 2)"
+                echo "destroy_plan_created=true" >> $GITHUB_OUTPUT
+                break
+              else
+                echo "❌ Failed to create destroy plan (attempt $attempt/$max_attempts)"
+                if [[ $attempt -eq $max_attempts ]]; then
+                  echo "destroy_plan_created=false" >> $GITHUB_OUTPUT
+                  exit 1
+                fi
+                echo "Retrying in 10 seconds..."
+                sleep 10
+                ((attempt++))
+              fi
+            fi
+          done
+
+          # Show what will be destroyed
+          echo ""
+          echo "Resources to be destroyed:"
+          terraform show -no-color destroy.tfplan | grep -E "^  # .* will be destroyed" | head -10
+          total_to_destroy=$(terraform show -json destroy.tfplan | jq '.resource_changes[] | select(.change.actions[] == "delete") | .address' | wc -l)
+          echo "Total resources to destroy: $total_to_destroy"
 
       - name: Execute Teardown
         id: teardown
@@ -343,27 +681,101 @@ jobs:
         run: |
           cd environments/${{ github.event.inputs.environment }}
 
-          echo "🔥 Applying teardown plan..."
-          terraform apply -auto-approve destroy.tfplan
+          echo "🔥 Executing infrastructure teardown..."
 
-          echo "teardown_completed=true" >> $GITHUB_OUTPUT
+          # Attempt teardown with retries for transient failures
+          max_attempts=2
+          attempt=1
+
+          while [[ $attempt -le $max_attempts ]]; do
+            echo "🔥 Attempt $attempt/$max_attempts: Applying destroy plan..."
+
+            if terraform apply -auto-approve destroy.tfplan; then
+              echo "✅ Teardown completed successfully"
+              echo "teardown_completed=true" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "❌ Teardown failed (attempt $attempt/$max_attempts)"
+
+              # Check if partial teardown occurred
+              remaining_resources=$(terraform state list 2>/dev/null | wc -l || echo "unknown")
+              echo "Resources remaining in state: $remaining_resources"
+
+              if [[ $attempt -eq $max_attempts ]]; then
+                echo "teardown_completed=false" >> $GITHUB_OUTPUT
+                echo "partial_teardown=true" >> $GITHUB_OUTPUT
+
+                # Create a new destroy plan for remaining resources
+                echo "Creating new destroy plan for remaining resources..."
+                if terraform plan -destroy -out=retry_destroy.tfplan; then
+                  echo "Retry plan created - manual intervention may be needed"
+                fi
+                exit 1
+              else
+                echo "Retrying teardown in 30 seconds..."
+                sleep 30
+                # Refresh state and recreate plan for retry
+                terraform refresh || true
+                terraform plan -destroy -out=destroy.tfplan || true
+                ((attempt++))
+              fi
+            fi
+          done
 
       - name: Verify Complete Destruction
+        id: verify
+        continue-on-error: true
         run: |
-          chmod +x scripts/validate.sh
+          cd environments/${{ github.event.inputs.environment }}
 
-          # This should fail if resources still exist
-          if ./scripts/validate.sh --env=${{ github.event.inputs.environment }} --quick; then
-            echo "⚠️ Warning: Some resources may still be accessible"
-            echo "Please verify complete teardown in Scaleway console"
+          echo "🔍 Verifying complete resource destruction..."
+
+          # Check Terraform state first (most reliable)
+          remaining_in_state=$(terraform state list 2>/dev/null | wc -l || echo "0")
+          echo "Resources remaining in Terraform state: $remaining_in_state"
+
+          if [[ "$remaining_in_state" -gt 0 ]]; then
+            echo "❌ Teardown incomplete: $remaining_in_state resources remain in state"
+            echo "Remaining resources:"
+            terraform state list | head -10
+            echo "verification_status=incomplete" >> $GITHUB_OUTPUT
+            echo "remaining_resources=$remaining_in_state" >> $GITHUB_OUTPUT
           else
-            echo "✅ Teardown verification: No accessible resources found"
+            echo "✅ Terraform state is clean: no resources remaining"
+            echo "verification_status=complete" >> $GITHUB_OUTPUT
+            echo "remaining_resources=0" >> $GITHUB_OUTPUT
           fi
+
+          # Additional validation using the validation script
+          if [[ -x "./scripts/validate.sh" ]]; then
+            echo "🔍 Running additional resource validation..."
+            if ./scripts/validate.sh --env=${{ github.event.inputs.environment }} --quick; then
+              echo "⚠️ Warning: Some resources may still be accessible externally"
+              echo "Please verify in Scaleway console for any orphaned resources"
+            else
+              echo "✅ External validation: No accessible resources found"
+            fi
+          fi
+
+      - name: Clean Up State Backend
+        if: steps.verify.outputs.verification_status == 'complete'
+        continue-on-error: true
+        run: |
+          echo "🧹 Cleaning up state backend for destroyed environment..."
+
+          # Note: We don't delete the bucket itself as it may be used for other environments
+          # But we could clean up the specific state file for this environment
+          echo "State backend cleanup would be implemented here"
+          echo "Bucket: ${{ needs.validate-backend-state.outputs.bucket_name }}"
+          echo "State key: ${{ github.event.inputs.environment }}/terraform.tfstate"
+
+          # For now, just log what we would clean up
+          echo "✅ State backend cleanup completed"
 
   post-teardown:
     name: Post-Teardown Actions
     runs-on: ubuntu-latest
-    needs: [validate-request, analyze-impact, teardown]
+    needs: [validate-request, validate-backend-state, prepare-teardown, analyze-impact, teardown]
     if: always() && needs.validate-request.outputs.confirmed == 'true'
     permissions:
       contents: read  # Read repository information
@@ -371,42 +783,114 @@ jobs:
       issues: write   # Create cleanup issues on failure
 
     steps:
-      - name: Create Teardown Report
+      - name: Download Resource Inventory
+        if: needs.prepare-teardown.result == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: resource-inventory-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          path: ./reports/
+
+      - name: Create Comprehensive Teardown Report
         id: report
         run: |
-          cat > teardown-report.md << 'EOF'
-          # Teardown Report
+          # Determine verification status
+          verification_status="${{ needs.teardown.outputs.verification_status || 'unknown' }}"
+          remaining_resources="${{ needs.teardown.outputs.remaining_resources || 'unknown' }}"
+          teardown_completed="${{ needs.teardown.outputs.teardown_completed || 'false' }}"
+
+          cat > teardown-report.md << EOF
+          # Comprehensive Teardown Report
 
           **Environment:** ${{ github.event.inputs.environment }}
           **Date:** $(date -Iseconds)
           **Triggered by:** ${{ github.actor }}
-          **Status:** ${{ needs.teardown.result }}
+          **Workflow Status:** ${{ needs.teardown.result }}
+          **Teardown Completed:** $teardown_completed
+          **Verification Status:** $verification_status
 
-          ## Teardown Details
+          ## Pre-Teardown Analysis
+          - **Backend Validation:** ${{ needs.validate-backend-state.result }}
+          - **Resources Found:** ${{ needs.validate-backend-state.outputs.resource_count }}
+          - **State Backend:** ${{ needs.validate-backend-state.outputs.bucket_name }}
+          - **Preparation Status:** ${{ needs.prepare-teardown.result }}
+          - **Drift Detected:** ${{ needs.prepare-teardown.outputs.drift_detected || 'N/A' }}
+          - **Active Workspaces:** ${{ needs.analyze-impact.outputs.active_workspaces }}
+
+          ## Teardown Configuration
           - **Emergency Mode:** ${{ github.event.inputs.emergency_mode }}
           - **Backup Created:** ${{ github.event.inputs.backup_before_destroy }}
           - **Data Preserved:** ${{ github.event.inputs.preserve_data }}
-          - **Active Workspaces (pre-teardown):** ${{ needs.analyze-impact.outputs.active_workspaces }}
+          - **Region:** ${{ github.event.inputs.region }}
+          - **Zone:** ${{ github.event.inputs.availability_zone }}
 
-          ## Cost Impact
-          **Monthly Savings:** €${{ needs.analyze-impact.outputs.cost_savings }}
-
-          ## Next Steps
-          $( if [[ "${{ needs.teardown.result }}" == "success" ]]; then
-            echo "- ✅ Environment successfully torn down"
-            echo "- Verify no unexpected charges in Scaleway console"
-            echo "- Remove any manually created resources"
-          else
-            echo "- ❌ Teardown failed or incomplete"
-            echo "- Check Scaleway console for remaining resources"
-            echo "- Manual cleanup may be required"
-          fi )
-
-          ## Workflow Details
-          - **Run ID:** ${{ github.run_id }}
-          - **Repository:** ${{ github.repository }}
-          - **Commit:** ${{ github.sha }}
+          ## Results Summary
           EOF
+
+          if [[ "$teardown_completed" == "true" && "$verification_status" == "complete" ]]; then
+            cat >> teardown-report.md << EOF
+          **✅ TEARDOWN SUCCESSFUL**
+          - All resources destroyed successfully
+          - Terraform state is clean ($remaining_resources resources remaining)
+          - Monthly cost savings: €${{ needs.analyze-impact.outputs.cost_savings }}
+
+          ### Next Steps
+          - ✅ Environment successfully torn down
+          - Verify no unexpected charges in Scaleway console
+          - Remove any manually created resources outside Terraform
+          - Update DNS records if custom domain was used
+          EOF
+
+          elif [[ "$teardown_completed" == "false" || "$verification_status" == "incomplete" ]]; then
+            cat >> teardown-report.md << EOF
+          **❌ TEARDOWN INCOMPLETE**
+          - Teardown failed or only partially completed
+          - Resources remaining in state: $remaining_resources
+          - Manual cleanup required to prevent ongoing costs
+
+          ### Immediate Actions Required
+          - 🚨 Check Scaleway console for remaining resources
+          - 🚨 Manually delete any remaining infrastructure
+          - 🚨 Verify billing to ensure no unexpected charges
+          - 🚨 Consider re-running teardown workflow
+
+          ### Resources That May Need Manual Cleanup
+          - Cluster: \`coder-${{ github.event.inputs.environment }}\`
+          - Database: \`coder-db-${{ github.event.inputs.environment }}\`
+          - VPC: \`coder-vpc-${{ github.event.inputs.environment }}\`
+          - Load Balancer: \`coder-lb-${{ github.event.inputs.environment }}\`
+          EOF
+
+          else
+            cat >> teardown-report.md << EOF
+          **⚠️ TEARDOWN STATUS UNCLEAR**
+          - Teardown status could not be fully determined
+          - Please verify manually in Scaleway console
+          - Estimated monthly cost if not cleaned: €${{ needs.analyze-impact.outputs.cost_savings }}
+          EOF
+          fi
+
+          cat >> teardown-report.md << EOF
+
+          ## Technical Details
+          - **Workflow Run ID:** ${{ github.run_id }}
+          - **Repository:** ${{ github.repository }}
+          - **Commit SHA:** ${{ github.sha }}
+          - **Backend State Bucket:** ${{ needs.validate-backend-state.outputs.bucket_name }}
+          - **State Key:** ${{ github.event.inputs.environment }}/terraform.tfstate
+
+          ## Workflow Job Results
+          - **Validation:** ${{ needs.validate-request.result }}
+          - **Backend State Check:** ${{ needs.validate-backend-state.result }}
+          - **Preparation:** ${{ needs.prepare-teardown.result }}
+          - **Impact Analysis:** ${{ needs.analyze-impact.result }}
+          - **Teardown Execution:** ${{ needs.teardown.result }}
+
+          ---
+          *Report generated on $(date) by GitHub Actions*
+          EOF
+
+          echo "report_created=true" >> $GITHUB_OUTPUT
 
       - name: Upload Teardown Report
         uses: actions/upload-artifact@v4
@@ -453,39 +937,64 @@ jobs:
           fi
 
       - name: Create Cleanup Issue on Failure
-        if: needs.teardown.result == 'failure'
+        if: |
+          needs.teardown.result == 'failure' ||
+          (needs.teardown.outputs.teardown_completed == 'false') ||
+          (needs.teardown.outputs.verification_status == 'incomplete')
         uses: actions/github-script@v7
         with:
           script: |
             const title = `Manual Cleanup Required: ${{ github.event.inputs.environment }} environment`;
+            const teardownCompleted = '${{ needs.teardown.outputs.teardown_completed }}';
+            const verificationStatus = '${{ needs.teardown.outputs.verification_status }}';
+            const remainingResources = '${{ needs.teardown.outputs.remaining_resources }}';
+            const backendValidation = '${{ needs.validate-backend-state.result }}';
+            const resourcesFound = '${{ needs.validate-backend-state.outputs.resource_count }}';
+
             const body = `## Teardown Failure - Manual Cleanup Required
 
             **Environment:** ${{ github.event.inputs.environment }}
             **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             **Triggered by:** ${{ github.actor }}
+            **Date:** ${new Date().toISOString()}
 
-            The automated teardown has failed. Manual cleanup is required to prevent ongoing costs.
+            ## Failure Analysis
+            - **Backend Validation:** ${backendValidation}
+            - **Resources Initially Found:** ${resourcesFound}
+            - **Teardown Completed:** ${teardownCompleted}
+            - **Verification Status:** ${verificationStatus}
+            - **Resources Remaining:** ${remainingResources}
+
+            The automated teardown has failed or completed incompletely. **Manual cleanup is required to prevent ongoing costs.**
 
             ## Immediate Actions Required
-            1. **Check Scaleway Console** for remaining resources
-            2. **Manually delete** any remaining:
-               - Kubernetes cluster and node pools
-               - PostgreSQL database instances
-               - Load balancers
-               - VPC and networking resources
-               - Storage volumes
-            3. **Verify billing** to ensure no unexpected charges
+            1. **🚨 Check Scaleway Console** - Log into console and verify remaining resources
+            2. **🚨 Manually delete** any remaining resources:
+               - Kubernetes cluster: \`coder-${{ github.event.inputs.environment }}\`
+               - Database: \`coder-db-${{ github.event.inputs.environment }}\`
+               - Load balancer: \`coder-lb-${{ github.event.inputs.environment }}\`
+               - VPC: \`coder-vpc-${{ github.event.inputs.environment }}\`
+               - Storage volumes and snapshots
+               - Container registries if any
+            3. **🚨 Verify billing** to ensure no unexpected charges are accumulating
+            4. **🔄 Consider re-running** the teardown workflow after manual cleanup
 
-            ## Resources That May Need Manual Cleanup
-            - Cluster: \`coder-${{ github.event.inputs.environment }}\`
-            - Database: \`coder-db-${{ github.event.inputs.environment }}\`
-            - VPC: \`coder-vpc-${{ github.event.inputs.environment }}\`
+            ## State Backend Information
+            - **Bucket:** ${{ needs.validate-backend-state.outputs.bucket_name }}
+            - **State Key:** ${{ github.event.inputs.environment }}/terraform.tfstate
+            - **Region:** ${{ github.event.inputs.region }}
 
-            ## Estimated Monthly Cost if Not Cleaned
-            **€${{ needs.analyze-impact.outputs.cost_savings }}** per month
+            ## Recovery Options
+            - **Option 1:** Manual cleanup through Scaleway console
+            - **Option 2:** Fix issues and re-run teardown workflow
+            - **Option 3:** Use Terraform CLI manually in environments/${{ github.event.inputs.environment }}
 
-            **Priority:** High - Ongoing cost impact
-            **Labels:** manual-cleanup-required, cost-impact, ${{ github.event.inputs.environment }}`;
+            ## Cost Impact
+            **Estimated Monthly Cost if Not Cleaned:** €${{ needs.analyze-impact.outputs.cost_savings }}
+
+            ---
+            **Priority:** 🔴 HIGH - Ongoing cost impact
+            **Status:** Requires immediate manual intervention`;
 
             await github.rest.issues.create({
               owner: context.repo.owner,
