@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       bucket_name:
-        description: 'Name of the bucket in object store that will hold Terraform state'
+        description: 'Name of the bucket in object store that holds Terraform state'
         required: false
         type: string
       environment:
