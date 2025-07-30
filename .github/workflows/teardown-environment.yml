@@ -237,7 +237,7 @@ jobs:
       bucket_exists: ${{ steps.discover.outputs.bucket_exists }}
       state_exists: ${{ steps.discover.outputs.state_exists }}
       bucket_name: ${{ steps.discover.outputs.bucket_name }}
-      resource_count: ${{ steps.discover.outputs.resource_count }}
+      resource_count: ${{ steps.validate-state.outputs.resource_count }}
       state_valid: ${{ steps.discover.outputs.state_valid }}
       backend_generated: ${{ steps.generate-backend.outputs.backend_generated }}
 
