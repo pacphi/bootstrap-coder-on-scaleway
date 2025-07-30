@@ -1,0 +1,590 @@
+# GitHub Dependabot configuration for dependency updates
+# This configuration monitors:
+# - GitHub Actions in workflows for security and feature updates
+# - Terraform files across the project for provider and module updates
+
+version: 2
+updates:
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci/cd"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+  # Infrastructure - Shared configurations
+  - package-ecosystem: "terraform"
+    directory: "/shared"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "infrastructure"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    pull-request-branch-name:
+      separator: "-"
+    open-pull-requests-limit: 5
+
+  # Infrastructure - Backend setup
+  - package-ecosystem: "terraform"
+    directory: "/backend-setup"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-providers:
+        patterns:
+          - "*"
+
+  # Infrastructure - Development environment
+  - package-ecosystem: "terraform"
+    directory: "/environments/dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "environment:dev"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Infrastructure - Staging environment
+  - package-ecosystem: "terraform"
+    directory: "/environments/staging"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "environment:staging"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Infrastructure - Production environment
+  - package-ecosystem: "terraform"
+    directory: "/environments/prod"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "environment:prod"
+    commit-message:
+      prefix: "chore(deps)"
+    # More conservative for production
+    open-pull-requests-limit: 2
+
+  # Modules - Coder deployment
+  - package-ecosystem: "terraform"
+    directory: "/modules/coder-deployment"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "module"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Modules - Networking
+  - package-ecosystem: "terraform"
+    directory: "/modules/networking"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "module"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Modules - PostgreSQL
+  - package-ecosystem: "terraform"
+    directory: "/modules/postgresql"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "module"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Modules - Scaleway cluster
+  - package-ecosystem: "terraform"
+    directory: "/modules/scaleway-cluster"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "module"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Modules - Security
+  - package-ecosystem: "terraform"
+    directory: "/modules/security"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "module"
+      - "security"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Modules - Terraform backend
+  - package-ecosystem: "terraform"
+    directory: "/modules/terraform-backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "module"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Templates - AI Enhanced - Claude Flow Base
+  - package-ecosystem: "terraform"
+    directory: "/templates/ai-enhanced/claude-flow-base"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "ai-enhanced"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      ai-templates:
+        patterns:
+          - "*"
+
+  # Templates - AI Enhanced - Claude Flow Enterprise
+  - package-ecosystem: "terraform"
+    directory: "/templates/ai-enhanced/claude-flow-enterprise"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "ai-enhanced"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      ai-templates:
+        patterns:
+          - "*"
+
+  # Templates - Backend - .NET Core
+  - package-ecosystem: "terraform"
+    directory: "/templates/backend/dotnet-core"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Backend - Go Fiber
+  - package-ecosystem: "terraform"
+    directory: "/templates/backend/go-fiber"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Backend - Java Spring
+  - package-ecosystem: "terraform"
+    directory: "/templates/backend/java-spring"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Backend - PHP Symfony Neuron
+  - package-ecosystem: "terraform"
+    directory: "/templates/backend/php-symfony-neuron"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Backend - Python Django CrewAI
+  - package-ecosystem: "terraform"
+    directory: "/templates/backend/python-django-crewai"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Backend - Ruby Rails
+  - package-ecosystem: "terraform"
+    directory: "/templates/backend/ruby-rails"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Backend - Rust Actix
+  - package-ecosystem: "terraform"
+    directory: "/templates/backend/rust-actix"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Data/ML - Jupyter Python
+  - package-ecosystem: "terraform"
+    directory: "/templates/data-ml/jupyter-python"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "data-ml"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      data-ml-templates:
+        patterns:
+          - "*"
+
+  # Templates - Data/ML - R Studio
+  - package-ecosystem: "terraform"
+    directory: "/templates/data-ml/r-studio"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "data-ml"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      data-ml-templates:
+        patterns:
+          - "*"
+
+  # Templates - DevOps - Docker Compose
+  - package-ecosystem: "terraform"
+    directory: "/templates/devops/docker-compose"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "devops"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      devops-templates:
+        patterns:
+          - "*"
+
+  # Templates - DevOps - Kubernetes Helm
+  - package-ecosystem: "terraform"
+    directory: "/templates/devops/kubernetes-helm"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "devops"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      devops-templates:
+        patterns:
+          - "*"
+
+  # Templates - DevOps - Terraform Ansible
+  - package-ecosystem: "terraform"
+    directory: "/templates/devops/terraform-ansible"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "devops"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      devops-templates:
+        patterns:
+          - "*"
+
+  # Templates - Frontend - Angular
+  - package-ecosystem: "terraform"
+    directory: "/templates/frontend/angular"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      frontend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Frontend - React TypeScript
+  - package-ecosystem: "terraform"
+    directory: "/templates/frontend/react-typescript"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      frontend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Frontend - Svelte Kit
+  - package-ecosystem: "terraform"
+    directory: "/templates/frontend/svelte-kit"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      frontend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Frontend - Vue Nuxt
+  - package-ecosystem: "terraform"
+    directory: "/templates/frontend/vue-nuxt"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      frontend-templates:
+        patterns:
+          - "*"
+
+  # Templates - Mobile - Flutter
+  - package-ecosystem: "terraform"
+    directory: "/templates/mobile/flutter"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "mobile"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      mobile-templates:
+        patterns:
+          - "*"
+
+  # Templates - Mobile - Ionic
+  - package-ecosystem: "terraform"
+    directory: "/templates/mobile/ionic"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "mobile"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      mobile-templates:
+        patterns:
+          - "*"
+
+  # Templates - Mobile - React Native
+  - package-ecosystem: "terraform"
+    directory: "/templates/mobile/react-native"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    labels:
+      - "dependencies"
+      - "terraform"
+      - "template"
+      - "mobile"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      mobile-templates:
+        patterns:
+          - "*"
