@@ -158,11 +158,7 @@ module "postgresql" {
     "max_connections"              = "500"
     "shared_preload_libraries"     = "pg_stat_statements,pg_stat_monitor,pg_cron"
     "log_min_duration_statement"   = "250"
-    "log_connections"              = "on"
-    "log_disconnections"           = "on"
-    "log_lock_waits"               = "on"
     "log_statement"                = "ddl"
-    "log_checkpoints"              = "on"
     "work_mem"                     = "16MB"
     "maintenance_work_mem"         = "512MB"
     # "checkpoint_completion_target" = "0.9" # Removed - not supported by Scaleway provider
@@ -171,6 +167,8 @@ module "postgresql" {
     "random_page_cost"             = "1.1"
     "seq_page_cost"                = "1"
     "default_statistics_target"    = "500"
+    # Note: Removed log_connections, log_disconnections, log_lock_waits, and log_checkpoints
+    # as these advanced logging parameters may not be supported by Scaleway managed PostgreSQL
   }
 
   volume_type = "bssd" # Block SSD for better performance

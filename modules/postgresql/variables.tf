@@ -73,23 +73,27 @@ variable "init_settings" {
 }
 
 variable "settings" {
-  description = "Database settings"
+  description = "Database settings - optimized for Scaleway managed PostgreSQL"
   type        = map(string)
   default = {
+    # Connection and performance settings (well-supported)
     "max_connections"            = "200"
     "shared_preload_libraries"   = "pg_stat_statements"
-    "log_min_duration_statement" = "1000"
-    "log_connections"            = "on"
-    "log_disconnections"         = "on"
-    "log_lock_waits"             = "on"
-    "log_statement"              = "ddl"
-    "log_temp_files"             = "0"
     "work_mem"                   = "4MB"
     "maintenance_work_mem"       = "128MB"
     "wal_buffers"                = "16MB"
     "default_statistics_target"  = "100"
     "random_page_cost"           = "1.1"
     "effective_cache_size"       = "128MB"
+    
+    # Basic logging settings (commonly supported)
+    "log_min_duration_statement" = "1000"
+    "log_statement"              = "ddl"
+    
+    # Note: Advanced logging parameters like log_connections, log_lock_waits, 
+    # log_temp_files, and log_disconnections may not be supported by 
+    # Scaleway's managed PostgreSQL service. Add these manually via 
+    # init_settings or settings override if needed and confirmed to work.
   }
 }
 
