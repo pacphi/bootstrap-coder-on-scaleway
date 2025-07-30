@@ -913,6 +913,43 @@ jobs:
             echo "This may indicate an issue with the cluster module or output configuration"
           fi
 
+      - name: Display DNS Setup Instructions
+        if: steps.deploy.outputs.dns_required == 'true'
+        run: |
+          echo "🌐 DNS Configuration Required"
+          echo "================================"
+          echo ""
+          echo "Your Coder environment has been deployed with domain configuration."
+          echo "To complete the setup, configure these DNS records at your domain registrar:"
+          echo ""
+          echo "📋 Required DNS Records:"
+          echo ""
+          echo "1. A Record (Main Domain):"
+          echo "   Name: ${{ steps.deploy.outputs.full_domain }}"
+          echo "   Type: A"
+          echo "   Value: ${{ steps.deploy.outputs.load_balancer_ip }}"
+          echo "   TTL: 300"
+          echo ""
+          echo "2. CNAME Record (Wildcard for Workspaces):"
+          echo "   Name: *.${{ steps.deploy.outputs.full_domain }}"
+          echo "   Type: CNAME"
+          echo "   Value: ${{ steps.deploy.outputs.full_domain }}"
+          echo "   TTL: 300"
+          echo ""
+          echo "⏱️  DNS Propagation Timeline:"
+          echo "   • DNS changes typically propagate within 5-15 minutes"
+          echo "   • SSL certificates will be issued automatically after DNS resolves"
+          echo "   • You can check propagation at: https://whatsmydns.net"
+          echo ""
+          echo "🔗 After DNS propagation:"
+          echo "   • Main Coder URL: https://${{ steps.deploy.outputs.full_domain }}"
+          echo "   • Workspace URLs: https://[workspace-name].${{ steps.deploy.outputs.full_domain }}"
+          echo ""
+          echo "📖 For registrar-specific instructions and troubleshooting:"
+          echo "   See docs/DOMAIN-GUIDE.md in this repository"
+          echo ""
+          echo "✅ Your infrastructure is ready - just waiting for DNS configuration!"
+
       - name: Upload Kubeconfig Artifact
         if: steps.apply.outputs.apply_completed == 'true'
         uses: actions/upload-artifact@v4
