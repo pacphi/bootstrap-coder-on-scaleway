@@ -254,7 +254,7 @@ jobs:
       - name: Install Scaleway CLI
         run: |
           echo "📦 Installing Scaleway CLI for bucket discovery..."
-          curl -o scw -L "https://github.com/scaleway/scaleway-cli/releases/latest/download/scw-linux-x86_64"
+          curl -o scw -L "https://github.com/scaleway/scaleway-cli/releases/download/v2.42.0/scaleway-cli_2.42.0_linux_amd64"
           chmod +x scw
           sudo mv scw /usr/local/bin/scw
 
