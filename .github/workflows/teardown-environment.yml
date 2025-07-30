@@ -530,7 +530,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-config-${{ github.event.inputs.environment }}-${{ github.run_id }}
-          path: ./
+          path: ./environments/${{ github.event.inputs.environment }}/
 
       - name: Initialize Terraform for Drift Check
         run: |
@@ -750,7 +750,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-config-${{ github.event.inputs.environment }}-${{ github.run_id }}
-          path: ./
+          path: ./environments/${{ github.event.inputs.environment }}/
 
       - name: Initialize Terraform Backend
         run: |
