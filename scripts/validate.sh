@@ -692,6 +692,7 @@ run_quick_checks() {
     fi
 
     log INFO "✅ Quick checks completed for: $env_name"
+    return 0
 }
 
 generate_report() {
