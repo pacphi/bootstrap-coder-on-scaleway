@@ -225,19 +225,21 @@ jobs:
           name: kubeconfig-${{ github.event.inputs.environment }}
           path: ./
 
-  validate-backend-state:
-    name: Validate Backend State
+  ensure-backend-access:
+    name: Ensure Backend Access
     runs-on: ubuntu-latest
     needs: validate-request
     if: needs.validate-request.outputs.confirmed == 'true'
     permissions:
       contents: read  # Read repository code
+      actions: read   # Download artifacts from previous workflows
     outputs:
       backend_exists: ${{ steps.validate.outputs.backend_exists }}
       state_exists: ${{ steps.validate.outputs.state_exists }}
       bucket_name: ${{ steps.validate.outputs.bucket_name }}
       resource_count: ${{ steps.validate.outputs.resource_count }}
       state_valid: ${{ steps.validate.outputs.state_valid }}
+      backend_source: ${{ steps.validate.outputs.backend_source }}
 
     steps:
       - name: Checkout Code
@@ -249,7 +251,67 @@ jobs:
           terraform_version: "~1.12.0"
           terraform_wrapper: false
 
-      - name: Validate Backend Configuration
+      - name: Setup Backend Infrastructure
+        id: setup-backend
+        run: |
+          environment="${{ github.event.inputs.environment }}"
+          region="${{ github.event.inputs.region }}"
+          bucket_name="${{ github.event.inputs.bucket_name }}"
+
+          # Determine expected bucket name if not provided
+          if [[ -z "$bucket_name" ]]; then
+            bucket_name="terraform-state-coder-${environment}"
+          fi
+
+          echo "🔧 Setting up backend infrastructure for environment: $environment"
+          echo "Expected bucket: $bucket_name"
+
+          # Change to backend-setup directory
+          cd backend-setup
+
+          # Create terraform.tfvars for this environment
+          cat > terraform.tfvars << EOF
+          environment = "$environment"
+          region = "$region"
+          project_id = "$SCW_DEFAULT_PROJECT_ID"
+          generate_backend_config = true
+          managed_by = "github-actions"
+          EOF
+
+          if [[ -n "$bucket_name" ]]; then
+            echo "bucket_name = \"$bucket_name\"" >> terraform.tfvars
+          fi
+
+          # Initialize and apply Terraform
+          echo "📦 Initializing Terraform..."
+          if ! terraform init; then
+            echo "❌ Failed to initialize Terraform for backend setup"
+            echo "backend_setup_success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "🚀 Applying backend infrastructure..."
+          if terraform apply -auto-approve; then
+            echo "✅ Backend infrastructure created/verified for $environment"
+
+            # Extract outputs
+            actual_bucket_name=$(terraform output -raw bucket_name)
+            s3_endpoint=$(terraform output -raw s3_endpoint)
+
+            echo "📊 Backend setup outputs:"
+            echo "  Bucket: $actual_bucket_name"
+            echo "  Endpoint: $s3_endpoint"
+
+            echo "backend_setup_success=true" >> $GITHUB_OUTPUT
+            echo "bucket_name=$actual_bucket_name" >> $GITHUB_OUTPUT
+            echo "backend_endpoint=$s3_endpoint" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to apply backend infrastructure for $environment"
+            echo "backend_setup_success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Validate Backend Access
         id: validate
         run: |
           environment="${{ github.event.inputs.environment }}"
@@ -261,14 +323,25 @@ jobs:
             bucket_name="terraform-state-coder-${environment}"
           fi
 
-          echo "🔍 Validating backend for environment: $environment"
-          echo "Expected bucket: $bucket_name"
+          # Use bucket name from setup-backend if available
+          if [[ "${{ steps.setup-backend.result }}" == "success" ]]; then
+            bucket_name="${{ steps.setup-backend.outputs.bucket_name || '' }}"
+            if [[ -z "$bucket_name" ]]; then
+              bucket_name="terraform-state-coder-${environment}"
+            fi
+            echo "backend_source=generated" >> $GITHUB_OUTPUT
+          else
+            echo "backend_source=artifact" >> $GITHUB_OUTPUT
+          fi
+
+          echo "🔍 Validating backend access for environment: $environment"
+          echo "Backend bucket: $bucket_name"
 
           # Check if backend configuration exists
           backend_file="environments/$environment/backend.tf"
           if [[ ! -f "$backend_file" ]]; then
-            echo "❌ Backend configuration not found: $backend_file"
-            echo "This environment may not have been deployed with remote state backend."
+            echo "❌ Backend configuration still not found: $backend_file"
+            echo "Failed to obtain backend configuration from artifacts or generation"
             echo "backend_exists=false" >> $GITHUB_OUTPUT
             echo "state_exists=false" >> $GITHUB_OUTPUT
             echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
@@ -277,7 +350,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ Backend configuration found: $backend_file"
+          echo "✅ Backend configuration available: $backend_file"
           echo "backend_exists=true" >> $GITHUB_OUTPUT
 
           # Initialize Terraform with backend
@@ -346,11 +419,11 @@ jobs:
   prepare-teardown:
     name: Prepare Teardown
     runs-on: ubuntu-latest
-    needs: [validate-request, validate-backend-state]
+    needs: [validate-request, ensure-backend-access]
     if: |
       needs.validate-request.outputs.confirmed == 'true' &&
-      needs.validate-backend-state.outputs.state_valid == 'true' &&
-      needs.validate-backend-state.outputs.resource_count != '0'
+      needs.ensure-backend-access.outputs.state_valid == 'true' &&
+      needs.ensure-backend-access.outputs.resource_count != '0'
     permissions:
       contents: read  # Read repository code
     outputs:
@@ -469,7 +542,7 @@ jobs:
 
           # Verify resource count hasn't changed significantly
           current_count=$(terraform state list | wc -l)
-          expected_count="${{ needs.validate-backend-state.outputs.resource_count }}"
+          expected_count="${{ needs.ensure-backend-access.outputs.resource_count }}"
 
           if [[ "$current_count" != "$expected_count" ]]; then
             difference=$((current_count - expected_count))
@@ -509,12 +582,12 @@ jobs:
   teardown:
     name: Execute Teardown
     runs-on: ubuntu-latest
-    needs: [validate-request, validate-backend-state, prepare-teardown, analyze-impact]
+    needs: [validate-request, ensure-backend-access, prepare-teardown, analyze-impact]
     if: |
       needs.validate-request.outputs.confirmed == 'true' &&
-      needs.validate-backend-state.outputs.state_valid == 'true' &&
+      needs.ensure-backend-access.outputs.state_valid == 'true' &&
       (needs.prepare-teardown.outputs.ready_for_teardown == 'true' ||
-       needs.validate-backend-state.outputs.resource_count == '0') &&
+       needs.ensure-backend-access.outputs.resource_count == '0') &&
       (needs.pre-teardown-backup.result == 'success' ||
        needs.pre-teardown-backup.result == 'skipped' ||
        github.event.inputs.backup_before_destroy == 'false')
@@ -558,13 +631,13 @@ jobs:
         run: |
           echo "🔴 FINAL PRODUCTION TEARDOWN CONFIRMATION 🔴"
           echo "About to PERMANENTLY DELETE the production environment!"
-          echo "Resources in state: ${{ needs.validate-backend-state.outputs.resource_count }}"
+          echo "Resources in state: ${{ needs.ensure-backend-access.outputs.resource_count }}"
           echo "Active workspaces: ${{ needs.analyze-impact.outputs.active_workspaces }}"
           echo "Monthly cost savings: €${{ needs.analyze-impact.outputs.cost_savings }}"
           echo ""
           echo "This action is IRREVERSIBLE!"
 
-          if [[ "${{ needs.validate-backend-state.outputs.resource_count }}" -eq 0 ]]; then
+          if [[ "${{ needs.ensure-backend-access.outputs.resource_count }}" -eq 0 ]]; then
             echo "⚠️ WARNING: No resources found in state."
             echo "Environment may already be destroyed or was never deployed."
           fi
@@ -599,13 +672,13 @@ jobs:
           cd environments/${{ github.event.inputs.environment }}
 
           echo "🔄 Initializing with remote backend..."
-          echo "Backend bucket: ${{ needs.validate-backend-state.outputs.bucket_name }}"
-          echo "Resources to destroy: ${{ needs.validate-backend-state.outputs.resource_count }}"
+          echo "Backend bucket: ${{ needs.ensure-backend-access.outputs.bucket_name }}"
+          echo "Resources to destroy: ${{ needs.ensure-backend-access.outputs.resource_count }}"
           terraform init
 
           # Verify state matches what we validated earlier
           current_resources=$(terraform state list 2>/dev/null | wc -l || echo "0")
-          expected_resources="${{ needs.validate-backend-state.outputs.resource_count }}"
+          expected_resources="${{ needs.ensure-backend-access.outputs.resource_count }}"
 
           if [[ "$current_resources" != "$expected_resources" ]]; then
             echo "⚠️ WARNING: Resource count mismatch!"
@@ -766,7 +839,7 @@ jobs:
           # Note: We don't delete the bucket itself as it may be used for other environments
           # But we could clean up the specific state file for this environment
           echo "State backend cleanup would be implemented here"
-          echo "Bucket: ${{ needs.validate-backend-state.outputs.bucket_name }}"
+          echo "Bucket: ${{ needs.ensure-backend-access.outputs.bucket_name }}"
           echo "State key: ${{ github.event.inputs.environment }}/terraform.tfstate"
 
           # For now, just log what we would clean up
@@ -775,7 +848,7 @@ jobs:
   post-teardown:
     name: Post-Teardown Actions
     runs-on: ubuntu-latest
-    needs: [validate-request, validate-backend-state, prepare-teardown, analyze-impact, teardown]
+    needs: [validate-request, ensure-backend-access, prepare-teardown, analyze-impact, teardown]
     if: always() && needs.validate-request.outputs.confirmed == 'true'
     permissions:
       contents: read  # Read repository information
@@ -810,9 +883,9 @@ jobs:
           **Verification Status:** $verification_status
 
           ## Pre-Teardown Analysis
-          - **Backend Validation:** ${{ needs.validate-backend-state.result }}
-          - **Resources Found:** ${{ needs.validate-backend-state.outputs.resource_count }}
-          - **State Backend:** ${{ needs.validate-backend-state.outputs.bucket_name }}
+          - **Backend Validation:** ${{ needs.ensure-backend-access.result }}
+          - **Resources Found:** ${{ needs.ensure-backend-access.outputs.resource_count }}
+          - **State Backend:** ${{ needs.ensure-backend-access.outputs.bucket_name }}
           - **Preparation Status:** ${{ needs.prepare-teardown.result }}
           - **Drift Detected:** ${{ needs.prepare-teardown.outputs.drift_detected || 'N/A' }}
           - **Active Workspaces:** ${{ needs.analyze-impact.outputs.active_workspaces }}
@@ -876,12 +949,12 @@ jobs:
           - **Workflow Run ID:** ${{ github.run_id }}
           - **Repository:** ${{ github.repository }}
           - **Commit SHA:** ${{ github.sha }}
-          - **Backend State Bucket:** ${{ needs.validate-backend-state.outputs.bucket_name }}
+          - **Backend State Bucket:** ${{ needs.ensure-backend-access.outputs.bucket_name }}
           - **State Key:** ${{ github.event.inputs.environment }}/terraform.tfstate
 
           ## Workflow Job Results
           - **Validation:** ${{ needs.validate-request.result }}
-          - **Backend State Check:** ${{ needs.validate-backend-state.result }}
+          - **Backend State Check:** ${{ needs.ensure-backend-access.result }}
           - **Preparation:** ${{ needs.prepare-teardown.result }}
           - **Impact Analysis:** ${{ needs.analyze-impact.result }}
           - **Teardown Execution:** ${{ needs.teardown.result }}
@@ -948,8 +1021,8 @@ jobs:
             const teardownCompleted = '${{ needs.teardown.outputs.teardown_completed }}';
             const verificationStatus = '${{ needs.teardown.outputs.verification_status }}';
             const remainingResources = '${{ needs.teardown.outputs.remaining_resources }}';
-            const backendValidation = '${{ needs.validate-backend-state.result }}';
-            const resourcesFound = '${{ needs.validate-backend-state.outputs.resource_count }}';
+            const backendValidation = '${{ needs.ensure-backend-access.result }}';
+            const resourcesFound = '${{ needs.ensure-backend-access.outputs.resource_count }}';
 
             const body = `## Teardown Failure - Manual Cleanup Required
 
@@ -980,7 +1053,7 @@ jobs:
             4. **🔄 Consider re-running** the teardown workflow after manual cleanup
 
             ## State Backend Information
-            - **Bucket:** ${{ needs.validate-backend-state.outputs.bucket_name }}
+            - **Bucket:** ${{ needs.ensure-backend-access.outputs.bucket_name }}
             - **State Key:** ${{ github.event.inputs.environment }}/terraform.tfstate
             - **Region:** ${{ github.event.inputs.region }}
 
