@@ -886,9 +886,31 @@ jobs:
             echo "dns_required=false" >> $GITHUB_OUTPUT
           fi
 
-          # Save kubeconfig as artifact
-          if [[ -f "${HOME}/.kube/config-coder-${{ needs.validate.outputs.deploy_env }}" ]]; then
-            cp "${HOME}/.kube/config-coder-${{ needs.validate.outputs.deploy_env }}" ./kubeconfig-${{ needs.validate.outputs.deploy_env }}
+          # Extract and save kubeconfig
+          echo "🔄 Extracting kubeconfig from Terraform output..."
+
+          # Extract kubeconfig content from Terraform output
+          kubeconfig_content=$(terraform output -raw kubeconfig 2>/dev/null || echo "")
+
+          if [[ -n "$kubeconfig_content" ]]; then
+            # Create .kube directory if it doesn't exist
+            mkdir -p "${HOME}/.kube"
+
+            # Save kubeconfig to expected location
+            kubeconfig_file="${HOME}/.kube/config-coder-${{ needs.validate.outputs.deploy_env }}"
+            echo "$kubeconfig_content" > "$kubeconfig_file"
+
+            # Set proper permissions for security
+            chmod 600 "$kubeconfig_file"
+
+            # Copy to artifact location
+            cp "$kubeconfig_file" "./kubeconfig-${{ needs.validate.outputs.deploy_env }}"
+
+            echo "✅ Kubeconfig saved to: $kubeconfig_file"
+            echo "✅ Kubeconfig artifact created: ./kubeconfig-${{ needs.validate.outputs.deploy_env }}"
+          else
+            echo "⚠️  Warning: No kubeconfig content found in Terraform output"
+            echo "This may indicate an issue with the cluster module or output configuration"
           fi
 
       - name: Upload Kubeconfig Artifact
