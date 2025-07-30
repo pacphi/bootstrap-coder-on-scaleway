@@ -6,7 +6,7 @@ terraform {
 module "shared_config" {
   source = "../../shared"
 
-  environment              = local.environment
+  environment = local.environment
 }
 
 # Local variables for development environment

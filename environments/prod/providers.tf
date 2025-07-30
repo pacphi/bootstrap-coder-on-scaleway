@@ -28,8 +28,8 @@ terraform {
 }
 
 provider "scaleway" {
-  zone            = var.scaleway_zone
-  region          = var.scaleway_region
+  zone   = var.scaleway_zone
+  region = var.scaleway_region
 }
 
 provider "kubernetes" {

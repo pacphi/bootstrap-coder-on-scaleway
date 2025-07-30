@@ -58,8 +58,8 @@ resource "scaleway_object_bucket_policy" "terraform_state" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowTerraformStateAccess"
-        Effect = "Allow"
+        Sid       = "AllowTerraformStateAccess"
+        Effect    = "Allow"
         Principal = "*"
         Action = [
           "s3:GetObject",

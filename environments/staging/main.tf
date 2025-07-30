@@ -6,7 +6,7 @@ terraform {
 module "shared_config" {
   source = "../../shared"
 
-  environment              = local.environment
+  environment = local.environment
 }
 
 # Local variables for staging environment
@@ -118,16 +118,16 @@ module "postgresql" {
 
   # Enhanced settings for staging
   settings = {
-    "max_connections"              = "300"
-    "shared_preload_libraries"     = "pg_stat_statements,pg_stat_monitor"
-    "log_min_duration_statement"   = "500"
-    "log_statement"                = "ddl"
-    "work_mem"                     = "8MB"
-    "maintenance_work_mem"         = "256MB"
+    "max_connections"            = "300"
+    "shared_preload_libraries"   = "pg_stat_statements,pg_stat_monitor"
+    "log_min_duration_statement" = "500"
+    "log_statement"              = "ddl"
+    "work_mem"                   = "8MB"
+    "maintenance_work_mem"       = "256MB"
     # "checkpoint_completion_target" = "0.9" # Removed - not supported by Scaleway provider
-    "wal_buffers"                  = "32MB"
-    "effective_cache_size"         = "512MB"
-    # Note: Removed log_connections, log_disconnections, and log_lock_waits 
+    "wal_buffers"          = "32MB"
+    "effective_cache_size" = "512MB"
+    # Note: Removed log_connections, log_disconnections, and log_lock_waits
     # as these logging parameters may not be supported by Scaleway managed PostgreSQL
   }
 

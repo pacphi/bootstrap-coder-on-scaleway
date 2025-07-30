@@ -6,7 +6,7 @@ terraform {
 module "shared_config" {
   source = "../../shared"
 
-  environment              = local.environment
+  environment = local.environment
 }
 
 # Local variables for production environment
@@ -155,18 +155,18 @@ module "postgresql" {
 
   # Production-optimized database settings
   settings = {
-    "max_connections"              = "500"
-    "shared_preload_libraries"     = "pg_stat_statements,pg_stat_monitor,pg_cron"
-    "log_min_duration_statement"   = "250"
-    "log_statement"                = "ddl"
-    "work_mem"                     = "16MB"
-    "maintenance_work_mem"         = "512MB"
+    "max_connections"            = "500"
+    "shared_preload_libraries"   = "pg_stat_statements,pg_stat_monitor,pg_cron"
+    "log_min_duration_statement" = "250"
+    "log_statement"              = "ddl"
+    "work_mem"                   = "16MB"
+    "maintenance_work_mem"       = "512MB"
     # "checkpoint_completion_target" = "0.9" # Removed - not supported by Scaleway provider
-    "wal_buffers"                  = "64MB"
-    "effective_cache_size"         = "2GB"
-    "random_page_cost"             = "1.1"
-    "seq_page_cost"                = "1"
-    "default_statistics_target"    = "500"
+    "wal_buffers"               = "64MB"
+    "effective_cache_size"      = "2GB"
+    "random_page_cost"          = "1.1"
+    "seq_page_cost"             = "1"
+    "default_statistics_target" = "500"
     # Note: Removed log_connections, log_disconnections, log_lock_waits, and log_checkpoints
     # as these advanced logging parameters may not be supported by Scaleway managed PostgreSQL
   }

@@ -7,14 +7,14 @@ provider "scaleway" {
 module "terraform_backend" {
   source = "../modules/terraform-backend"
 
-  bucket_name              = var.bucket_name != "" ? var.bucket_name : local.actual_bucket_name
-  environment              = var.environment
-  region                   = var.region
-  project_id               = local.actual_project_id
-  state_retention_days     = var.state_retention_days
-  generate_backend_config  = var.generate_backend_config
-  environments_dir         = "${path.root}/../environments"
-  enable_bucket_policy     = var.enable_bucket_policy
+  bucket_name             = var.bucket_name != "" ? var.bucket_name : local.actual_bucket_name
+  environment             = var.environment
+  region                  = var.region
+  project_id              = local.actual_project_id
+  state_retention_days    = var.state_retention_days
+  generate_backend_config = var.generate_backend_config
+  environments_dir        = "${path.root}/../environments"
+  enable_bucket_policy    = var.enable_bucket_policy
 
   tags = merge(var.tags, {
     Environment = var.environment
