@@ -251,22 +251,15 @@ jobs:
           terraform_version: "~1.12.0"
           terraform_wrapper: false
 
-      - name: Install Scaleway CLI
-        run: |
-          echo "📦 Installing Scaleway CLI for bucket discovery..."
-          curl -o scw -L "https://github.com/scaleway/scaleway-cli/releases/download/v2.42.0/scaleway-cli_2.42.0_linux_amd64"
-          chmod +x scw
-          sudo mv scw /usr/local/bin/scw
-
-          mkdir -p ~/.config/scw
-
-          # Configure Scaleway CLI
-          scw config set access-key="$SCW_ACCESS_KEY"
-          scw config set secret-key="$SCW_SECRET_KEY"
-          scw config set default-project-id="$SCW_DEFAULT_PROJECT_ID"
-          scw config set default-region="${{ github.event.inputs.region }}"
-
-          echo "✅ Scaleway CLI configured"
+      - name: Setup Scaleway CLI
+        uses: scaleway/action-scw@v0
+        with:
+          save-config: true
+          export-config: true
+          access-key: ${{ env.SCW_ACCESS_KEY }}
+          secret-key: ${{ env.SCW_SECRET_KEY }}
+          default-project-id: ${{ env.SCW_DEFAULT_PROJECT_ID }}
+          default-organization-id: ${{ env.SCW_DEFAULT_ORGANIZATION_ID }}
 
       - name: Discover Existing Backend Bucket
         id: discover
