@@ -261,6 +261,24 @@ jobs:
           default-project-id: ${{ env.SCW_DEFAULT_PROJECT_ID }}
           default-organization-id: ${{ env.SCW_DEFAULT_ORGANIZATION_ID }}
 
+      - name: Setup s3cmd for Object Storage Operations
+        uses: s3-actions/s3cmd@v2.0.0
+        with:
+          provider: custom
+          access_key: ${{ env.SCW_ACCESS_KEY }}
+          secret_key: ${{ env.SCW_SECRET_KEY }}
+        env:
+          S3_ENDPOINT: https://s3.${{ github.event.inputs.region }}.scw.cloud
+
+      - name: Configure s3cmd for Scaleway
+        run: |
+          s3cmd --configure --access_key="${{ env.SCW_ACCESS_KEY }}" \
+            --secret_key="${{ env.SCW_SECRET_KEY }}" \
+            --host="s3.${{ github.event.inputs.region }}.scw.cloud" \
+            --host-bucket="%(bucket)s.s3.${{ github.event.inputs.region }}.scw.cloud" \
+            --no-ssl=false \
+            --dump-config > ~/.s3cfg
+
       - name: Discover Existing Backend Bucket
         id: discover
         run: |
@@ -279,7 +297,7 @@ jobs:
 
           # Check if the expected bucket exists using Scaleway CLI
           echo "🔍 Checking if bucket exists..."
-          if scw object bucket list region="$region" --output=json | jq -r '.[].name' | grep -q "^${expected_bucket_name}$"; then
+          if scw object bucket list region="$region" --output=json | jq -r '.[] | .Name' | grep -q "^${expected_bucket_name}$"; then
             echo "✅ Found existing bucket: $expected_bucket_name"
             echo "bucket_exists=true" >> $GITHUB_OUTPUT
             echo "bucket_name=$expected_bucket_name" >> $GITHUB_OUTPUT
@@ -319,7 +337,7 @@ jobs:
           state_key="${environment}/terraform.tfstate"
           echo "🔍 Checking for state file: $state_key"
 
-          if scw object object list bucket="$expected_bucket_name" region="$region" --output=json | jq -r '.[].key' | grep -q "^${state_key}$"; then
+          if s3cmd ls "s3://$expected_bucket_name/$state_key" >/dev/null 2>&1; then
             echo "✅ Found state file: $state_key"
             echo "state_exists=true" >> $GITHUB_OUTPUT
           else
@@ -343,7 +361,7 @@ jobs:
             echo "  3. Manually delete any orphaned resources"
             echo ""
             echo "Files in bucket $expected_bucket_name:"
-            scw object object list bucket="$expected_bucket_name" region="$region" --output=table || echo "  Bucket is empty or access denied"
+            s3cmd ls "s3://$expected_bucket_name/" || echo "  Bucket is empty or access denied"
             echo ""
             echo "state_exists=false" >> $GITHUB_OUTPUT
             echo "bucket_name=$expected_bucket_name" >> $GITHUB_OUTPUT
