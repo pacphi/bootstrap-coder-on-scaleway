@@ -258,6 +258,8 @@ jobs:
           chmod +x scw
           sudo mv scw /usr/local/bin/scw
 
+          mkdir -p ~/.config/scw
+
           # Configure Scaleway CLI
           scw config set access-key="$SCW_ACCESS_KEY"
           scw config set secret-key="$SCW_SECRET_KEY"
