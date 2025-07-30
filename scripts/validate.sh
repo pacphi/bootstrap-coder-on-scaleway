@@ -721,6 +721,9 @@ EOF
     local first=true
     if [[ ${#VALIDATION_RESULTS[@]} -gt 0 ]]; then
         for result in "${VALIDATION_RESULTS[@]}"; do
+            # Skip empty results
+            [[ -z "$result" ]] && continue
+
             IFS='|' read -r component check status message details <<< "$result"
 
             [[ "$first" == "true" ]] && first=false || echo "," >> "$OUTPUT_FILE"
@@ -736,11 +739,15 @@ EOF
       }
 EOF
 
-        ((total_checks++))
+        # Safe arithmetic operations
+        total_checks=$((total_checks + 1))
         case "$status" in
-            pass) ((passed_checks++)) ;;
-            fail) ((failed_checks++)) ;;
-            warn) ((warn_checks++)) ;;
+            pass) passed_checks=$((passed_checks + 1)) ;;
+            fail) failed_checks=$((failed_checks + 1)) ;;
+            warn) warn_checks=$((warn_checks + 1)) ;;
+            *)
+                echo "Warning: Unknown validation status '$status' for $component/$check" >&2
+                ;;
         esac
         done
     fi
@@ -769,17 +776,31 @@ print_summary() {
     local failed_checks=0
     local warn_checks=0
 
+    # Debug: Show validation results array status
+    log DEBUG "Processing ${#VALIDATION_RESULTS[@]} validation results"
+
     if [[ ${#VALIDATION_RESULTS[@]} -gt 0 ]]; then
         for result in "${VALIDATION_RESULTS[@]}"; do
+            # Skip empty results
+            [[ -z "$result" ]] && continue
+
             IFS='|' read -r component check status message details <<< "$result"
-            ((total_checks++))
+
+            # Safe arithmetic operations
+            total_checks=$((total_checks + 1))
             case "$status" in
-                pass) ((passed_checks++)) ;;
-                fail) ((failed_checks++)) ;;
-                warn) ((warn_checks++)) ;;
+                pass) passed_checks=$((passed_checks + 1)) ;;
+                fail) failed_checks=$((failed_checks + 1)) ;;
+                warn) warn_checks=$((warn_checks + 1)) ;;
+                *)
+                    echo "Warning: Unknown validation status '$status' for $component/$check" >&2
+                    ;;
             esac
         done
     fi
+
+    # Debug: Show final counts
+    log DEBUG "Validation counts - Total: $total_checks, Passed: $passed_checks, Failed: $failed_checks, Warnings: $warn_checks"
 
     local success_rate=0
     if [[ $total_checks -gt 0 ]]; then
@@ -995,6 +1016,12 @@ main() {
 
     generate_report
     print_summary
+    local exit_code=$?
+
+    # Debug: Show final exit code
+    log DEBUG "print_summary returned exit code: $exit_code"
+
+    exit $exit_code
 }
 
 # Run main function with all arguments
