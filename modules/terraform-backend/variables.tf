@@ -68,3 +68,9 @@ variable "enable_bucket_policy" {
   type        = bool
   default     = false
 }
+
+variable "create_bucket" {
+  description = "Whether to create the bucket or use an existing one"
+  type        = bool
+  default     = true
+}

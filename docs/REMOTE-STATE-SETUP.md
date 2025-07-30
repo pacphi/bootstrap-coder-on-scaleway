@@ -199,7 +199,7 @@ ls backups/state-backups/
 
 ### Workflow Changes
 
-- **NEW**: `setup-backend.yml`: Reusable workflow for automatic backend provisioning
+- **NEW**: `manage-backend-bucket.yml`: Reusable workflow for automatic backend provisioning with enhanced bucket management
 - `deploy-environment.yml`: Integrated with backend auto-provisioning
 - `teardown-environment.yml`: Enhanced with backend auto-provisioning and plan-before-destroy
 - `validate-templates.yml`: Updated with backend auto-provisioning for comprehensive tests

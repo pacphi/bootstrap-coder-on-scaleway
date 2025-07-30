@@ -26,9 +26,10 @@ The workflow uses this same configuration:
 
 ```yaml
 - name: Setup Backend
-  uses: ./.github/workflows/setup-backend.yml
+  uses: ./.github/workflows/manage-backend-bucket.yml
   with:
     environment: dev
+    action: create
 ```
 
 ### Direct Terraform Usage

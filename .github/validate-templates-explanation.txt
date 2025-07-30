@@ -91,7 +91,7 @@ Understanding the validate-templates.yml GitHub Action Workflow 🎓
 
   What it actually does:
   1. Only runs for comprehensive tests - Like only setting up storage for final exams
-  2. Calls another workflow (setup-backend.yml) - Like asking the janitor to prepare storage rooms
+  2. Calls another workflow (manage-backend-bucket.yml) - Like asking the janitor to prepare storage rooms
   3. Creates secure storage buckets - Makes safe places to store important project information
   4. Configures access permissions - Makes sure only authorized people can access the storage
 

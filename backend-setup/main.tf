@@ -15,6 +15,7 @@ module "terraform_backend" {
   generate_backend_config = var.generate_backend_config
   environments_dir        = "${path.root}/../environments"
   enable_bucket_policy    = var.enable_bucket_policy
+  create_bucket           = var.create_bucket
 
   tags = merge(var.tags, {
     Environment = var.environment

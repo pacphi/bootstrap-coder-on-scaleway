@@ -395,11 +395,12 @@ jobs:
     name: Setup Terraform Backend
     needs: validate
     if: needs.validate.outputs.deploy_env != ''
-    uses: ./.github/workflows/setup-backend.yml
+    uses: ./.github/workflows/manage-backend-bucket.yml
     with:
       bucket_name: ${{ github.event.inputs.bucket_name }}
       environment: ${{ needs.validate.outputs.deploy_env }}
       region: ${{ github.event.inputs.region }}
+      action: create
       force_recreate: false
     secrets: inherit
 

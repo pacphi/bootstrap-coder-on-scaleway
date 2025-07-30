@@ -67,6 +67,12 @@ variable "enable_bucket_policy" {
   default     = false
 }
 
+variable "create_bucket" {
+  description = "Whether to create the bucket or use an existing one"
+  type        = bool
+  default     = true
+}
+
 locals {
   # Use provided bucket name or generate based on environment
   actual_bucket_name = var.bucket_name != "" ? var.bucket_name : "terraform-state-coder-${var.environment}"

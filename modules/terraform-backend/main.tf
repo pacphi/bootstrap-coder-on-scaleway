@@ -7,8 +7,16 @@ terraform {
   }
 }
 
-# Create Object Storage bucket for Terraform state
+# Data source to reference existing bucket (when not creating)
+data "scaleway_object_bucket" "existing_terraform_state" {
+  count  = var.create_bucket ? 0 : 1
+  name   = var.bucket_name
+  region = var.region
+}
+
+# Create Object Storage bucket for Terraform state (conditional)
 resource "scaleway_object_bucket" "terraform_state" {
+  count  = var.create_bucket ? 1 : 0
   name   = var.bucket_name
   region = var.region
 
@@ -46,12 +54,18 @@ resource "scaleway_object_bucket" "terraform_state" {
   })
 }
 
+# Local values for unified bucket reference
+locals {
+  bucket_name   = var.create_bucket ? scaleway_object_bucket.terraform_state[0].name : data.scaleway_object_bucket.existing_terraform_state[0].name
+  bucket_region = var.create_bucket ? scaleway_object_bucket.terraform_state[0].region : data.scaleway_object_bucket.existing_terraform_state[0].region
+}
+
 # Create bucket policy for secure access (optional - disabled by default)
 # Note: Scaleway Object Storage bucket policies have limited support
 # Access control is typically handled via Scaleway IAM and API keys
 resource "scaleway_object_bucket_policy" "terraform_state" {
   count  = var.enable_bucket_policy ? 1 : 0
-  bucket = scaleway_object_bucket.terraform_state.name
+  bucket = local.bucket_name
   region = var.region
 
   policy = jsonencode({
@@ -84,9 +98,9 @@ resource "scaleway_object_bucket_policy" "terraform_state" {
 # Generate backend configuration for Terraform
 locals {
   backend_config = {
-    bucket = scaleway_object_bucket.terraform_state.name
+    bucket = local.bucket_name
     key    = "${var.environment}/terraform.tfstate"
-    region = var.region
+    region = local.bucket_region
 
     # S3-compatibility flags for Scaleway
     skip_credentials_validation = true
@@ -95,7 +109,7 @@ locals {
 
     # Use endpoints block for better compatibility
     endpoints = {
-      s3 = "https://s3.${var.region}.scw.cloud"
+      s3 = "https://s3.${local.bucket_region}.scw.cloud"
     }
   }
 }
@@ -108,9 +122,9 @@ resource "local_file" "backend_env_config" {
   # Use path.root (module caller's root) with relative path
   filename = "${path.root}/${var.environments_dir}/${var.environment}/backend.tf"
   content = templatefile("${path.module}/templates/backend.tf.tpl", {
-    bucket_name = scaleway_object_bucket.terraform_state.name
+    bucket_name = local.bucket_name
     state_key   = local.backend_config.key
-    region      = var.region
+    region      = local.bucket_region
     endpoint    = local.backend_config.endpoints.s3
   })
 

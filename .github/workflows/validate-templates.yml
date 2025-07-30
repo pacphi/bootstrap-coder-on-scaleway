@@ -349,11 +349,12 @@ jobs:
       needs.discover-templates.outputs.template_count > 0 &&
       github.event.inputs.comprehensive_test == 'true' &&
       success()
-    uses: ./.github/workflows/setup-backend.yml
+    uses: ./.github/workflows/manage-backend-bucket.yml
     with:
       bucket_name: ${{ github.event.inputs.bucket_name }}
       environment: ${{ github.event.inputs.test_environment }}
       region: ${{ github.event.inputs.region }}
+      action: create
       force_recreate: false
     secrets: inherit
 

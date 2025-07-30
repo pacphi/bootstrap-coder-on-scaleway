@@ -1,0 +1,403 @@
+name: Manage Backend Bucket
+
+# Reusable workflow for idempotent backend bucket management
+# Handles both creation and verification of Terraform state buckets
+
+on:
+  workflow_call:
+    inputs:
+      bucket_name:
+        description: 'Name of the bucket in object store that will hold Terraform state'
+        required: false
+        type: string
+      environment:
+        description: 'Environment to setup backend for'
+        required: true
+        type: string
+      region:
+        description: 'Scaleway region'
+        required: false
+        type: string
+        default: 'fr-par'
+      action:
+        description: 'Action to perform: create (for deploy) or verify (for teardown)'
+        required: false
+        type: string
+        default: 'create'
+      force_recreate:
+        description: 'Force recreation of backend configuration (local dev only)'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      bucket_exists:
+        description: 'Whether the bucket exists'
+        value: ${{ jobs.manage-bucket.outputs.bucket_exists }}
+      bucket_name:
+        description: 'Name of the created/existing bucket'
+        value: ${{ jobs.manage-bucket.outputs.bucket_name }}
+      backend_configured:
+        description: 'Whether backend was successfully configured'
+        value: ${{ jobs.manage-bucket.outputs.backend_configured }}
+      backend_endpoint:
+        description: 'S3-compatible endpoint URL'
+        value: ${{ jobs.manage-bucket.outputs.backend_endpoint }}
+      state_exists:
+        description: 'Whether state file exists in bucket (verify action only)'
+        value: ${{ jobs.manage-bucket.outputs.state_exists }}
+
+  workflow_dispatch:
+    inputs:
+      bucket_name:
+        description: 'Name of the bucket in object store that will hold Terraform state'
+        required: false
+        type: string
+      environment:
+        description: 'Environment to setup backend for'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      region:
+        description: 'Scaleway region'
+        required: false
+        type: choice
+        options:
+          - fr-par
+          - nl-ams
+          - pl-waw
+        default: 'fr-par'
+      action:
+        description: 'Action to perform'
+        required: false
+        type: choice
+        options:
+          - create
+          - verify
+        default: 'create'
+      force_recreate:
+        description: 'Force recreation of backend configuration'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  TF_IN_AUTOMATION: true
+  SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+  SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+  SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+  SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+
+jobs:
+  manage-bucket:
+    name: Manage Backend Bucket
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      bucket_exists: ${{ steps.check-bucket.outputs.bucket_exists }}
+      bucket_name: ${{ steps.determine-bucket.outputs.bucket_name }}
+      backend_configured: ${{ steps.finalize.outputs.backend_configured }}
+      backend_endpoint: ${{ steps.finalize.outputs.backend_endpoint }}
+      state_exists: ${{ steps.check-state.outputs.state_exists }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.12.0"
+          terraform_wrapper: false
+
+      - name: Setup Scaleway CLI
+        uses: scaleway/action-scw@v0
+        with:
+          save-config: true
+          export-config: true
+          access-key: ${{ env.SCW_ACCESS_KEY }}
+          secret-key: ${{ env.SCW_SECRET_KEY }}
+          default-project-id: ${{ env.SCW_DEFAULT_PROJECT_ID }}
+          default-organization-id: ${{ env.SCW_DEFAULT_ORGANIZATION_ID }}
+
+      - name: Install s3cmd
+        run: sudo apt-get update && sudo apt-get install -y s3cmd
+
+      - name: Generate s3cmd configuration using Scaleway CLI
+        run: |
+          scw object config get type=s3cmd > ~/.s3cfg
+          echo "✅ s3cmd configured for Scaleway Object Storage"
+
+      - name: Determine Bucket Name
+        id: determine-bucket
+        run: |
+          environment="${{ inputs.environment }}"
+          region="${{ inputs.region }}"
+          provided_bucket="${{ inputs.bucket_name }}"
+
+          echo "🔍 Determining bucket name for environment: $environment"
+
+          # Use provided bucket name or generate standard name
+          if [[ -n "$provided_bucket" ]]; then
+            bucket_name="$provided_bucket"
+            echo "Using provided bucket name: $bucket_name"
+          else
+            bucket_name="terraform-state-coder-${environment}"
+            echo "Using generated bucket name: $bucket_name"
+          fi
+
+          echo "bucket_name=$bucket_name" >> $GITHUB_OUTPUT
+          echo "Final bucket name: $bucket_name"
+
+      - name: Check Bucket Existence
+        id: check-bucket
+        run: |
+          environment="${{ inputs.environment }}"
+          region="${{ inputs.region }}"
+          bucket_name="${{ steps.determine-bucket.outputs.bucket_name }}"
+
+          echo "🔍 Checking if bucket exists: $bucket_name"
+          echo "Region: $region"
+
+          # Check if bucket exists using Scaleway CLI
+          if scw object bucket list region="$region" --output=json | jq -r '.[] | .Name' | grep -q "^${bucket_name}$"; then
+            echo "✅ Bucket exists: $bucket_name"
+            echo "bucket_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Bucket does not exist: $bucket_name"
+            echo "bucket_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check State File Existence (Verify Action Only)
+        id: check-state
+        if: inputs.action == 'verify'
+        run: |
+          environment="${{ inputs.environment }}"
+          bucket_name="${{ steps.determine-bucket.outputs.bucket_name }}"
+          bucket_exists="${{ steps.check-bucket.outputs.bucket_exists }}"
+
+          echo "🔍 Checking for state file existence..."
+
+          if [[ "$bucket_exists" == "true" ]]; then
+            state_key="${environment}/terraform.tfstate"
+            echo "Checking for state file: $state_key"
+
+            if s3cmd ls "s3://$bucket_name/$state_key" >/dev/null 2>&1; then
+              echo "✅ State file exists: $state_key"
+              echo "state_exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "❌ State file not found: $state_key"
+              echo "state_exists=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Cannot check state - bucket does not exist"
+            echo "state_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Bucket Infrastructure (If Needed)
+        id: create-bucket
+        if: inputs.action == 'create' && steps.check-bucket.outputs.bucket_exists == 'false'
+        working-directory: backend-setup
+        run: |
+          environment="${{ inputs.environment }}"
+          region="${{ inputs.region }}"
+          bucket_name="${{ steps.determine-bucket.outputs.bucket_name }}"
+          force_recreate="${{ inputs.force_recreate }}"
+
+          echo "🚀 Creating new bucket infrastructure: $bucket_name"
+
+          # Create terraform.tfvars for this environment
+          cat > terraform.tfvars << EOF
+          environment = "$environment"
+          region = "$region"
+          project_id = "$SCW_DEFAULT_PROJECT_ID"
+          bucket_name = "$bucket_name"
+          generate_backend_config = true
+          managed_by = "github-actions"
+          EOF
+
+          # Clean up any existing state if force_recreate is true
+          if [[ "$force_recreate" == "true" ]]; then
+            echo "🗑️ Force recreate enabled - cleaning up existing state"
+            rm -rf .terraform .terraform.lock.hcl terraform.tfstate*
+          fi
+
+          # Initialize Terraform
+          echo "📦 Initializing Terraform..."
+          if ! terraform init; then
+            echo "❌ Failed to initialize Terraform for $environment"
+            exit 1
+          fi
+
+          # Apply the backend infrastructure
+          echo "🚀 Creating bucket infrastructure..."
+          if terraform apply -auto-approve; then
+            echo "✅ Bucket infrastructure created for $environment"
+            echo "bucket_creation_completed=true" >> $GITHUB_OUTPUT
+
+            # Extract outputs
+            created_bucket_name=$(terraform output -raw bucket_name)
+            s3_endpoint=$(terraform output -raw s3_endpoint)
+
+            echo "📊 Created infrastructure:"
+            echo "  Bucket: $created_bucket_name"
+            echo "  Endpoint: $s3_endpoint"
+
+            echo "created_bucket_name=$created_bucket_name" >> $GITHUB_OUTPUT
+            echo "s3_endpoint=$s3_endpoint" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to create bucket infrastructure for $environment"
+            exit 1
+          fi
+
+      - name: Generate Backend Configuration
+        id: generate-backend
+        run: |
+          environment="${{ inputs.environment }}"
+          region="${{ inputs.region }}"
+          bucket_name="${{ steps.determine-bucket.outputs.bucket_name }}"
+          bucket_exists="${{ steps.check-bucket.outputs.bucket_exists }}"
+
+          echo "📝 Generating backend configuration..."
+
+          # Determine S3 endpoint
+          s3_endpoint="https://s3.${region}.scw.cloud"
+
+          # Use created endpoint if bucket was just created
+          if [[ "${{ steps.create-bucket.outputs.bucket_creation_completed }}" == "true" ]]; then
+            if [[ -n "${{ steps.create-bucket.outputs.s3_endpoint }}" ]]; then
+              s3_endpoint="${{ steps.create-bucket.outputs.s3_endpoint }}"
+            fi
+          fi
+
+          # Create backend.tf for the environment
+          backend_file="environments/$environment/backend.tf"
+          mkdir -p "environments/$environment"
+
+          cat > "$backend_file" << EOF
+          terraform {
+            backend "s3" {
+              bucket = "$bucket_name"
+              key    = "$environment/terraform.tfstate"
+              region = "$region"
+
+              # S3-compatibility flags for Scaleway Object Storage
+              skip_credentials_validation = true
+              skip_region_validation      = true
+              skip_requesting_account_id  = true
+              skip_metadata_api_check     = true
+
+              # Use Scaleway S3-compatible endpoint
+              endpoints = {
+                s3 = "$s3_endpoint"
+              }
+            }
+          }
+          EOF
+
+          echo "✅ Backend configuration generated: $backend_file"
+          echo "📄 Backend configuration content:"
+          cat "$backend_file"
+
+          echo "backend_file_generated=true" >> $GITHUB_OUTPUT
+          echo "s3_endpoint=$s3_endpoint" >> $GITHUB_OUTPUT
+
+      - name: Verify Backend Configuration Syntax
+        run: |
+          environment="${{ inputs.environment }}"
+          backend_file="environments/$environment/backend.tf"
+
+          echo "🔍 Verifying backend configuration syntax..."
+
+          if [[ -f "$backend_file" ]]; then
+            echo "✅ Backend configuration exists: $backend_file"
+
+            # Test syntax by initializing with backend=false
+            cd "environments/$environment"
+            if terraform init -backend=false > /dev/null 2>&1; then
+              echo "✅ Backend configuration syntax valid"
+            else
+              echo "❌ Backend configuration syntax invalid"
+              cat backend.tf
+              exit 1
+            fi
+            cd - > /dev/null
+          else
+            echo "❌ Backend configuration missing: $backend_file"
+            exit 1
+          fi
+
+      - name: Finalize Results
+        id: finalize
+        run: |
+          bucket_exists="${{ steps.check-bucket.outputs.bucket_exists }}"
+          bucket_name="${{ steps.determine-bucket.outputs.bucket_name }}"
+          backend_generated="${{ steps.generate-backend.outputs.backend_file_generated }}"
+          s3_endpoint="${{ steps.generate-backend.outputs.s3_endpoint }}"
+          action="${{ inputs.action }}"
+
+          echo "📊 Final Results Summary:"
+          echo "  Action: $action"
+          echo "  Environment: ${{ inputs.environment }}"
+          echo "  Region: ${{ inputs.region }}"
+          echo "  Bucket name: $bucket_name"
+          echo "  Bucket exists: $bucket_exists"
+          echo "  Backend configured: $backend_generated"
+          echo "  S3 endpoint: $s3_endpoint"
+
+          # Determine if backend is properly configured
+          if [[ "$backend_generated" == "true" ]]; then
+            if [[ "$action" == "create" ]]; then
+              # For create action, success if bucket exists or was created
+              echo "backend_configured=true" >> $GITHUB_OUTPUT
+              echo "✅ Backend successfully configured for deployment"
+            elif [[ "$action" == "verify" ]]; then
+              # For verify action, success if bucket and state exist
+              state_exists="${{ steps.check-state.outputs.state_exists }}"
+              if [[ "$bucket_exists" == "true" && "$state_exists" == "true" ]]; then
+                echo "backend_configured=true" >> $GITHUB_OUTPUT
+                echo "✅ Backend successfully verified for teardown"
+              else
+                echo "backend_configured=false" >> $GITHUB_OUTPUT
+                echo "❌ Backend verification failed - bucket or state missing"
+              fi
+            fi
+          else
+            echo "backend_configured=false" >> $GITHUB_OUTPUT
+            echo "❌ Backend configuration failed"
+          fi
+
+          echo "backend_endpoint=$s3_endpoint" >> $GITHUB_OUTPUT
+
+      - name: Upload Backend Configuration
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-config-${{ inputs.environment }}-${{ github.run_id }}
+          path: |
+            environments/${{ inputs.environment }}/backend.tf
+          retention-days: 7
+
+      - name: Summary
+        run: |
+          echo "🎉 Backend bucket management completed!"
+          echo
+          echo "📊 Summary:"
+          echo "  Action: ${{ inputs.action }}"
+          echo "  Environment: ${{ inputs.environment }}"
+          echo "  Region: ${{ inputs.region }}"
+          echo "  Bucket: ${{ steps.determine-bucket.outputs.bucket_name }}"
+          echo "  Bucket existed: ${{ steps.check-bucket.outputs.bucket_exists }}"
+          echo "  Backend configured: ${{ steps.finalize.outputs.backend_configured }}"
+          echo "  Endpoint: ${{ steps.finalize.outputs.backend_endpoint }}"
+
+          if [[ "${{ inputs.action }}" == "verify" ]]; then
+            echo "  State exists: ${{ steps.check-state.outputs.state_exists }}"
+          fi
+
+          echo
+          echo "🚀 Backend infrastructure is ready for use!"

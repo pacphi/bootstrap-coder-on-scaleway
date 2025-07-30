@@ -1,16 +1,16 @@
 output "bucket_name" {
-  description = "Name of the created Terraform state bucket"
-  value       = scaleway_object_bucket.terraform_state.name
+  description = "Name of the Terraform state bucket"
+  value       = local.bucket_name
 }
 
 output "bucket_endpoint" {
   description = "S3-compatible endpoint URL for the bucket"
-  value       = scaleway_object_bucket.terraform_state.endpoint
+  value       = var.create_bucket ? scaleway_object_bucket.terraform_state[0].endpoint : data.scaleway_object_bucket.existing_terraform_state[0].endpoint
 }
 
 output "bucket_region" {
   description = "Region where the bucket is located"
-  value       = scaleway_object_bucket.terraform_state.region
+  value       = local.bucket_region
 }
 
 output "state_key" {
@@ -26,12 +26,12 @@ output "backend_config" {
 
 output "s3_endpoint" {
   description = "S3-compatible endpoint URL for Terraform backend configuration"
-  value       = "https://s3.${var.region}.scw.cloud"
+  value       = "https://s3.${local.bucket_region}.scw.cloud"
 }
 
 output "bucket_arn" {
-  description = "ARN of the created bucket"
-  value       = "arn:scw:s3:::${scaleway_object_bucket.terraform_state.name}"
+  description = "ARN of the bucket"
+  value       = "arn:scw:s3:::${local.bucket_name}"
 }
 
 output "versioning_enabled" {
@@ -42,9 +42,9 @@ output "versioning_enabled" {
 output "backend_tf_content" {
   description = "Rendered backend.tf content for the environment"
   value = templatefile("${path.module}/templates/backend.tf.tpl", {
-    bucket_name = scaleway_object_bucket.terraform_state.name
+    bucket_name = local.bucket_name
     state_key   = local.backend_config.key
-    region      = var.region
+    region      = local.bucket_region
     endpoint    = local.backend_config.endpoints.s3
   })
 }
