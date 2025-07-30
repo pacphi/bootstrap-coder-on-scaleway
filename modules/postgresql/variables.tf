@@ -78,7 +78,6 @@ variable "settings" {
   default = {
     # Connection and performance settings (well-supported)
     "max_connections"           = "200"
-    "shared_preload_libraries"  = "pg_stat_statements"
     "work_mem"                  = "4MB"
     "maintenance_work_mem"      = "128MB"
     "wal_buffers"               = "16MB"
@@ -90,7 +89,9 @@ variable "settings" {
     "log_min_duration_statement" = "1000"
     "log_statement"              = "ddl"
 
-    # Note: Advanced logging parameters like log_connections, log_lock_waits,
+    # Note: shared_preload_libraries is managed automatically by Scaleway.
+    # Extensions like pg_cron are pre-loaded by default.
+    # Advanced logging parameters like log_connections, log_lock_waits,
     # log_temp_files, and log_disconnections may not be supported by
     # Scaleway's managed PostgreSQL service. Add these manually via
     # init_settings or settings override if needed and confirmed to work.
