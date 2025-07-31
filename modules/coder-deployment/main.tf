@@ -152,8 +152,8 @@ resource "kubernetes_persistent_volume_claim" "coder_data" {
 
   spec {
     access_modes = ["ReadWriteOnce"]
-    # Use default storage class when var.storage_class is "default", otherwise use specified class
-    storage_class_name = var.storage_class == "default" ? null : var.storage_class
+    # Use the specified storage class directly
+    storage_class_name = var.storage_class
 
     resources {
       requests = {

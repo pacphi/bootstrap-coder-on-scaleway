@@ -167,8 +167,8 @@ module "coder_deployment" {
     }
   }
 
-  # Storage configuration - use default storage class
-  storage_class = "default"
+  # Storage configuration - use scw-bssd storage class
+  storage_class = "scw-bssd"
   storage_size  = "5Gi"
 
   # Enable monitoring for development
