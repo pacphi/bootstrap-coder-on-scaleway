@@ -162,7 +162,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.backup.outputs.backup_name }}
-          path: backups/${{ steps.backup.outputs.backup_name }}
+          path: backups/${{ steps.backup.outputs.backup_name }}.tar.gz
           retention-days: 30
 
   analyze-impact:
@@ -483,6 +483,17 @@ jobs:
       name: ${{ github.event.inputs.environment }}-teardown
 
     steps:
+      - name: Debug Job Conditions
+        run: |
+          echo "🔍 Debugging teardown job conditions:"
+          echo "  validated: ${{ needs.validate-request.outputs.confirmed }}"
+          echo "  backend_configured: ${{ needs.discover-backend-state.outputs.backend_configured }}"
+          echo "  bucket_exists: ${{ needs.discover-backend-state.outputs.bucket_exists }}"
+          echo "  state_exists: ${{ needs.discover-backend-state.outputs.state_exists }}"
+          echo "  ready_for_teardown: ${{ needs.prepare-teardown.outputs.ready_for_teardown }}"
+          echo "  resource_count: ${{ needs.prepare-teardown.outputs.resource_count }}"
+          echo "  backup_result: ${{ needs.pre-teardown-backup.result }}"
+          echo "  backup_before_destroy: ${{ github.event.inputs.backup_before_destroy }}"
       - name: Checkout Code
         uses: actions/checkout@v4
 
