@@ -68,6 +68,45 @@ Deploy your first development environment:
 # 🎉 Environment ready at: https://coder-dev.your-domain.com
 ```
 
+### Understanding the Deployment Process
+
+The deployment system automatically handles both infrastructure and application deployment:
+
+#### **What Gets Deployed Automatically**
+- ✅ **Kubernetes Cluster** - Fully configured with auto-scaling
+- ✅ **PostgreSQL Database** - Managed database with backups
+- ✅ **Coder Application** - Ready-to-use development platform
+- ✅ **Networking & Security** - Load balancer, ingress, SSL certificates
+- ✅ **Admin User** - Automatically created with secure credentials
+
+#### **Template Deployment Behavior**
+
+**With Template Specified** (`--template=template-name`):
+```bash
+./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai
+# Result: Coder + Python Django CrewAI template ready for workspace creation
+```
+
+**Without Template** (template left blank or omitted):
+```bash
+./scripts/lifecycle/setup.sh --env=dev
+# Result: Coder deployed and ready, templates can be added later
+```
+
+#### **Adding Templates Later**
+If you deployed without a template, you can add them anytime:
+
+```bash
+# Add a specific template after deployment
+./scripts/lifecycle/setup.sh --env=dev --template=react-typescript --auto-approve
+
+# Or manually via Coder CLI
+export KUBECONFIG=<(terraform output -raw kubeconfig)
+coder templates create my-template --directory=./templates/frontend/react-typescript
+```
+
+> **Key Point**: Your Coder environment is fully functional immediately after deployment, regardless of whether you specify a template. Templates are workspace blueprints that can be managed independently.
+
 ## Environment Management
 
 ### Development Environment

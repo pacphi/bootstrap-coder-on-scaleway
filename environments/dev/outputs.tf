@@ -66,9 +66,10 @@ output "cost_estimation" {
 output "quick_setup_commands" {
   description = "Commands to complete the setup"
   value = {
-    get_kubeconfig = "export KUBECONFIG=<(terraform output -raw kubeconfig)"
-    install_coder  = "./scripts/install-coder.sh --env=dev"
-    access_url     = module.networking.access_url != null ? module.networking.access_url : "https://${module.networking.load_balancer_ip}"
+    get_kubeconfig   = "export KUBECONFIG=<(terraform output -raw kubeconfig)"
+    deploy_templates = "./scripts/lifecycle/setup.sh --env=dev --template=<template-name> --auto-approve"
+    access_url       = module.networking.access_url != null ? module.networking.access_url : "https://${module.networking.load_balancer_ip}"
+    coder_admin_info = "Coder is deployed and running. Access admin credentials from Kubernetes secrets."
   }
 }
 
@@ -77,4 +78,20 @@ output "kubeconfig" {
   description = "Kubeconfig for accessing the cluster"
   value       = module.scaleway_cluster.kubeconfig
   sensitive   = true
+}
+
+# Direct outputs for GitHub Actions workflow
+output "load_balancer_ip" {
+  description = "Load balancer IP address"
+  value       = module.networking.load_balancer_ip
+}
+
+output "access_url" {
+  description = "Main access URL for Coder"
+  value       = module.networking.access_url
+}
+
+output "admin_username" {
+  description = "Coder admin username"
+  value       = "admin" # Default admin username
 }

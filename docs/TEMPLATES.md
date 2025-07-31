@@ -2,6 +2,16 @@
 
 This document provides a comprehensive listing of all available Coder workspace templates in this project. These templates can be used with the `--template` parameter in deployment scripts and GitHub Actions.
 
+## Template Deployment Behavior
+
+**Important**: Templates are **optional** during deployment. The system behavior is:
+
+- **With Template**: Deploys Coder + automatically installs the specified template
+- **Without Template**: Deploys Coder ready for use, templates can be added later
+- **Result**: You always get a fully functional Coder environment regardless of template selection
+
+Templates are workspace blueprints that define the development environment (languages, tools, IDE configuration) for users to create workspaces from.
+
 ## Overview
 
 The project includes **21 workspace templates** organized into **6 categories**, providing development environments for modern web development, AI-enhanced workflows, data science, mobile development, and DevOps practices.
@@ -60,12 +70,14 @@ on:
         type: choice
         options: [dev, staging, prod]
       template:
-        description: 'Template to deploy'
-        required: true
-        type: choice
-        options: [
-          'claude-flow-base', 'claude-flow-enterprise', 'dotnet-core', 'go-fiber', 'java-spring', 'php-symfony-neuron', 'python-django-crewai', 'ruby-rails', 'rust-actix', 'jupyter-python', 'r-studio', 'docker-compose', 'kubernetes-helm', 'terraform-ansible', 'angular', 'react-typescript', 'svelte-kit', 'vue-nuxt', 'flutter', 'ionic', 'react-native'
-        ]
+        description: 'Template to deploy (optional - leave blank to deploy Coder without templates)'
+        required: false
+        type: string
+        # Alternative: Use choice with empty option
+        # type: choice
+        # options: [
+        #   '', 'claude-flow-base', 'claude-flow-enterprise', 'dotnet-core', 'go-fiber', 'java-spring', 'php-symfony-neuron', 'python-django-crewai', 'ruby-rails', 'rust-actix', 'jupyter-python', 'r-studio', 'docker-compose', 'kubernetes-helm', 'terraform-ansible', 'angular', 'react-typescript', 'svelte-kit', 'vue-nuxt', 'flutter', 'ionic', 'react-native'
+        # ]
 
 jobs:
   deploy:

@@ -143,6 +143,58 @@ module "security" {
   depends_on = [module.scaleway_cluster]
 }
 
+# Coder Deployment Module
+module "coder_deployment" {
+  source = "../../modules/coder-deployment"
+
+  namespace            = "coder"
+  environment          = local.environment
+  coder_version        = "2.6.0"
+  database_url         = module.postgresql.connection_string
+  access_url           = module.networking.access_url
+  wildcard_access_url  = module.networking.wildcard_access_url
+  service_account_name = "coder"
+
+  # Development-specific resource limits
+  resources = {
+    limits = {
+      cpu    = "1000m"
+      memory = "2Gi"
+    }
+    requests = {
+      cpu    = "250m"
+      memory = "512Mi"
+    }
+  }
+
+  # Storage configuration
+  storage_class = "scw-bssd"
+  storage_size  = "5Gi"
+
+  # Enable monitoring for development
+  monitoring_enabled = local.monitoring_config.enable_monitoring
+
+  # Workspace configuration
+  workspace_traffic_policy = "subdomain"
+  enable_terraform         = true
+
+  # Ingress configuration based on domain setup
+  ingress_enabled = local.domain_name != ""
+  ingress_class   = "nginx"
+  tls_enabled     = local.domain_name != ""
+
+  tags = merge(var.tags, {
+    Environment = local.environment
+  })
+
+  depends_on = [
+    module.scaleway_cluster,
+    module.postgresql,
+    module.networking,
+    module.security
+  ]
+}
+
 # Import variables from shared configuration
 variable "scaleway_zone" {
   description = "Scaleway zone"

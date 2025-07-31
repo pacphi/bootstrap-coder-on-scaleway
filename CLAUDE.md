@@ -47,8 +47,11 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 # Deploy development environment with specific template
 ./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai
 
-# Deploy production with monitoring and HA
+# Deploy production with monitoring and HA (template optional)
 ./scripts/lifecycle/setup.sh --env=prod --enable-monitoring --enable-ha
+
+# Deploy Coder without templates (templates can be added later)
+./scripts/lifecycle/setup.sh --env=dev
 
 # Dry run to preview changes
 ./scripts/lifecycle/setup.sh --env=staging --dry-run

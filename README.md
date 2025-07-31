@@ -189,9 +189,11 @@ gh run watch
 
 ### What Happens Next?
 - **Infrastructure Creation**: Kubernetes cluster, database, and networking (~10 min)
-- **Coder Installation**: Platform deployment and configuration (~5 min)
-- **Template Deployment**: Your selected workspace template (if specified)
+- **Coder Installation**: Platform deployment and configuration (~5 min) - **Automatic**
+- **Template Deployment**: Your selected workspace template (if specified) - **Optional**
 - **Access Details**: URLs and credentials will be displayed upon completion
+
+> **Note**: Coder is automatically deployed and ready to use regardless of whether you specify a template. Templates are optional and can be added later if not specified during initial deployment.
 
 ## 🏗️ Multi-Environment Architecture
 
