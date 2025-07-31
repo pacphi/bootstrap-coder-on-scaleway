@@ -42,10 +42,7 @@ output "deployment_name" {
 output "deployment_status" {
   description = "Status of the Coder deployment"
   value = {
-    replicas           = kubernetes_deployment.coder.spec[0].replicas
-    available_replicas = kubernetes_deployment.coder.status[0].available_replicas
-    ready_replicas     = kubernetes_deployment.coder.status[0].ready_replicas
-    updated_replicas   = kubernetes_deployment.coder.status[0].updated_replicas
+    replicas = kubernetes_deployment.coder.spec[0].replicas
   }
 }
 
