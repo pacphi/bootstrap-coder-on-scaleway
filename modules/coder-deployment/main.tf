@@ -143,26 +143,6 @@ resource "kubernetes_config_map" "coder_config" {
   }
 }
 
-# Storage Class for Scaleway Block Storage
-resource "kubernetes_storage_class" "scaleway_storage" {
-  metadata {
-    name = "scw-bssd"
-    annotations = {
-      "storageclass.kubernetes.io/is-default-class" = var.storage_class == "default" ? "true" : "false"
-    }
-  }
-
-  storage_provisioner    = "csi.scaleway.com"
-  reclaim_policy        = "Delete"
-  volume_binding_mode   = "Immediate"
-  allow_volume_expansion = true
-
-  parameters = {
-    # Default 5000 IOPS for Scaleway Block Storage
-    "iops" = "5000"
-  }
-}
-
 # Persistent Volume Claim for Coder data
 resource "kubernetes_persistent_volume_claim" "coder_data" {
   metadata {
@@ -172,8 +152,8 @@ resource "kubernetes_persistent_volume_claim" "coder_data" {
 
   spec {
     access_modes = ["ReadWriteOnce"]
-    # Use the created storage class or specified class
-    storage_class_name = var.storage_class == "default" ? kubernetes_storage_class.scaleway_storage.metadata[0].name : var.storage_class
+    # Use default storage class when var.storage_class is "default", otherwise use specified class
+    storage_class_name = var.storage_class == "default" ? null : var.storage_class
 
     resources {
       requests = {
@@ -181,8 +161,6 @@ resource "kubernetes_persistent_volume_claim" "coder_data" {
       }
     }
   }
-
-  depends_on = [kubernetes_storage_class.scaleway_storage]
 }
 
 # Deployment for Coder
