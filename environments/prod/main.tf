@@ -256,8 +256,8 @@ module "coder_deployment" {
   # High availability configuration
   replica_count = 2
 
-  # Storage configuration
-  storage_class = "scw-bssd"
+  # Storage configuration - use default storage class
+  storage_class = "default"
   storage_size  = "50Gi"
 
   # Enable monitoring for production

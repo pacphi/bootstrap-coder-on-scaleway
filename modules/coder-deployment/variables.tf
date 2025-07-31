@@ -72,9 +72,9 @@ variable "replica_count" {
 
 # Storage Configuration
 variable "storage_class" {
-  description = "Storage class for persistent volumes"
+  description = "Storage class for persistent volumes (use 'default' for cluster default)"
   type        = string
-  default     = "scw-bssd"
+  default     = "default"
 }
 
 variable "storage_size" {
