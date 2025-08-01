@@ -359,7 +359,7 @@ jobs:
       - name: Download Backend Configuration
         uses: actions/download-artifact@v4
         with:
-          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          name: backend-config-${{ needs.validate.outputs.deploy_env }}-infra-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/infra
 
       - name: Verify Backend Configuration
@@ -521,7 +521,7 @@ jobs:
       - name: Download Backend Configuration
         uses: actions/download-artifact@v4
         with:
-          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          name: backend-config-${{ needs.validate.outputs.deploy_env }}-infra-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/infra
 
       - name: Initialize Terraform Backend

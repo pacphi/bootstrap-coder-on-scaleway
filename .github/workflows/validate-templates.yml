@@ -353,6 +353,7 @@ jobs:
     with:
       bucket_name: ${{ github.event.inputs.bucket_name }}
       environment: ${{ github.event.inputs.test_environment }}
+      phase: infra
       region: ${{ github.event.inputs.region }}
       action: create
       force_recreate: false
@@ -395,12 +396,12 @@ jobs:
       - name: Download Backend Configuration
         uses: actions/download-artifact@v4
         with:
-          name: backend-config-${{ github.event.inputs.test_environment || 'dev' }}-${{ github.run_id }}
-          path: ./
+          name: backend-config-${{ github.event.inputs.test_environment }}-infra-${{ github.run_id }}
+          path: environments/${{ github.event.inputs.test_environment }}/infra
 
       - name: Initialize Test Environment Backend
         run: |
-          cd environments/${{ github.event.inputs.test_environment || 'dev' }}
+          cd environments/${{ github.event.inputs.test_environment }}/infra
 
           echo "🔄 Initializing with remote backend..."
           echo "Backend bucket: ${{ needs.setup-backend.outputs.bucket_name }}"
@@ -409,7 +410,7 @@ jobs:
       - name: Deploy Test Environment
         id: deploy-env
         run: |
-          cd environments/${{ github.event.inputs.test_environment || 'dev' }}
+          cd environments/${{ github.event.inputs.test_environment }}/infra
 
           # Plan and apply minimal environment for testing
           terraform plan -out=test.tfplan
@@ -424,14 +425,14 @@ jobs:
 
           # Validate the deployed environment
           ./scripts/validate.sh \
-            --env=${{ github.event.inputs.test_environment || 'dev' }} \
+            --env=${{ github.event.inputs.test_environment }} \
             --components=coder \
             --detailed
 
       - name: Cleanup Test Environment
         if: always() && steps.deploy-env.outputs.environment_deployed == 'true'
         run: |
-          cd environments/${{ github.event.inputs.test_environment || 'dev' }}
+          cd environments/${{ github.event.inputs.test_environment || 'dev' }}/infra
 
           # Clean up the test environment
           echo "🔥 Cleaning up test environment..."
