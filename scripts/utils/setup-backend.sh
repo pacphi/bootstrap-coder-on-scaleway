@@ -182,20 +182,45 @@ create_phase_backend_config() {
         return 1
     fi
 
-    # Get the backend configuration content from Terraform output
+    # Get the backend configuration from Terraform outputs
     cd "$backend_dir"
-    local backend_content
-    backend_content=$(terraform output -raw "${phase}_backend_tf_content" 2>/dev/null)
+    local bucket_name
+    bucket_name=$(terraform output -raw bucket_name 2>/dev/null)
+    local s3_endpoint
+    s3_endpoint=$(terraform output -raw s3_endpoint 2>/dev/null)
 
-    if [[ -z "$backend_content" ]]; then
-        log_error "Failed to get $phase phase backend configuration from Terraform output"
+    if [[ -z "$bucket_name" ]]; then
+        log_error "Failed to get bucket name from Terraform output"
         return 1
     fi
 
-    # Write the backend configuration
-    echo "$backend_content" > "${phase_dir}/providers.tf"
+    # Generate phase-specific state key
+    local state_key="${env}/${phase}/terraform.tfstate"
 
-    log_success "$phase phase backend configuration created: ${phase_dir}/providers.tf"
+    # Create backend.tf with phase-specific configuration
+    cat > "${phase_dir}/backend.tf" << EOF
+terraform {
+  backend "s3" {
+    bucket = "${bucket_name}"
+    key    = "${state_key}"
+    region = "${REGION}"
+
+    # S3-compatibility flags for Scaleway Object Storage
+    skip_credentials_validation = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+
+    # Use Scaleway S3-compatible endpoint
+    endpoints = {
+      s3 = "${s3_endpoint}"
+    }
+  }
+}
+EOF
+
+    log_success "$phase phase backend configuration created: ${phase_dir}/backend.tf"
+    log "State key: $state_key"
 }
 
 # Create backend configuration for environment
@@ -220,20 +245,45 @@ create_environment_backend() {
             create_phase_backend_config "$env" "$PHASE" "$backend_dir"
         fi
     elif [[ "$structure" == "legacy" ]]; then
-        # Get the backend configuration content from Terraform output
+        # Get the backend configuration from Terraform outputs
         cd "$backend_dir"
-        local backend_content
-        backend_content=$(terraform output -raw backend_tf_content 2>/dev/null)
+        local bucket_name
+        bucket_name=$(terraform output -raw bucket_name 2>/dev/null)
+        local s3_endpoint
+        s3_endpoint=$(terraform output -raw s3_endpoint 2>/dev/null)
 
-        if [[ -z "$backend_content" ]]; then
-            log_error "Failed to get backend configuration from Terraform output"
+        if [[ -z "$bucket_name" ]]; then
+            log_error "Failed to get bucket name from Terraform output"
             return 1
         fi
 
-        # Write the backend configuration
-        echo "$backend_content" > "${env_dir}/backend.tf"
+        # Generate legacy state key (maintaining backward compatibility)
+        local state_key="${env}/terraform.tfstate"
+
+        # Create backend.tf with legacy configuration
+        cat > "${env_dir}/backend.tf" << EOF
+terraform {
+  backend "s3" {
+    bucket = "${bucket_name}"
+    key    = "${state_key}"
+    region = "${REGION}"
+
+    # S3-compatibility flags for Scaleway Object Storage
+    skip_credentials_validation = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+
+    # Use Scaleway S3-compatible endpoint
+    endpoints = {
+      s3 = "${s3_endpoint}"
+    }
+  }
+}
+EOF
 
         log_success "Backend configuration created: ${env_dir}/backend.tf"
+        log "State key: $state_key"
     fi
 }
 

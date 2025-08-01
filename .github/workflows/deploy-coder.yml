@@ -323,6 +323,7 @@ jobs:
     with:
       bucket_name: ${{ inputs.bucket_name }}
       environment: ${{ needs.validate.outputs.deploy_env }}
+      phase: coder
       region: ${{ inputs.region }}
       action: create
       force_recreate: false
@@ -454,7 +455,7 @@ jobs:
       - name: Download Backend Configuration
         uses: actions/download-artifact@v4
         with:
-          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          name: backend-config-${{ needs.validate.outputs.deploy_env }}-coder-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
 
       - name: Download Kubeconfig
@@ -463,22 +464,21 @@ jobs:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-coder
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
 
-      - name: Setup Coder Backend Configuration
+      - name: Verify Coder Backend Configuration
         run: |
-          echo "🔍 Setting up Coder backend configuration..."
+          echo "🔍 Verifying Coder backend configuration..."
 
           ENVIRONMENT="${{ needs.validate.outputs.deploy_env }}"
           CODER_DIR="environments/$ENVIRONMENT/coder"
 
-          # Update backend.tf to use coder/ subdirectory key
+          # Verify backend.tf exists (should be created by setup-backend job)
           if [[ -f "$CODER_DIR/backend.tf" ]]; then
-            echo "📝 Updating backend.tf for Coder deployment"
-            sed -i 's|key *= *"terraform.tfstate"|key = "coder/terraform.tfstate"|g' "$CODER_DIR/backend.tf"
-
-            echo "📄 Updated backend configuration:"
+            echo "✅ Backend configuration found for Coder deployment"
+            echo "📄 Backend configuration content:"
             cat "$CODER_DIR/backend.tf"
           else
-            echo "❌ Backend configuration not found"
+            echo "❌ Backend configuration not found at: $CODER_DIR/backend.tf"
+            echo "Expected path should have been created by setup-backend job"
             exit 1
           fi
 
@@ -628,7 +628,7 @@ jobs:
       - name: Download Backend Configuration
         uses: actions/download-artifact@v4
         with:
-          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          name: backend-config-${{ needs.validate.outputs.deploy_env }}-coder-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
 
       - name: Download Kubeconfig
@@ -639,20 +639,19 @@ jobs:
 
       - name: Setup Coder Backend Configuration
         run: |
-          echo "🔍 Setting up Coder backend configuration for deployment..."
+          echo "🔍 Verifying Coder backend configuration for deployment..."
 
           ENVIRONMENT="${{ needs.validate.outputs.deploy_env }}"
           CODER_DIR="environments/$ENVIRONMENT/coder"
 
-          # Update backend.tf to use coder/ subdirectory key
+          # Verify backend.tf exists with correct phase-specific key
           if [[ -f "$CODER_DIR/backend.tf" ]]; then
-            echo "📝 Updating backend.tf for Coder deployment"
-            sed -i 's|key *= *"terraform.tfstate"|key = "coder/terraform.tfstate"|g' "$CODER_DIR/backend.tf"
-
-            echo "📄 Updated backend configuration:"
+            echo "✅ Backend configuration found for Coder deployment"
+            echo "📄 Backend configuration content:"
             cat "$CODER_DIR/backend.tf"
           else
-            echo "❌ Backend configuration not found"
+            echo "❌ Backend configuration not found at: $CODER_DIR/backend.tf"
+            echo "Expected path should have been created by setup-backend job"
             exit 1
           fi
 

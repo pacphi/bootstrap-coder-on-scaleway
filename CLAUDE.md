@@ -460,8 +460,8 @@ ls backups/state-migration/<env>/
 ### Log Locations
 - **Setup logs**: `/logs/setup/<timestamp>-<env>-setup.log`
 - **Terraform state**: Remote in Scaleway Object Storage (`terraform-state-coder-<env>` bucket)
-  - **Infrastructure state**: `infra/terraform.tfstate`
-  - **Coder application state**: `coder/terraform.tfstate`
+  - **Infrastructure state**: `<env>/infra/terraform.tfstate`
+  - **Coder application state**: `<env>/coder/terraform.tfstate`
 - **Local state backup**: `environments/<env>/infra/` and `environments/<env>/coder/` (after migration)
 - **State migration logs**: `backups/state-migration/migration-<timestamp>-<env>-*.log`
 - **State backups**: `backups/state-backups/<env>-<timestamp>/`
@@ -499,13 +499,14 @@ ls backups/state-migration/<env>/
 
 ### State Management Best Practices
 1. **Setup Remote Backend First**: Use `setup-backend.sh` before deploying infrastructure
-2. **Migrate Safely**: Use `migrate-state.sh` with dry-run option to preview migration
-3. **Regular Backups**: Create state backups before major changes using `state-manager.sh backup`
-4. **Monitor Drift**: Regularly check for configuration drift using `state-manager.sh drift`
-5. **Team Coordination**: Use GitHub Actions for centralized deployments to avoid conflicts
-6. **State Inspection**: Use `state-manager.sh show/list/inspect` for troubleshooting
-7. **Version Management**: Object Storage versioning is enabled for state history
-8. **Access Control**: Use environment-specific buckets and IAM policies
+2. **Phase Separation**: Infrastructure and Coder application state are stored separately with keys `{env}/infra/terraform.tfstate` and `{env}/coder/terraform.tfstate`
+3. **Migrate Safely**: Use `migrate-state.sh` with dry-run option to preview migration
+4. **Regular Backups**: Create state backups before major changes using `state-manager.sh backup`
+5. **Monitor Drift**: Regularly check for configuration drift using `state-manager.sh drift`
+6. **Team Coordination**: Use GitHub Actions for centralized deployments to avoid conflicts
+7. **State Inspection**: Use `state-manager.sh show/list/inspect` for troubleshooting
+8. **Version Management**: Object Storage versioning is enabled for state history
+9. **Access Control**: Use environment-specific buckets and IAM policies
 
 ### Cost Optimization
 1. Use cost calculator before scaling or deploying

@@ -265,6 +265,7 @@ jobs:
     with:
       bucket_name: ${{ inputs.bucket_name }}
       environment: ${{ needs.validate.outputs.deploy_env }}
+      phase: infra
       region: ${{ inputs.region }}
       action: create
       force_recreate: false

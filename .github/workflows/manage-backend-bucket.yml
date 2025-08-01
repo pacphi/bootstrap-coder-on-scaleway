@@ -14,6 +14,10 @@ on:
         description: 'Environment to setup backend for'
         required: true
         type: string
+      phase:
+        description: 'Deployment phase: infra or coder (for two-phase architecture)'
+        required: false
+        type: string
       region:
         description: 'Scaleway region'
         required: false
@@ -60,6 +64,13 @@ on:
           - dev
           - staging
           - prod
+      phase:
+        description: 'Deployment phase: infra or coder (for two-phase architecture)'
+        required: false
+        type: choice
+        options:
+          - infra
+          - coder
       region:
         description: 'Scaleway region'
         required: false
@@ -178,13 +189,19 @@ jobs:
         if: inputs.action == 'verify'
         run: |
           environment="${{ inputs.environment }}"
+          phase="${{ inputs.phase }}"
           bucket_name="${{ steps.determine-bucket.outputs.bucket_name }}"
           bucket_exists="${{ steps.check-bucket.outputs.bucket_exists }}"
 
           echo "🔍 Checking for state file existence..."
 
           if [[ "$bucket_exists" == "true" ]]; then
-            state_key="${environment}/terraform.tfstate"
+            # Generate phase-specific state key
+            if [[ -n "$phase" ]]; then
+              state_key="${environment}/${phase}/terraform.tfstate"
+            else
+              state_key="${environment}/terraform.tfstate" 
+            fi
             echo "Checking for state file: $state_key"
 
             if s3cmd ls "s3://$bucket_name/$state_key" >/dev/null 2>&1; then
@@ -259,6 +276,7 @@ jobs:
         id: generate-backend
         run: |
           environment="${{ inputs.environment }}"
+          phase="${{ inputs.phase }}"
           region="${{ inputs.region }}"
           bucket_name="${{ steps.determine-bucket.outputs.bucket_name }}"
           bucket_exists="${{ steps.check-bucket.outputs.bucket_exists }}"
@@ -275,15 +293,24 @@ jobs:
             fi
           fi
 
-          # Create backend.tf for the environment
-          backend_file="environments/$environment/backend.tf"
-          mkdir -p "environments/$environment"
+          # Generate phase-specific state key and backend directory
+          if [[ -n "$phase" ]]; then
+            state_key="${environment}/${phase}/terraform.tfstate"
+            backend_dir="environments/$environment/$phase"
+          else
+            state_key="${environment}/terraform.tfstate"
+            backend_dir="environments/$environment"
+          fi
+
+          # Create backend.tf for the environment/phase
+          backend_file="$backend_dir/backend.tf"
+          mkdir -p "$backend_dir"
 
           cat > "$backend_file" << EOF
           terraform {
             backend "s3" {
               bucket = "$bucket_name"
-              key    = "$environment/terraform.tfstate"
+              key    = "$state_key"
               region = "$region"
 
               # S3-compatibility flags for Scaleway Object Storage
@@ -305,12 +332,13 @@ jobs:
           cat "$backend_file"
 
           echo "backend_file_generated=true" >> $GITHUB_OUTPUT
+          echo "backend_file_path=$backend_file" >> $GITHUB_OUTPUT
+          echo "state_key=$state_key" >> $GITHUB_OUTPUT
           echo "s3_endpoint=$s3_endpoint" >> $GITHUB_OUTPUT
 
       - name: Verify Backend Configuration Syntax
         run: |
-          environment="${{ inputs.environment }}"
-          backend_file="environments/$environment/backend.tf"
+          backend_file="${{ steps.generate-backend.outputs.backend_file_path }}"
 
           echo "🔍 Verifying backend configuration syntax..."
 
@@ -318,7 +346,8 @@ jobs:
             echo "✅ Backend configuration exists: $backend_file"
 
             # Test syntax by initializing with backend=false
-            cd "environments/$environment"
+            backend_dir=$(dirname "$backend_file")
+            cd "$backend_dir"
             if terraform init -backend=false > /dev/null 2>&1; then
               echo "✅ Backend configuration syntax valid"
             else
@@ -377,9 +406,8 @@ jobs:
       - name: Upload Backend Configuration
         uses: actions/upload-artifact@v4
         with:
-          name: backend-config-${{ inputs.environment }}-${{ github.run_id }}
-          path: |
-            environments/${{ inputs.environment }}/backend.tf
+          name: backend-config-${{ inputs.environment }}${{ inputs.phase && format('-{0}', inputs.phase) || '' }}-${{ github.run_id }}
+          path: ${{ steps.generate-backend.outputs.backend_file_path }}
           retention-days: 7
 
       - name: Summary
@@ -389,6 +417,10 @@ jobs:
           echo "📊 Summary:"
           echo "  Action: ${{ inputs.action }}"
           echo "  Environment: ${{ inputs.environment }}"
+          if [[ -n "${{ inputs.phase }}" ]]; then
+            echo "  Phase: ${{ inputs.phase }}"
+            echo "  State Key: ${{ steps.generate-backend.outputs.state_key }}"
+          fi
           echo "  Region: ${{ inputs.region }}"
           echo "  Bucket: ${{ steps.determine-bucket.outputs.bucket_name }}"
           echo "  Bucket existed: ${{ steps.check-bucket.outputs.bucket_exists }}"

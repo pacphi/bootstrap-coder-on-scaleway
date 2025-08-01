@@ -403,7 +403,7 @@ jobs:
           terraform {
             backend "s3" {
               bucket = "$bucket_name"
-              key    = "coder/terraform.tfstate"
+              key    = "$environment/coder/terraform.tfstate"
               region = "$region"
               endpoints = {
                 s3 = "https://s3.$region.scw.cloud"
@@ -492,7 +492,7 @@ jobs:
           terraform {
             backend "s3" {
               bucket = "$bucket_name"
-              key    = "infra/terraform.tfstate"
+              key    = "$environment/infra/terraform.tfstate"
               region = "$region"
               endpoints = {
                 s3 = "https://s3.$region.scw.cloud"
