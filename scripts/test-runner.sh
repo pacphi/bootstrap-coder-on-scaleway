@@ -26,6 +26,8 @@ TEST_TIMEOUT=3600
 OUTPUT_DIR="${PROJECT_ROOT}/test-results"
 LOG_FILE=""
 START_TIME=$(date +%s)
+PHASE=""
+TWO_PHASE=false
 
 # Test tracking
 TESTS_RUN=0
@@ -49,12 +51,14 @@ print_usage() {
 Usage: $0 [OPTIONS]
 
 Run comprehensive manual tests for the Coder on Scaleway system,
-including infrastructure, templates, workflows, and integrations.
+including infrastructure, templates, workflows, and integrations with two-phase support.
 
 Options:
     --suite=SUITE           Test suite to run [required]
                            Options: all, smoke, prerequisites, infrastructure, templates, workflows, integration, integrations
     --environment=ENV       Test environment (dev|staging) [default: dev]
+    --phase=PHASE           Specific phase to test (infra|coder) for two-phase environments
+    --two-phase             Test both phases (infra and coder) for two-phase environments
     --no-cleanup           Skip cleanup after tests
     --parallel             Run compatible tests in parallel
     --timeout=SECONDS      Test timeout in seconds (default: 3600)
@@ -72,10 +76,24 @@ Test Suites:
     integrations           External integration tests (Slack, JIRA, monitoring)
 
 Examples:
+    # Legacy single-phase testing
     $0 --suite=prerequisites
     $0 --suite=smoke
     $0 --suite=templates --environment=dev --parallel
-    $0 --suite=all --no-cleanup --timeout=7200
+
+    # Two-phase testing
+    $0 --suite=infrastructure --environment=dev --two-phase
+    $0 --suite=smoke --environment=staging --phase=infra
+    $0 --suite=all --environment=dev --two-phase --no-cleanup --timeout=7200
+
+Two-Phase Architecture:
+    This script automatically detects environment structure:
+    - Legacy: Single main.tf in environments/<env>/
+    - Two-Phase: Separate infra/ and coder/ directories
+
+    For two-phase environments:
+    - infra/: Infrastructure testing (cluster, database, networking)
+    - coder/: Application testing (Coder platform, templates)
 
 Test Coverage:
     • Script functionality validation
@@ -85,6 +103,7 @@ Test Coverage:
     • Scaling operations
     • Cost calculation accuracy
     • Documentation consistency
+    • Two-phase deployment validation
     • GitHub Actions workflow validation
 
 EOF
@@ -498,24 +517,106 @@ test_scaling_functionality() {
     fi
 }
 
+# Detect environment structure
+detect_environment_structure() {
+    local env="$1"
+    local env_dir="${PROJECT_ROOT}/environments/${env}"
+    local infra_dir="${env_dir}/infra"
+    local coder_dir="${env_dir}/coder"
+
+    if [[ -d "$infra_dir" && -d "$coder_dir" ]]; then
+        echo "two-phase"
+    elif [[ -f "${env_dir}/main.tf" ]]; then
+        echo "legacy"
+    else
+        echo "unknown"
+    fi
+}
+
+# Test Terraform configuration for a specific phase
+test_phase_terraform_configuration() {
+    local env_name="$1"
+    local phase="$2"
+    local env_dir="${PROJECT_ROOT}/environments/${env_name}"
+    local phase_dir="${env_dir}/${phase}"
+
+    if [[ ! -d "$phase_dir" ]]; then
+        log ERROR "✗ Phase directory not found: $phase_dir"
+        return 1
+    fi
+
+    cd "$phase_dir"
+
+    if terraform init -backend=false &>/dev/null && terraform validate &>/dev/null; then
+        log INFO "✓ Environment $env_name $phase phase Terraform config valid"
+        cd - &>/dev/null
+        return 0
+    else
+        log ERROR "✗ Environment $env_name $phase phase Terraform config invalid"
+        cd - &>/dev/null
+        return 1
+    fi
+}
+
 test_terraform_configuration() {
     log INFO "Testing Terraform configuration validity"
+
+    local config_errors=0
 
     for env_dir in "$PROJECT_ROOT/environments"/*; do
         if [[ -d "$env_dir" ]]; then
             local env_name=$(basename "$env_dir")
-            cd "$env_dir"
+            local structure=$(detect_environment_structure "$env_name")
 
-            if terraform init -backend=false &>/dev/null && terraform validate &>/dev/null; then
-                log INFO "✓ Environment $env_name Terraform config valid"
+            if [[ "$structure" == "legacy" ]]; then
+                # Skip two-phase testing for legacy environments
+                if [[ "$TWO_PHASE" == true || -n "$PHASE" ]]; then
+                    log INFO "Skipping legacy environment $env_name (two-phase options specified)"
+                    continue
+                fi
+
+                cd "$env_dir"
+                if terraform init -backend=false &>/dev/null && terraform validate &>/dev/null; then
+                    log INFO "✓ Environment $env_name Terraform config valid"
+                else
+                    log ERROR "✗ Environment $env_name Terraform config invalid"
+                    ((config_errors++))
+                fi
+                cd - &>/dev/null
+            elif [[ "$structure" == "two-phase" ]]; then
+                # Skip legacy testing for two-phase environments
+                if [[ "$TWO_PHASE" == false && -z "$PHASE" ]]; then
+                    log INFO "Skipping two-phase environment $env_name (no phase options specified)"
+                    continue
+                fi
+
+                if [[ "$TWO_PHASE" == true ]]; then
+                    log INFO "Testing two-phase environment: $env_name"
+                    if ! test_phase_terraform_configuration "$env_name" "infra"; then
+                        ((config_errors++))
+                    fi
+                    if ! test_phase_terraform_configuration "$env_name" "coder"; then
+                        ((config_errors++))
+                    fi
+                elif [[ -n "$PHASE" ]]; then
+                    log INFO "Testing $PHASE phase for environment: $env_name"
+                    if ! test_phase_terraform_configuration "$env_name" "$PHASE"; then
+                        ((config_errors++))
+                    fi
+                fi
             else
-                log ERROR "✗ Environment $env_name Terraform config invalid"
-                return 1
+                log WARN "Unknown structure for environment: $env_name"
             fi
-
-            cd - &>/dev/null
         fi
     done
+
+    if [[ $config_errors -gt 0 ]]; then
+        log ERROR "$config_errors Terraform configuration error(s) found"
+        return 1
+    else
+        log INFO "✓ All Terraform configurations are valid"
+        return 0
+    fi
 }
 
 test_documentation_consistency() {
@@ -576,15 +677,32 @@ test_integration_environment_lifecycle() {
     # This is a comprehensive test that actually deploys and tears down an environment
     local test_env="dev"
     local test_template="claude-flow-base"
+    local structure=$(detect_environment_structure "$test_env")
+
+    local setup_args="--env=$test_env --template=$test_template --auto-approve"
+    local validate_args="--env=$test_env --quick"
+    local backup_args="--env=$test_env --auto --backup-name=integration-test"
+    local teardown_args="--env=$test_env --confirm --force --no-backup"
+
+    # Add phase arguments if testing two-phase environment
+    if [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == true ]]; then
+            validate_args="$validate_args --two-phase"
+            backup_args="$backup_args --two-phase"
+        elif [[ -n "$PHASE" ]]; then
+            validate_args="$validate_args --phase=$PHASE"
+            backup_args="$backup_args --phase=$PHASE"
+        fi
+    fi
 
     # Deploy environment
     log INFO "Deploying test environment..."
-    if "$PROJECT_ROOT/scripts/lifecycle/setup.sh" --env="$test_env" --template="$test_template" --auto-approve &>/dev/null; then
+    if "$PROJECT_ROOT/scripts/lifecycle/setup.sh" $setup_args &>/dev/null; then
         log INFO "✓ Environment deployment succeeded"
 
         # Validate deployment
         log INFO "Validating deployment..."
-        if "$PROJECT_ROOT/scripts/validate.sh" --env="$test_env" --quick &>/dev/null; then
+        if "$PROJECT_ROOT/scripts/validate.sh" $validate_args &>/dev/null; then
             log INFO "✓ Environment validation passed"
         else
             log WARN "! Environment validation had issues"
@@ -592,7 +710,7 @@ test_integration_environment_lifecycle() {
 
         # Test backup
         log INFO "Testing backup..."
-        if "$PROJECT_ROOT/scripts/lifecycle/backup.sh" --env="$test_env" --auto --backup-name="integration-test" &>/dev/null; then
+        if "$PROJECT_ROOT/scripts/lifecycle/backup.sh" $backup_args &>/dev/null; then
             log INFO "✓ Backup completed successfully"
         else
             log WARN "! Backup had issues"
@@ -601,7 +719,7 @@ test_integration_environment_lifecycle() {
         # Cleanup
         if [[ "$CLEANUP_AFTER" == "true" ]]; then
             log INFO "Cleaning up test environment..."
-            if "$PROJECT_ROOT/scripts/lifecycle/teardown.sh" --env="$test_env" --confirm --force --no-backup &>/dev/null; then
+            if "$PROJECT_ROOT/scripts/lifecycle/teardown.sh" $teardown_args &>/dev/null; then
                 log INFO "✓ Environment teardown succeeded"
             else
                 log ERROR "✗ Environment teardown failed - manual cleanup may be required"
@@ -1011,6 +1129,14 @@ main() {
                 TEST_TIMEOUT="${1#*=}"
                 shift
                 ;;
+            --phase=*)
+                PHASE="${1#*=}"
+                shift
+                ;;
+            --two-phase)
+                TWO_PHASE=true
+                shift
+                ;;
             --output-dir=*)
                 OUTPUT_DIR="${1#*=}"
                 shift
@@ -1033,12 +1159,26 @@ main() {
         exit 1
     fi
 
+    # Validate phase if specified
+    if [[ -n "$PHASE" && ! "$PHASE" =~ ^(infra|coder)$ ]]; then
+        log ERROR "Invalid phase: $PHASE. Must be one of: infra, coder"
+        exit 1
+    fi
+
+    # Validate phase options compatibility
+    if [[ "$TWO_PHASE" == true && -n "$PHASE" ]]; then
+        log ERROR "Cannot specify both --two-phase and --phase options"
+        exit 1
+    fi
+
     print_banner
     setup_test_environment
 
     log INFO "Starting test suite: $TEST_SUITE"
     log INFO "Test environment: $ENVIRONMENT"
     log INFO "Parallel testing: $PARALLEL_TESTS"
+    [[ "$TWO_PHASE" == true ]] && log INFO "🔄 Two-phase testing enabled (infra + coder)"
+    [[ -n "$PHASE" ]] && log INFO "⚙️ Phase-specific testing: $PHASE"
 
     # Run selected test suite
     case "$TEST_SUITE" in

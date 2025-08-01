@@ -28,6 +28,8 @@ FIX_ISSUES=false
 TIMEOUT=300
 LOG_FILE=""
 AUDIT_RESULTS=()
+PHASE=""
+TWO_PHASE=false
 
 # Security thresholds and configurations
 get_security_standard() {
@@ -55,11 +57,13 @@ print_usage() {
     cat << EOF
 Usage: $0 [OPTIONS]
 
-Comprehensive security audit for Coder on Scaleway environments.
+Comprehensive security audit for Coder on Scaleway environments with two-phase support.
 Validates cluster security, network policies, RBAC, compliance, and more.
 
 Options:
     --env=ENV                   Environment to audit (dev|staging|prod|all) [required]
+    --phase=PHASE               Specific phase to audit (infra|coder) for two-phase environments
+    --two-phase                 Audit both phases (infra and coder) for two-phase environments
     --format=FORMAT             Output format (table|json|html|csv) [default: table]
     --output=FILE               Save results to file
     --detailed                  Include detailed security analysis
@@ -70,9 +74,16 @@ Options:
     --help                      Show this help message
 
 Examples:
+    # Legacy single-phase audit
     $0 --env=prod --format=json --output=security-report.json
     $0 --env=staging --comprehensive --compliance=cis
     $0 --env=dev --detailed --fix
+
+    # Two-phase audit
+    $0 --env=dev --two-phase --comprehensive
+    $0 --env=prod --phase=infra --format=json
+    $0 --env=staging --phase=coder --detailed
+
     $0 --env=all --format=html --output=security-audit.html
 
 Security Checks:
@@ -91,6 +102,15 @@ Environment Security Levels:
     • Development: Baseline security (Pod Security Standard: baseline)
     • Staging: Baseline security with enhanced monitoring
     • Production: Restricted security (Pod Security Standard: restricted)
+
+Two-Phase Architecture:
+    This script automatically detects environment structure:
+    - Legacy: Single main.tf in environments/<env>/
+    - Two-Phase: Separate infra/ and coder/ directories
+
+    For two-phase environments:
+    - infra/: Infrastructure security audit (cluster, networking, RBAC)
+    - coder/: Application security audit (Coder platform, workspaces)
 
 EOF
 }
@@ -140,6 +160,22 @@ add_audit_result() {
     AUDIT_RESULTS+=("$category|$check|$severity|$status|$message|$recommendation|$details")
 }
 
+# Detect environment structure
+detect_environment_structure() {
+    local env="$1"
+    local env_dir="${PROJECT_ROOT}/environments/${env}"
+    local infra_dir="${env_dir}/infra"
+    local coder_dir="${env_dir}/coder"
+
+    if [[ -d "$infra_dir" && -d "$coder_dir" ]]; then
+        echo "two-phase"
+    elif [[ -f "${env_dir}/main.tf" ]]; then
+        echo "legacy"
+    else
+        echo "unknown"
+    fi
+}
+
 validate_environment() {
     if [[ "$ENVIRONMENT" == "all" ]]; then
         return 0
@@ -160,6 +196,22 @@ validate_environment() {
     if [[ ! -d "$env_dir" ]]; then
         log ERROR "Environment directory not found: $env_dir"
         exit 1
+    fi
+
+    # Validate phase options against environment structure
+    local structure=$(detect_environment_structure "$ENVIRONMENT")
+    if [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == false && -z "$PHASE" ]]; then
+            log ERROR "Two-phase environment detected but no phase specified"
+            log ERROR "Use --phase=[infra|coder] or --two-phase flag"
+            exit 1
+        fi
+    elif [[ "$structure" == "legacy" ]]; then
+        if [[ "$TWO_PHASE" == true || -n "$PHASE" ]]; then
+            log ERROR "Legacy single-phase environment detected, but two-phase options specified"
+            log ERROR "Remove --phase or --two-phase flags for legacy environments"
+            exit 1
+        fi
     fi
 }
 
@@ -183,21 +235,51 @@ check_prerequisites() {
     log INFO "✅ Prerequisites validated"
 }
 
-audit_pod_security_standards() {
+# Audit Pod Security Standards for a specific phase
+audit_phase_pod_security_standards() {
     local env_name="$1"
-    log STEP "Auditing Pod Security Standards for: $env_name"
+    local phase="$2"
+    log STEP "Auditing Pod Security Standards for $phase phase: $env_name"
 
-    local kubeconfig="${HOME}/.kube/config-coder-${env_name}"
+    local kubeconfig
+    if [[ "$phase" == "infra" ]]; then
+        # Infrastructure phase may not have direct pod resources to audit
+        # But we still check cluster-level security configurations
+        kubeconfig="${HOME}/.kube/config-coder-${env_name}"
+    else
+        # Coder phase - main application security audit
+        kubeconfig="${HOME}/.kube/config-coder-${env_name}"
+    fi
+
     if [[ ! -f "$kubeconfig" ]]; then
-        add_audit_result "pod_security" "kubeconfig" "HIGH" "FAIL" "Kubeconfig not found" "Deploy environment first" "$kubeconfig"
+        add_audit_result "pod_security" "kubeconfig_$phase" "HIGH" "FAIL" "Kubeconfig not found for $phase phase" "Deploy $phase phase first" "$kubeconfig"
         return 1
     fi
 
     export KUBECONFIG="$kubeconfig"
     local expected_standard=$(get_security_standard "$env_name")
 
+    # Phase-specific namespace checks
+    local namespaces
+    if [[ "$phase" == "infra" ]]; then
+        namespaces=("kube-system" "monitoring")
+    else
+        namespaces=("coder")
+    fi
+
+    # Continue with existing Pod Security Standards logic...
+    audit_pod_security_standards_impl "$env_name" "$phase" "${namespaces[@]}"
+}
+
+# Implementation of Pod Security Standards audit
+audit_pod_security_standards_impl() {
+    local env_name="$1"
+    local phase="$2"
+    shift 2
+    local namespaces=("$@")
+    local expected_standard=$(get_security_standard "$env_name")
+
     # Check namespace security labels
-    local namespaces=("coder" "monitoring" "kube-system")
     for ns in "${namespaces[@]}"; do
         if kubectl get namespace "$ns" &>/dev/null; then
             local enforce_level=$(kubectl get namespace "$ns" -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}' 2>/dev/null || echo "")
@@ -206,23 +288,34 @@ audit_pod_security_standards() {
 
             if [[ "$ns" == "coder" ]]; then
                 if [[ "$enforce_level" == "$expected_standard" ]]; then
-                    add_audit_result "pod_security" "namespace_$ns" "MEDIUM" "PASS" "Pod Security Standard correctly enforced" "" "$enforce_level"
-                    log PASS "Namespace $ns has correct Pod Security Standard: $enforce_level"
+                    add_audit_result "pod_security" "namespace_${ns}_${phase}" "MEDIUM" "PASS" "Pod Security Standard correctly enforced" "" "$enforce_level"
+                    log PASS "Namespace $ns ($phase phase) has correct Pod Security Standard: $enforce_level"
                 else
-                    add_audit_result "pod_security" "namespace_$ns" "HIGH" "FAIL" "Incorrect Pod Security Standard" "Set enforce=$expected_standard" "current=$enforce_level, expected=$expected_standard"
-                    log FAIL "Namespace $ns has incorrect Pod Security Standard: $enforce_level (expected: $expected_standard)"
+                    add_audit_result "pod_security" "namespace_${ns}_${phase}" "HIGH" "FAIL" "Incorrect Pod Security Standard" "Set enforce=$expected_standard" "current=$enforce_level, expected=$expected_standard"
+                    log FAIL "Namespace $ns ($phase phase) has incorrect Pod Security Standard: $enforce_level (expected: $expected_standard)"
                 fi
             else
                 if [[ -n "$enforce_level" ]]; then
-                    add_audit_result "pod_security" "namespace_$ns" "LOW" "PASS" "Pod Security Standard configured" "" "$enforce_level"
-                    log PASS "Namespace $ns has Pod Security Standard: $enforce_level"
+                    add_audit_result "pod_security" "namespace_${ns}_${phase}" "LOW" "PASS" "Pod Security Standard configured" "" "$enforce_level"
+                    log PASS "Namespace $ns ($phase phase) has Pod Security Standard: $enforce_level"
                 else
-                    add_audit_result "pod_security" "namespace_$ns" "MEDIUM" "WARN" "No Pod Security Standard set" "Configure appropriate standard" ""
-                    log WARN "Namespace $ns has no Pod Security Standard configured"
+                    add_audit_result "pod_security" "namespace_${ns}_${phase}" "MEDIUM" "WARN" "No Pod Security Standard set" "Configure appropriate standard" ""
+                    log WARN "Namespace $ns ($phase phase) has no Pod Security Standard configured"
                 fi
             fi
         fi
     done
+
+    # Continue with pod security context checks...
+    audit_pod_security_contexts "$env_name" "$phase" "${namespaces[@]}"
+}
+
+# Audit pod security contexts
+audit_pod_security_contexts() {
+    local env_name="$1"
+    local phase="$2"
+    shift 2
+    local namespaces=("$@")
 
     # Check running pods for security context compliance
     local pods_with_issues=0
@@ -244,15 +337,15 @@ audit_pod_security_standards() {
 
                     if [[ "$runs_as_non_root" != "true" && "$run_as_user" == "null" ]]; then
                         ((pods_with_issues++))
-                        add_audit_result "pod_security" "pod_$pod" "MEDIUM" "WARN" "Pod may run as root" "Set runAsNonRoot=true" "namespace=$ns"
+                        add_audit_result "pod_security" "pod_${pod}_${phase}" "MEDIUM" "WARN" "Pod may run as root" "Set runAsNonRoot=true" "namespace=$ns"
                     fi
 
                     # Check for privileged containers
                     local privileged_containers=$(echo "$pod_json" | jq -r '.spec.containers[]? | select(.securityContext.privileged == true) | .name' 2>/dev/null || echo "")
                     if [[ -n "$privileged_containers" ]]; then
                         ((pods_with_issues++))
-                        add_audit_result "pod_security" "pod_$pod" "HIGH" "FAIL" "Pod contains privileged containers" "Remove privileged=true" "namespace=$ns, containers=$privileged_containers"
-                        log FAIL "Pod $pod in namespace $ns has privileged containers: $privileged_containers"
+                        add_audit_result "pod_security" "pod_${pod}_${phase}" "HIGH" "FAIL" "Pod contains privileged containers" "Remove privileged=true" "namespace=$ns, containers=$privileged_containers"
+                        log FAIL "Pod $pod in namespace $ns ($phase phase) has privileged containers: $privileged_containers"
                     fi
                 fi
             done
@@ -262,11 +355,39 @@ audit_pod_security_standards() {
     if [[ $total_pods -gt 0 ]]; then
         local compliance_rate=$(( (total_pods - pods_with_issues) * 100 / total_pods ))
         if [[ $compliance_rate -ge 90 ]]; then
-            add_audit_result "pod_security" "overall_compliance" "LOW" "PASS" "Pod security compliance: $compliance_rate%" "" "$pods_with_issues/$total_pods pods with issues"
-            log PASS "Pod security compliance: $compliance_rate% ($pods_with_issues/$total_pods pods with issues)"
+            add_audit_result "pod_security" "overall_compliance_${phase}" "LOW" "PASS" "Pod security compliance ($phase): $compliance_rate%" "" "$pods_with_issues/$total_pods pods with issues"
+            log PASS "Pod security compliance ($phase phase): $compliance_rate% ($pods_with_issues/$total_pods pods with issues)"
         else
-            add_audit_result "pod_security" "overall_compliance" "MEDIUM" "WARN" "Pod security compliance: $compliance_rate%" "Review and fix pod security contexts" "$pods_with_issues/$total_pods pods with issues"
-            log WARN "Pod security compliance: $compliance_rate% ($pods_with_issues/$total_pods pods with issues)"
+            add_audit_result "pod_security" "overall_compliance_${phase}" "MEDIUM" "WARN" "Pod security compliance ($phase): $compliance_rate%" "Review and fix pod security contexts" "$pods_with_issues/$total_pods pods with issues"
+            log WARN "Pod security compliance ($phase phase): $compliance_rate% ($pods_with_issues/$total_pods pods with issues)"
+        fi
+    fi
+}
+
+audit_pod_security_standards() {
+    local env_name="$1"
+    local structure=$(detect_environment_structure "$env_name")
+
+    if [[ "$structure" == "legacy" ]]; then
+        log STEP "Auditing Pod Security Standards for: $env_name"
+
+        local kubeconfig="${HOME}/.kube/config-coder-${env_name}"
+        if [[ ! -f "$kubeconfig" ]]; then
+            add_audit_result "pod_security" "kubeconfig" "HIGH" "FAIL" "Kubeconfig not found" "Deploy environment first" "$kubeconfig"
+            return 1
+        fi
+
+        export KUBECONFIG="$kubeconfig"
+        local expected_standard=$(get_security_standard "$env_name")
+        local namespaces=("coder" "monitoring" "kube-system")
+        audit_pod_security_standards_impl "$env_name" "legacy" "${namespaces[@]}"
+    elif [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == true ]]; then
+            log STEP "Auditing Pod Security Standards for two-phase environment: $env_name"
+            audit_phase_pod_security_standards "$env_name" "infra"
+            audit_phase_pod_security_standards "$env_name" "coder"
+        elif [[ -n "$PHASE" ]]; then
+            audit_phase_pod_security_standards "$env_name" "$PHASE"
         fi
     fi
 }
@@ -1010,17 +1131,29 @@ print_summary() {
     return $(( failed_checks > 0 ? 1 : 0 ))
 }
 
-run_audit_for_environment() {
+# Run security audit for a specific phase
+run_phase_audit() {
     local env_name="$1"
+    local phase="$2"
 
-    log INFO "Starting security audit for environment: $env_name"
+    log INFO "Starting security audit for $phase phase: $env_name"
 
-    # Core security checks
-    audit_pod_security_standards "$env_name"
+    # Phase-specific security checks
+    audit_phase_pod_security_standards "$env_name" "$phase"
+
+    # Network security is cluster-wide, so run for both phases but with phase context
     audit_network_security "$env_name"
+
+    # RBAC is cluster-wide
     audit_rbac "$env_name"
+
+    # Resource limits are namespace-specific
     audit_resource_limits "$env_name"
+
+    # Secrets management is namespace-specific
     audit_secrets_management "$env_name"
+
+    # Container security is namespace-specific
     audit_container_security "$env_name"
 
     # Compliance checks
@@ -1028,7 +1161,40 @@ run_audit_for_environment() {
         audit_compliance_cis "$env_name"
     fi
 
-    log INFO "✅ Security audit completed for: $env_name"
+    log INFO "✅ Security audit completed for $phase phase: $env_name"
+}
+
+run_audit_for_environment() {
+    local env_name="$1"
+    local structure=$(detect_environment_structure "$env_name")
+
+    if [[ "$structure" == "legacy" ]]; then
+        log INFO "Starting security audit for legacy environment: $env_name"
+
+        # Core security checks
+        audit_pod_security_standards "$env_name"
+        audit_network_security "$env_name"
+        audit_rbac "$env_name"
+        audit_resource_limits "$env_name"
+        audit_secrets_management "$env_name"
+        audit_container_security "$env_name"
+
+        # Compliance checks
+        if [[ "$COMPLIANCE_LEVEL" == "cis" || "$COMPREHENSIVE" == "true" ]]; then
+            audit_compliance_cis "$env_name"
+        fi
+
+        log INFO "✅ Security audit completed for: $env_name"
+    elif [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == true ]]; then
+            log INFO "Starting two-phase security audit for environment: $env_name"
+            run_phase_audit "$env_name" "infra"
+            run_phase_audit "$env_name" "coder"
+            log INFO "✅ Two-phase security audit completed for: $env_name"
+        elif [[ -n "$PHASE" ]]; then
+            run_phase_audit "$env_name" "$PHASE"
+        fi
+    fi
 }
 
 main() {
@@ -1037,6 +1203,14 @@ main() {
         case $1 in
             --env=*)
                 ENVIRONMENT="${1#*=}"
+                shift
+                ;;
+            --phase=*)
+                PHASE="${1#*=}"
+                shift
+                ;;
+            --two-phase)
+                TWO_PHASE=true
                 shift
                 ;;
             --format=*)
@@ -1086,6 +1260,18 @@ main() {
         exit 1
     fi
 
+    # Validate phase if specified
+    if [[ -n "$PHASE" && ! "$PHASE" =~ ^(infra|coder)$ ]]; then
+        log ERROR "Invalid phase: $PHASE. Must be one of: infra, coder"
+        exit 1
+    fi
+
+    # Validate phase options compatibility
+    if [[ "$TWO_PHASE" == true && -n "$PHASE" ]]; then
+        log ERROR "Cannot specify both --two-phase and --phase options"
+        exit 1
+    fi
+
     print_banner
     setup_logging
     check_prerequisites
@@ -1094,6 +1280,13 @@ main() {
     [[ "$DETAILED" == "true" ]] && log INFO "🔍 Running detailed audit"
     [[ "$COMPREHENSIVE" == "true" ]] && log INFO "🎯 Running comprehensive audit"
     [[ -n "$COMPLIANCE_LEVEL" ]] && log INFO "📋 Compliance framework: $COMPLIANCE_LEVEL"
+
+    # Log audit configuration
+    if [[ "$TWO_PHASE" == true ]]; then
+        log INFO "🔄 Two-phase audit enabled (infra + coder)"
+    elif [[ -n "$PHASE" ]]; then
+        log INFO "⚙️ Phase-specific audit: $PHASE"
+    fi
 
     validate_environment
 

@@ -29,6 +29,8 @@ PRE_DESTROY=false
 RETENTION_DAYS=30
 LOG_FILE=""
 START_TIME=$(date +%s)
+PHASE=""
+TWO_PHASE=false
 
 print_banner() {
     echo -e "${BLUE}"
@@ -46,10 +48,12 @@ print_usage() {
 Usage: $0 [OPTIONS]
 
 Create comprehensive backups of Coder environments including infrastructure
-state, configuration, data, and templates.
+state, configuration, data, and templates with two-phase support.
 
 Options:
     --env=ENV               Environment to backup (dev|staging|prod|all) [required]
+    --phase=PHASE           Specific phase to backup (infra|coder) for two-phase environments
+    --two-phase             Backup both phases (infra and coder) for two-phase environments
     --backup-name=NAME      Custom backup name (default: timestamp-based)
     --include-data          Include workspace data and databases
     --include-templates     Include workspace templates
@@ -62,13 +66,29 @@ Options:
     --help                 Show this help message
 
 Examples:
+    # Legacy single-phase backup
     $0 --env=dev --include-data
     $0 --env=prod --include-all
+
+    # Two-phase backup
+    $0 --env=dev --two-phase --include-all
+    $0 --env=staging --phase=infra --include-data
+    $0 --env=prod --phase=coder --backup-name="coder-maintenance-$(date +%Y%m%d)"
+
     $0 --env=prod --pre-destroy --backup-name="maintenance-$(date +%Y%m%d)"
     $0 --env=all --auto --retention-days=90
 
+Two-Phase Architecture:
+    This script automatically detects environment structure:
+    - Legacy: Single main.tf in environments/<env>/
+    - Two-Phase: Separate infra/ and coder/ directories
+
+    For two-phase environments:
+    - infra/: Infrastructure backup (cluster, database, networking state)
+    - coder/: Application backup (Coder platform state, templates)
+
 Backup Contents:
-    • Terraform state and configuration
+    • Terraform state and configuration (phase-specific for two-phase)
     • Kubernetes manifests and secrets
     • Database dumps (if --include-data)
     • Workspace persistent volumes (if --include-data)
@@ -147,48 +167,130 @@ prepare_backup_directory() {
     echo "$backup_path" # Return path for other functions
 }
 
+# Detect environment structure
+detect_environment_structure() {
+    local env="$1"
+    local env_dir="${PROJECT_ROOT}/environments/${env}"
+    local infra_dir="${env_dir}/infra"
+    local coder_dir="${env_dir}/coder"
+
+    if [[ -d "$infra_dir" && -d "$coder_dir" ]]; then
+        echo "two-phase"
+    elif [[ -f "${env_dir}/main.tf" ]]; then
+        echo "legacy"
+    else
+        echo "unknown"
+    fi
+}
+
+# Backup infrastructure for a specific phase
+backup_phase_infrastructure() {
+    local env_name="$1"
+    local phase="$2"
+    local backup_path="$3"
+
+    log STEP "Backing up $phase phase infrastructure for environment: $env_name"
+
+    local env_dir="${PROJECT_ROOT}/environments/${env_name}"
+    local phase_dir="${env_dir}/${phase}"
+    local phase_backup="${backup_path}/infrastructure/${env_name}/${phase}"
+    mkdir -p "$phase_backup"
+
+    if [[ ! -d "$phase_dir" ]]; then
+        log WARN "Phase directory not found: $phase_dir"
+        return 0
+    fi
+
+    # Backup phase Terraform files
+    log INFO "Copying $phase phase Terraform configuration..."
+    cp -r "$phase_dir" "$phase_backup/"
+
+    # Backup local state if it exists
+    if [[ -f "${phase_dir}/terraform.tfstate" ]]; then
+        log INFO "Backing up $phase phase local Terraform state..."
+        cp "${phase_dir}/terraform.tfstate" "${phase_backup}/"
+    fi
+
+    # Backup state backup files
+    if ls "${phase_dir}"/terraform.tfstate.backup* &> /dev/null; then
+        cp "${phase_dir}"/terraform.tfstate.backup* "${phase_backup}/" 2>/dev/null || true
+    fi
+
+    # Export Terraform outputs from remote state if available
+    local outputs_file="${phase_backup}/terraform-outputs.json"
+    cd "$phase_dir"
+    if terraform init -input=false &>/dev/null && terraform output -json > "$outputs_file" 2>/dev/null; then
+        log INFO "Exported $phase phase Terraform outputs"
+    else
+        echo "{}" > "$outputs_file"
+        log WARN "Could not export $phase phase Terraform outputs"
+    fi
+    cd - &> /dev/null
+
+    log INFO "✅ $phase phase infrastructure backup completed for: $env_name"
+}
+
 backup_infrastructure() {
     local env_name="$1"
     local backup_path="$2"
+    local structure=$(detect_environment_structure "$env_name")
 
-    log STEP "Backing up infrastructure for environment: $env_name"
+    if [[ "$structure" == "legacy" ]]; then
+        log STEP "Backing up infrastructure for environment: $env_name"
 
-    local env_dir="${PROJECT_ROOT}/environments/${env_name}"
-    local infra_backup="${backup_path}/infrastructure/${env_name}"
-    mkdir -p "$infra_backup"
+        local env_dir="${PROJECT_ROOT}/environments/${env_name}"
+        local infra_backup="${backup_path}/infrastructure/${env_name}"
+        mkdir -p "$infra_backup"
 
-    # Backup Terraform files
-    if [[ -d "$env_dir" ]]; then
-        log INFO "Copying Terraform configuration..."
-        cp -r "$env_dir" "$infra_backup/"
+        # Backup Terraform files
+        if [[ -d "$env_dir" ]]; then
+            log INFO "Copying Terraform configuration..."
+            cp -r "$env_dir" "$infra_backup/"
 
-        # Backup Terraform state
-        if [[ -f "${env_dir}/terraform.tfstate" ]]; then
-            log INFO "Backing up Terraform state..."
-            cp "${env_dir}/terraform.tfstate" "${infra_backup}/"
+            # Backup Terraform state
+            if [[ -f "${env_dir}/terraform.tfstate" ]]; then
+                log INFO "Backing up Terraform state..."
+                cp "${env_dir}/terraform.tfstate" "${infra_backup}/"
+            fi
+
+            # Backup state backup files
+            if ls "${env_dir}"/terraform.tfstate.backup* &> /dev/null; then
+                cp "${env_dir}"/terraform.tfstate.backup* "${infra_backup}/" 2>/dev/null || true
+            fi
         fi
 
-        # Backup state backup files
-        if ls "${env_dir}"/terraform.tfstate.backup* &> /dev/null; then
-            cp "${env_dir}"/terraform.tfstate.backup* "${infra_backup}/" 2>/dev/null || true
+        # Export Terraform outputs
+        local outputs_file="${infra_backup}/terraform-outputs.json"
+        if [[ -f "${env_dir}/terraform.tfstate" ]] || [[ -f "${env_dir}/backend.tf" ]]; then
+            cd "$env_dir"
+            if terraform output -json > "$outputs_file" 2>/dev/null; then
+                log INFO "Exported Terraform outputs"
+            else
+                echo "{}" > "$outputs_file"
+                log WARN "Could not export Terraform outputs"
+            fi
+            cd - &> /dev/null
+        fi
+
+        log INFO "✅ Infrastructure backup completed for: $env_name"
+    elif [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == true ]]; then
+            log STEP "Backing up two-phase infrastructure for environment: $env_name"
+            backup_phase_infrastructure "$env_name" "infra" "$backup_path"
+            backup_phase_infrastructure "$env_name" "coder" "$backup_path"
+            log INFO "✅ Two-phase infrastructure backup completed for: $env_name"
+        elif [[ -n "$PHASE" ]]; then
+            backup_phase_infrastructure "$env_name" "$PHASE" "$backup_path"
         fi
     fi
 
-    # Backup shared configuration
+    # Backup shared configuration (common to all structures)
     if [[ -d "${PROJECT_ROOT}/shared" ]]; then
         log INFO "Backing up shared configuration..."
-        cp -r "${PROJECT_ROOT}/shared" "${infra_backup}/"
+        local shared_backup="${backup_path}/infrastructure/shared"
+        mkdir -p "$shared_backup"
+        cp -r "${PROJECT_ROOT}/shared" "$shared_backup/"
     fi
-
-    # Export Terraform outputs
-    local outputs_file="${infra_backup}/terraform-outputs.json"
-    if [[ -f "${env_dir}/terraform.tfstate" ]]; then
-        cd "$env_dir"
-        terraform output -json > "$outputs_file" 2>/dev/null || echo "{}" > "$outputs_file"
-        cd - &> /dev/null
-    fi
-
-    log INFO "✅ Infrastructure backup completed for: $env_name"
 }
 
 backup_kubernetes() {
@@ -713,6 +815,14 @@ main() {
                 BACKUP_DIR="${1#*=}"
                 shift
                 ;;
+            --phase=*)
+                PHASE="${1#*=}"
+                shift
+                ;;
+            --two-phase)
+                TWO_PHASE=true
+                shift
+                ;;
             --help)
                 print_usage
                 exit 0
@@ -731,6 +841,18 @@ main() {
         exit 1
     fi
 
+    # Validate phase if specified
+    if [[ -n "$PHASE" && ! "$PHASE" =~ ^(infra|coder)$ ]]; then
+        log ERROR "Invalid phase: $PHASE. Must be one of: infra, coder"
+        exit 1
+    fi
+
+    # Validate phase options compatibility
+    if [[ "$TWO_PHASE" == true && -n "$PHASE" ]]; then
+        log ERROR "Cannot specify both --two-phase and --phase options"
+        exit 1
+    fi
+
     print_banner
     setup_logging
 
@@ -740,7 +862,33 @@ main() {
     fi
 
     validate_environment
+
+    # Validate phase options against environment structure
+    if [[ "$ENVIRONMENT" != "all" ]]; then
+        local structure=$(detect_environment_structure "$ENVIRONMENT")
+        if [[ "$structure" == "two-phase" ]]; then
+            if [[ "$TWO_PHASE" == false && -z "$PHASE" ]]; then
+                log ERROR "Two-phase environment detected but no phase specified"
+                log ERROR "Use --phase=[infra|coder] or --two-phase flag"
+                exit 1
+            fi
+        elif [[ "$structure" == "legacy" ]]; then
+            if [[ "$TWO_PHASE" == true || -n "$PHASE" ]]; then
+                log ERROR "Legacy single-phase environment detected, but two-phase options specified"
+                log ERROR "Remove --phase or --two-phase flags for legacy environments"
+                exit 1
+            fi
+        fi
+    fi
+
     local backup_path=$(prepare_backup_directory)
+
+    # Log backup configuration
+    if [[ "$TWO_PHASE" == true ]]; then
+        log INFO "🔄 Two-phase backup enabled (infra + coder)"
+    elif [[ -n "$PHASE" ]]; then
+        log INFO "⚙️ Phase-specific backup: $PHASE"
+    fi
 
     # Process environments
     if [[ "$ENVIRONMENT" == "all" ]]; then

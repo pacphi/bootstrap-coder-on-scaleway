@@ -130,6 +130,20 @@ check_prerequisites() {
     log INFO "✅ Prerequisites met"
 }
 
+detect_environment_structure() {
+    local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+    local infra_dir="${env_dir}/infra"
+    local coder_dir="${env_dir}/coder"
+
+    if [[ -d "$infra_dir" && -d "$coder_dir" ]]; then
+        echo "two-phase"
+    elif [[ -f "${env_dir}/main.tf" ]]; then
+        echo "legacy"
+    else
+        echo "unknown"
+    fi
+}
+
 validate_environment() {
     log STEP "Validating environment configuration..."
 
@@ -149,24 +163,132 @@ validate_environment() {
         exit 1
     fi
 
-    # Check for backend configuration (remote state)
-    if [[ -f "${env_dir}/backend.tf" ]]; then
-        log INFO "Remote state backend configured: ${env_dir}/backend.tf"
-    elif [[ -f "${env_dir}/terraform.tfstate" ]]; then
-        log WARN "Local state found: ${env_dir}/terraform.tfstate"
-        log WARN "Consider migrating to remote state backend"
-    else
-        log WARN "No state configuration found in $env_dir"
-        log WARN "Environment may not be deployed"
-    fi
+    local structure=$(detect_environment_structure)
 
-    log INFO "✅ Environment validated"
+    case "$structure" in
+        two-phase)
+            log INFO "Two-phase environment structure detected"
+            local infra_dir="${env_dir}/infra"
+            local coder_dir="${env_dir}/coder"
+
+            # Check for infrastructure state configuration
+            if [[ -f "${infra_dir}/backend.tf" ]]; then
+                log INFO "Infrastructure remote state configured: ${infra_dir}/backend.tf"
+            elif [[ -f "${infra_dir}/terraform.tfstate" ]]; then
+                log WARN "Infrastructure local state found: ${infra_dir}/terraform.tfstate"
+            fi
+
+            # Check for coder state configuration
+            if [[ -f "${coder_dir}/backend.tf" ]]; then
+                log INFO "Coder remote state configured: ${coder_dir}/backend.tf"
+            elif [[ -f "${coder_dir}/terraform.tfstate" ]]; then
+                log WARN "Coder local state found: ${coder_dir}/terraform.tfstate"
+            fi
+            ;;
+        legacy)
+            log INFO "Legacy environment structure detected"
+            if [[ -f "${env_dir}/backend.tf" ]]; then
+                log INFO "Remote state backend configured: ${env_dir}/backend.tf"
+            elif [[ -f "${env_dir}/terraform.tfstate" ]]; then
+                log WARN "Local state found: ${env_dir}/terraform.tfstate"
+                log WARN "Consider migrating to remote state backend"
+            else
+                log WARN "No state configuration found in $env_dir"
+                log WARN "Environment may not be deployed"
+            fi
+            ;;
+        *)
+            log ERROR "Unknown environment structure in $env_dir"
+            log ERROR "Expected either two-phase (infra/ and coder/) or legacy (main.tf) structure"
+            exit 1
+            ;;
+    esac
+
+    log INFO "✅ Environment validated ($structure structure)"
 }
 
 check_active_resources() {
     log STEP "Checking for active resources and workspaces..."
 
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+    local structure=$(detect_environment_structure)
+
+    case "$structure" in
+        two-phase)
+            check_two_phase_resources "$env_dir"
+            ;;
+        legacy)
+            check_legacy_resources "$env_dir"
+            ;;
+        *)
+            log WARN "Unknown structure - skipping resource check"
+            ;;
+    esac
+
+    # Check for active Kubernetes workspaces if cluster exists
+    check_active_workspaces
+}
+
+check_two_phase_resources() {
+    local env_dir="$1"
+    log INFO "Checking two-phase deployment resources..."
+
+    # Check Coder resources first
+    local coder_dir="${env_dir}/coder"
+    if [[ -d "$coder_dir" ]]; then
+        log INFO "Checking Coder application resources..."
+        cd "$coder_dir"
+
+        if terraform init -input=false &> /dev/null && terraform state pull > /dev/null 2>&1; then
+            local coder_resource_count
+            coder_resource_count=$(terraform state list 2>/dev/null | wc -l || echo "0")
+
+            if [[ "$coder_resource_count" -gt 0 ]]; then
+                log WARN "Found $coder_resource_count Coder application resources:"
+                terraform state list 2>/dev/null | head -5 | while read -r resource; do
+                    log WARN "  - $resource"
+                done
+                if [[ "$coder_resource_count" -gt 5 ]]; then
+                    log WARN "  ... and $((coder_resource_count - 5)) more resources"
+                fi
+            else
+                log INFO "No Coder application resources found"
+            fi
+        else
+            log WARN "Cannot access Coder state - may not exist or be corrupted"
+        fi
+    fi
+
+    # Check Infrastructure resources
+    local infra_dir="${env_dir}/infra"
+    if [[ -d "$infra_dir" ]]; then
+        log INFO "Checking infrastructure resources..."
+        cd "$infra_dir"
+
+        if terraform init -input=false &> /dev/null && terraform state pull > /dev/null 2>&1; then
+            local infra_resource_count
+            infra_resource_count=$(terraform state list 2>/dev/null | wc -l || echo "0")
+
+            if [[ "$infra_resource_count" -gt 0 ]]; then
+                log WARN "Found $infra_resource_count infrastructure resources:"
+                terraform state list 2>/dev/null | head -5 | while read -r resource; do
+                    log WARN "  - $resource"
+                done
+                if [[ "$infra_resource_count" -gt 5 ]]; then
+                    log WARN "  ... and $((infra_resource_count - 5)) more resources"
+                fi
+            else
+                log INFO "No infrastructure resources found"
+            fi
+        else
+            log WARN "Cannot access infrastructure state - may not exist or be corrupted"
+        fi
+    fi
+}
+
+check_legacy_resources() {
+    local env_dir="$1"
+    log INFO "Checking legacy deployment resources..."
     cd "$env_dir"
 
     # Initialize Terraform to check state
@@ -198,8 +320,9 @@ check_active_resources() {
         log INFO "No active resources found in Terraform state"
         log INFO "Environment may already be destroyed or was never deployed"
     fi
+}
 
-    # Check for active Kubernetes workspaces if cluster exists
+check_active_workspaces() {
     local kubeconfig="${HOME}/.kube/config-coder-${ENVIRONMENT}"
     if [[ -f "$kubeconfig" ]]; then
         export KUBECONFIG="$kubeconfig"
@@ -447,6 +570,117 @@ terraform_destroy() {
     log STEP "Destroying infrastructure with Terraform..."
 
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+    local structure=$(detect_environment_structure)
+
+    case "$structure" in
+        two-phase)
+            terraform_destroy_two_phase "$env_dir"
+            ;;
+        legacy)
+            terraform_destroy_legacy "$env_dir"
+            ;;
+        *)
+            log ERROR "Unknown environment structure - cannot proceed with teardown"
+            return 1
+            ;;
+    esac
+}
+
+terraform_destroy_two_phase() {
+    local env_dir="$1"
+    log INFO "Two-phase teardown: Coder first, then infrastructure"
+
+    # Phase 1: Destroy Coder application first
+    local coder_dir="${env_dir}/coder"
+    if [[ -d "$coder_dir" ]]; then
+        log STEP "Phase 1: Destroying Coder application..."
+        cd "$coder_dir"
+
+        if terraform init -input=false &> /dev/null && terraform state pull > /dev/null 2>&1; then
+            local coder_resource_count=$(terraform state list 2>/dev/null | wc -l || echo "0")
+
+            if [[ "$coder_resource_count" -gt 0 ]]; then
+                log DANGER "🔥 Destroying Coder application ($coder_resource_count resources)..."
+
+                # Create destroy plan for Coder
+                local coder_destroy_plan="${coder_dir}/coder-destroy-plan"
+                if terraform plan -destroy -out="$coder_destroy_plan"; then
+                    terraform apply "$coder_destroy_plan" || {
+                        log ERROR "Coder destruction failed"
+                        log ERROR "Some Coder resources may still exist"
+                        if [[ "$FORCE" == "false" ]]; then
+                            return 1
+                        fi
+                    }
+                    rm -f "$coder_destroy_plan"
+                    log INFO "✅ Coder application destroyed"
+                else
+                    log ERROR "Failed to create Coder destroy plan"
+                    if [[ "$FORCE" == "false" ]]; then
+                        return 1
+                    fi
+                fi
+            else
+                log INFO "No Coder resources to destroy"
+            fi
+        else
+            log INFO "Coder state not accessible - may already be destroyed"
+        fi
+    else
+        log INFO "No Coder directory found - skipping Coder teardown"
+    fi
+
+    # Phase 2: Destroy infrastructure
+    local infra_dir="${env_dir}/infra"
+    if [[ -d "$infra_dir" ]]; then
+        log STEP "Phase 2: Destroying infrastructure..."
+        cd "$infra_dir"
+
+        if terraform init -input=false &> /dev/null && terraform state pull > /dev/null 2>&1; then
+            local infra_resource_count=$(terraform state list 2>/dev/null | wc -l || echo "0")
+
+            if [[ "$infra_resource_count" -gt 0 ]]; then
+                log DANGER "🔥 Destroying infrastructure ($infra_resource_count resources)..."
+
+                # Refresh state
+                terraform refresh \
+                    -var="scaleway_organization_id=${SCW_DEFAULT_ORGANIZATION_ID:-}" \
+                    -var="scaleway_project_id=${SCW_DEFAULT_PROJECT_ID}" || true
+
+                # Create destroy plan for infrastructure
+                local infra_destroy_plan="${infra_dir}/infra-destroy-plan"
+                if terraform plan -destroy -out="$infra_destroy_plan" \
+                    -var="scaleway_organization_id=${SCW_DEFAULT_ORGANIZATION_ID:-}" \
+                    -var="scaleway_project_id=${SCW_DEFAULT_PROJECT_ID}"; then
+
+                    terraform apply "$infra_destroy_plan" || {
+                        log ERROR "Infrastructure destruction failed"
+                        log ERROR "Some infrastructure resources may still exist - check Scaleway console"
+                        return 1
+                    }
+                    rm -f "$infra_destroy_plan"
+                    log INFO "✅ Infrastructure destroyed"
+                else
+                    log ERROR "Failed to create infrastructure destroy plan"
+                    return 1
+                fi
+            else
+                log INFO "No infrastructure resources to destroy"
+            fi
+        else
+            log INFO "Infrastructure state not accessible - may already be destroyed"
+        fi
+    else
+        log ERROR "No infrastructure directory found"
+        return 1
+    fi
+
+    log INFO "✅ Two-phase destruction completed"
+}
+
+terraform_destroy_legacy() {
+    local env_dir="$1"
+    log INFO "Legacy teardown: Single-phase destruction"
     cd "$env_dir"
 
     # Refresh state
@@ -474,13 +708,14 @@ terraform_destroy() {
     # Clean up plan file
     rm -f "$destroy_plan"
 
-    log INFO "✅ Infrastructure destruction completed"
+    log INFO "✅ Legacy infrastructure destruction completed"
 }
 
 cleanup_local_state() {
     log STEP "Cleaning up local artifacts and configuration..."
 
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+    local structure=$(detect_environment_structure)
 
     # Remove kubeconfig
     local kubeconfig="${HOME}/.kube/config-coder-${ENVIRONMENT}"
@@ -489,54 +724,130 @@ cleanup_local_state() {
         log INFO "Removed kubeconfig: $kubeconfig"
     fi
 
-    # Create backup of state before cleanup (if using remote state)
+    # Create backup of state before cleanup
     local archive_dir="${PROJECT_ROOT}/archives/teardown/$(date +%Y%m%d-%H%M%S)-${ENVIRONMENT}"
     mkdir -p "$archive_dir"
 
-    # For remote state, pull and backup the final state
-    if [[ -f "${env_dir}/backend.tf" ]]; then
-        log INFO "Backing up final remote state..."
-        if terraform state pull > "${archive_dir}/final-terraform.tfstate" 2>/dev/null; then
-            log INFO "Final state backed up to: $archive_dir/final-terraform.tfstate"
-        else
-            log INFO "No remote state to backup (likely already destroyed)"
-        fi
-    elif [[ -f "${env_dir}/terraform.tfstate" ]]; then
-        # Archive local state if it exists
-        cp "${env_dir}/terraform.tfstate" "$archive_dir/"
-        log INFO "Archived local Terraform state to: $archive_dir"
-    fi
+    case "$structure" in
+        two-phase)
+            cleanup_two_phase_state "$env_dir" "$archive_dir"
+            ;;
+        legacy)
+            cleanup_legacy_state "$env_dir" "$archive_dir"
+            ;;
+    esac
 
     # Create cleanup summary
     cat > "${archive_dir}/teardown-summary.txt" << EOF
 Teardown Summary for Environment: ${ENVIRONMENT}
 Date: $(date)
 Script: $0
+Structure: $structure
 
 Environment Directory: ${env_dir}
-Backend Configuration: $(test -f "${env_dir}/backend.tf" && echo "Remote (backend.tf)" || echo "Local")
 Kubeconfig Removed: $(test -f "$kubeconfig" && echo "No" || echo "Yes")
 
 Cleanup Actions Performed:
 - Removed kubeconfig: $kubeconfig
-- Backed up final state
-- Cleaned up .terraform directory
-- Removed any temporary files
+- Backed up final state(s)
+- Cleaned up .terraform directories
+- Removed temporary files
 
 EOF
 
+    log INFO "✅ Local cleanup completed"
+    log INFO "Archive location: $archive_dir"
+}
+
+cleanup_two_phase_state() {
+    local env_dir="$1"
+    local archive_dir="$2"
+
+    # Backup Coder state
+    local coder_dir="${env_dir}/coder"
+    if [[ -d "$coder_dir" ]]; then
+        cd "$coder_dir"
+        if [[ -f "backend.tf" ]]; then
+            log INFO "Backing up final Coder remote state..."
+            if terraform state pull > "${archive_dir}/final-coder-terraform.tfstate" 2>/dev/null; then
+                log INFO "Coder state backed up to: $archive_dir/final-coder-terraform.tfstate"
+            else
+                log INFO "No Coder remote state to backup (likely already destroyed)"
+            fi
+        elif [[ -f "terraform.tfstate" ]]; then
+            cp "terraform.tfstate" "$archive_dir/final-coder-terraform.tfstate"
+            log INFO "Archived Coder local state to: $archive_dir"
+        fi
+
+        # Clean up Coder .terraform directory
+        if [[ -d ".terraform" ]]; then
+            rm -rf ".terraform"
+            log INFO "Cleaned up Coder .terraform directory"
+        fi
+
+        # Remove temporary files
+        find . -name "*-destroy-plan" -type f -delete 2>/dev/null || true
+        find . -name "*.tfplan" -type f -delete 2>/dev/null || true
+    fi
+
+    # Backup Infrastructure state
+    local infra_dir="${env_dir}/infra"
+    if [[ -d "$infra_dir" ]]; then
+        cd "$infra_dir"
+        if [[ -f "backend.tf" ]]; then
+            log INFO "Backing up final infrastructure remote state..."
+            if terraform state pull > "${archive_dir}/final-infra-terraform.tfstate" 2>/dev/null; then
+                log INFO "Infrastructure state backed up to: $archive_dir/final-infra-terraform.tfstate"
+            else
+                log INFO "No infrastructure remote state to backup (likely already destroyed)"
+            fi
+        elif [[ -f "terraform.tfstate" ]]; then
+            cp "terraform.tfstate" "$archive_dir/final-infra-terraform.tfstate"
+            log INFO "Archived infrastructure local state to: $archive_dir"
+        fi
+
+        # Clean up Infrastructure .terraform directory
+        if [[ -d ".terraform" ]]; then
+            rm -rf ".terraform"
+            log INFO "Cleaned up infrastructure .terraform directory"
+        fi
+
+        # Remove temporary files
+        find . -name "*-destroy-plan" -type f -delete 2>/dev/null || true
+        find . -name "*.tfplan" -type f -delete 2>/dev/null || true
+    fi
+}
+
+cleanup_legacy_state() {
+    local env_dir="$1"
+    local archive_dir="$2"
+
+    cd "$env_dir"
+
+    # For remote state, pull and backup the final state
+    if [[ -f "backend.tf" ]]; then
+        log INFO "Backing up final remote state..."
+        if terraform state pull > "${archive_dir}/final-terraform.tfstate" 2>/dev/null; then
+            log INFO "Final state backed up to: $archive_dir/final-terraform.tfstate"
+        else
+            log INFO "No remote state to backup (likely already destroyed)"
+        fi
+    elif [[ -f "terraform.tfstate" ]]; then
+        # Archive local state if it exists
+        cp "terraform.tfstate" "$archive_dir/"
+        log INFO "Archived local Terraform state to: $archive_dir"
+    fi
+
     # Remove .terraform directory but preserve source files
-    if [[ -d "${env_dir}/.terraform" ]]; then
-        rm -rf "${env_dir}/.terraform"
+    if [[ -d ".terraform" ]]; then
+        rm -rf ".terraform"
         log INFO "Cleaned up .terraform directory"
     fi
 
     # Remove any temporary files from teardown
-    find "$env_dir" -name "*.tfplan" -type f -delete 2>/dev/null || true
-    find "$env_dir" -name "*.log" -type f -delete 2>/dev/null || true
-
-    log INFO "✅ Local cleanup completed"
-    log INFO "Archive location: $archive_dir"
+    find . -name "*-destroy-plan" -type f -delete 2>/dev/null || true
+    find . -name "*.tfplan" -type f -delete 2>/dev/null || true
+    find . -name "*.log" -type f -delete 2>/dev/null || true
 }
 
 run_post_teardown_hooks() {
@@ -614,15 +925,23 @@ validate_complete_destruction() {
 print_summary() {
     log STEP "Teardown Summary"
 
+    local structure=$(detect_environment_structure)
     local end_time=$(date +%s)
     local duration=$((end_time - START_TIME))
     local duration_min=$((duration / 60))
     local duration_sec=$((duration % 60))
 
     echo
-    echo -e "${GREEN}💥 Teardown completed! 💥${NC}"
-    echo
-    echo -e "${WHITE}Environment:${NC} $ENVIRONMENT"
+    if [[ "$structure" == "two-phase" ]]; then
+        echo -e "${GREEN}💥 Two-Phase Teardown completed! 💥${NC}"
+        echo
+        echo -e "${WHITE}Environment:${NC} $ENVIRONMENT (Two-Phase Structure)"
+    else
+        echo -e "${GREEN}💥 Legacy Teardown completed! 💥${NC}"
+        echo
+        echo -e "${WHITE}Environment:${NC} $ENVIRONMENT (Legacy Structure)"
+    fi
+
     echo -e "${WHITE}Duration:${NC} ${duration_min}m ${duration_sec}s"
 
     case "$ENVIRONMENT" in
@@ -632,18 +951,37 @@ print_summary() {
     esac
 
     echo
-    echo -e "${YELLOW}📋 What was destroyed:${NC}"
-    echo "   ✓ Kubernetes cluster and all nodes"
-    echo "   ✓ PostgreSQL database and data"
-    echo "   ✓ Load balancers and networking"
-    echo "   ✓ Storage volumes"
-    echo "   ✓ All Coder workspaces and templates"
+    if [[ "$structure" == "two-phase" ]]; then
+        echo -e "${YELLOW}📋 What was destroyed (Two-Phase):${NC}"
+        echo "   Phase 1: Coder Application"
+        echo "   ✓ All Coder workspaces and templates"
+        echo "   ✓ Coder application pods and services"
+        echo "   ✓ Persistent volume claims"
+        echo ""
+        echo "   Phase 2: Infrastructure"
+        echo "   ✓ Kubernetes cluster and all nodes"
+        echo "   ✓ PostgreSQL database and data"
+        echo "   ✓ Load balancers and networking"
+        echo "   ✓ Storage volumes and disks"
+    else
+        echo -e "${YELLOW}📋 What was destroyed (Legacy):${NC}"
+        echo "   ✓ Kubernetes cluster and all nodes"
+        echo "   ✓ PostgreSQL database and data"
+        echo "   ✓ Load balancers and networking"
+        echo "   ✓ Storage volumes"
+        echo "   ✓ All Coder workspaces and templates"
+    fi
 
     if [[ "$BACKUP_BEFORE_DESTROY" == "true" ]]; then
         echo
         echo -e "${YELLOW}💾 Backup Information:${NC}"
-        echo "   Configuration and state archived"
-        echo "   Check logs for backup locations"
+        if [[ "$structure" == "two-phase" ]]; then
+            echo "   • Infrastructure state archived"
+            echo "   • Coder application state archived"
+        else
+            echo "   • Configuration and state archived"
+        fi
+        echo "   • Check logs for backup locations"
     fi
 
     echo
@@ -657,8 +995,13 @@ print_summary() {
         echo "   • Check preservation logs for recovery instructions"
     fi
 
+    if [[ "$structure" == "two-phase" ]]; then
+        echo "   • Two-phase teardown ensures clean separation of concerns"
+        echo "   • Coder was destroyed before infrastructure for proper dependency order"
+    fi
+
     echo
-    echo -e "${GREEN}Environment '$ENVIRONMENT' has been successfully torn down.${NC}"
+    echo -e "${GREEN}Environment '$ENVIRONMENT' has been successfully torn down ($structure structure).${NC}"
     echo
 }
 

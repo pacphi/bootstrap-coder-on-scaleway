@@ -16,6 +16,8 @@ DRY_RUN=false
 FORCE=false
 VERBOSE=false
 REGION="fr-par"
+PHASE=""
+TWO_PHASE=false
 
 # Colors for output
 readonly RED='\033[0;31m'
@@ -46,10 +48,14 @@ usage() {
     cat << EOF
 Usage: $0 --env=<environment> [options]
 
-Setup Terraform backend infrastructure using Scaleway Object Storage.
+Setup Terraform backend infrastructure using Scaleway Object Storage with two-phase support.
 
 Required Arguments:
   --env=<env>           Environment to setup (dev, staging, prod, all)
+
+Two-Phase Options:
+  --phase=<phase>       Specific phase to setup (infra, coder)
+  --two-phase           Setup both phases (infra and coder)
 
 Options:
   --region=<region>     Scaleway region (default: fr-par)
@@ -59,20 +65,32 @@ Options:
   --help, -h           Show this help message
 
 Examples:
-  # Setup backend for dev environment
+  # Legacy single-phase setup
   $0 --env=dev
-
-  # Setup all environments with custom region
   $0 --env=all --region=nl-ams
 
-  # Dry run to preview infrastructure
-  $0 --env=prod --dry-run
+  # Two-phase setup (both phases)
+  $0 --env=dev --two-phase
+  $0 --env=prod --two-phase --dry-run
+
+  # Phase-specific setup
+  $0 --env=dev --phase=infra
+  $0 --env=staging --phase=coder
 
 Environment Variables:
   SCW_ACCESS_KEY       Scaleway access key (required)
   SCW_SECRET_KEY       Scaleway secret key (required)
   SCW_DEFAULT_PROJECT_ID   Scaleway project ID (required)
   SCW_DEFAULT_REGION   Default Scaleway region
+
+Two-Phase Architecture:
+  This script automatically detects environment structure:
+  - Legacy: Single main.tf in environments/<env>/
+  - Two-Phase: Separate infra/ and coder/ directories
+
+  For two-phase environments:
+  - infra/: Infrastructure backend (terraform-state-coder-<env>, key: infra/terraform.tfstate)
+  - coder/: Application backend (terraform-state-coder-<env>, key: coder/terraform.tfstate)
 
 Prerequisites:
   - Terraform >= 1.12.0
@@ -109,6 +127,22 @@ check_prerequisites() {
     log_success "Prerequisites check passed"
 }
 
+# Detect environment structure
+detect_environment_structure() {
+    local env="$1"
+    local env_dir="${PROJECT_ROOT}/environments/${env}"
+    local infra_dir="${env_dir}/infra"
+    local coder_dir="${env_dir}/coder"
+
+    if [[ -d "$infra_dir" && -d "$coder_dir" ]]; then
+        echo "two-phase"
+    elif [[ -f "${env_dir}/main.tf" ]]; then
+        echo "legacy"
+    else
+        echo "unknown"
+    fi
+}
+
 # Generate bucket name for environment
 get_bucket_name() {
     local env="$1"
@@ -135,38 +169,95 @@ EOF
     echo "$backend_dir"
 }
 
-# Create backend configuration for environment
-create_environment_backend() {
+# Create phase-specific backend configuration
+create_phase_backend_config() {
     local env="$1"
-    local backend_dir="$2"
+    local phase="$2"
+    local backend_dir="$3"
     local env_dir="${PROJECT_ROOT}/environments/${env}"
+    local phase_dir="${env_dir}/${phase}"
 
-    if [[ ! -d "$env_dir" ]]; then
-        log_error "Environment directory not found: $env_dir"
+    if [[ ! -d "$phase_dir" ]]; then
+        log_error "Phase directory not found: $phase_dir"
         return 1
     fi
 
     # Get the backend configuration content from Terraform output
     cd "$backend_dir"
     local backend_content
-    backend_content=$(terraform output -raw backend_tf_content 2>/dev/null)
+    backend_content=$(terraform output -raw "${phase}_backend_tf_content" 2>/dev/null)
 
     if [[ -z "$backend_content" ]]; then
-        log_error "Failed to get backend configuration from Terraform output"
+        log_error "Failed to get $phase phase backend configuration from Terraform output"
         return 1
     fi
 
     # Write the backend configuration
-    echo "$backend_content" > "${env_dir}/backend.tf"
+    echo "$backend_content" > "${phase_dir}/providers.tf"
 
-    log_success "Backend configuration created: ${env_dir}/backend.tf"
+    log_success "$phase phase backend configuration created: ${phase_dir}/providers.tf"
+}
+
+# Create backend configuration for environment
+create_environment_backend() {
+    local env="$1"
+    local backend_dir="$2"
+    local env_dir="${PROJECT_ROOT}/environments/${env}"
+    local structure=$(detect_environment_structure "$env")
+
+    if [[ ! -d "$env_dir" ]]; then
+        log_error "Environment directory not found: $env_dir"
+        return 1
+    fi
+
+    if [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == true ]]; then
+            # Create backend configs for both phases
+            create_phase_backend_config "$env" "infra" "$backend_dir"
+            create_phase_backend_config "$env" "coder" "$backend_dir"
+        elif [[ -n "$PHASE" ]]; then
+            # Create backend config for specific phase
+            create_phase_backend_config "$env" "$PHASE" "$backend_dir"
+        fi
+    elif [[ "$structure" == "legacy" ]]; then
+        # Get the backend configuration content from Terraform output
+        cd "$backend_dir"
+        local backend_content
+        backend_content=$(terraform output -raw backend_tf_content 2>/dev/null)
+
+        if [[ -z "$backend_content" ]]; then
+            log_error "Failed to get backend configuration from Terraform output"
+            return 1
+        fi
+
+        # Write the backend configuration
+        echo "$backend_content" > "${env_dir}/backend.tf"
+
+        log_success "Backend configuration created: ${env_dir}/backend.tf"
+    fi
 }
 
 # Setup backend infrastructure for a single environment
 setup_environment() {
     local env="$1"
+    local structure=$(detect_environment_structure "$env")
 
-    log "Setting up backend infrastructure for environment: $env"
+    log "Setting up backend infrastructure for environment: $env (structure: $structure)"
+
+    # Validate structure and phase options
+    if [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == false && -z "$PHASE" ]]; then
+            log_error "Two-phase environment detected but no phase specified"
+            log_error "Use --phase=[infra|coder] or --two-phase flag"
+            return 1
+        fi
+    elif [[ "$structure" == "legacy" ]]; then
+        if [[ "$TWO_PHASE" == true || -n "$PHASE" ]]; then
+            log_error "Legacy single-phase environment detected, but two-phase options specified"
+            log_error "Remove --phase or --two-phase flags for legacy environments"
+            return 1
+        fi
+    fi
 
     local backend_dir
     backend_dir=$(create_backend_config "$env")
@@ -178,7 +269,17 @@ setup_environment() {
         log "  - S3 bucket: $(get_bucket_name "$env")"
         log "  - Bucket versioning: enabled"
         log "  - Lifecycle policy: 90 day retention (default)"
-        log "  - Backend configuration: environments/$env/backend.tf"
+
+        if [[ "$structure" == "two-phase" ]]; then
+            if [[ "$TWO_PHASE" == true ]]; then
+                log "  - Infrastructure backend config: environments/$env/infra/providers.tf"
+                log "  - Coder backend config: environments/$env/coder/providers.tf"
+            elif [[ -n "$PHASE" ]]; then
+                log "  - $PHASE phase backend config: environments/$env/$PHASE/providers.tf"
+            fi
+        else
+            log "  - Backend configuration: environments/$env/backend.tf"
+        fi
         return 0
     fi
 
@@ -243,6 +344,14 @@ parse_args() {
                 FORCE=true
                 shift
                 ;;
+            --phase=*)
+                PHASE="${1#*=}"
+                shift
+                ;;
+            --two-phase)
+                TWO_PHASE=true
+                shift
+                ;;
             --verbose|-v)
                 VERBOSE=true
                 shift
@@ -270,6 +379,18 @@ parse_args() {
         log_error "Invalid region: $REGION. Must be one of: fr-par, nl-ams, pl-waw"
         exit 1
     fi
+
+    # Validate phase if specified
+    if [[ -n "$PHASE" && ! "$PHASE" =~ ^(infra|coder)$ ]]; then
+        log_error "Invalid phase: $PHASE. Must be one of: infra, coder"
+        exit 1
+    fi
+
+    # Validate phase options compatibility
+    if [[ "$TWO_PHASE" == true && -n "$PHASE" ]]; then
+        log_error "Cannot specify both --two-phase and --phase options"
+        exit 1
+    fi
 }
 
 # Confirmation prompt
@@ -293,12 +414,27 @@ confirm_setup() {
     echo "Region: $REGION"
     echo "Bucket naming: terraform-state-coder-{env}"
     echo "Versioning: Enabled"
+
+    if [[ "$TWO_PHASE" == true ]]; then
+        echo "Architecture: Two-Phase (infra + coder)"
+        echo "State keys: infra/terraform.tfstate, coder/terraform.tfstate"
+    elif [[ -n "$PHASE" ]]; then
+        echo "Architecture: Two-Phase ($PHASE only)"
+        echo "State key: $PHASE/terraform.tfstate"
+    else
+        echo "Architecture: Legacy (single-phase)"
+        echo "State key: terraform.tfstate"
+    fi
+
     echo "========================================"
     echo
     echo "This will create:"
     echo "  • Scaleway Object Storage buckets"
     echo "  • Bucket lifecycle policies"
     echo "  • Backend configuration files"
+    if [[ "$TWO_PHASE" == true || -n "$PHASE" ]]; then
+        echo "  • Two-phase backend configurations"
+    fi
     echo
     read -p "Proceed with backend setup? [y/N]: " -r
 
@@ -354,8 +490,14 @@ main() {
         log_success "Backend setup completed successfully!"
         log
         log "Next steps:"
-        log "  1. Review the created backend.tf files in environments/"
-        log "  2. Migrate existing state using: ./scripts/utils/migrate-state.sh --env=<env>"
+        if [[ "$TWO_PHASE" == true || -n "$PHASE" ]]; then
+            log "  1. Review the created providers.tf files in environments/*/infra/ and environments/*/coder/"
+            log "  2. Migrate existing state using: ./scripts/utils/migrate-state.sh --env=<env> --two-phase"
+            log "  3. Use state-manager.sh for ongoing two-phase state management"
+        else
+            log "  1. Review the created backend.tf files in environments/"
+            log "  2. Migrate existing state using: ./scripts/utils/migrate-state.sh --env=<env>"
+        fi
         log "  3. Update GitHub Actions workflows with remote state support"
         log "  4. Configure team access to the remote state buckets"
         log
@@ -366,6 +508,15 @@ main() {
             done
         else
             log "  - $(get_bucket_name "$ENVIRONMENT") (for $ENVIRONMENT environment)"
+        fi
+
+        if [[ "$TWO_PHASE" == true || -n "$PHASE" ]]; then
+            log
+            log "Two-Phase Backend Configuration:"
+            log "  - Each environment uses a single bucket with phase-specific state keys"
+            log "  - Infrastructure phase: <bucket>/infra/terraform.tfstate"
+            log "  - Coder phase: <bucket>/coder/terraform.tfstate"
+            log "  - Use --phase=<phase> or --two-phase with migration and state management tools"
         fi
     fi
 }

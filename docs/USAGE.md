@@ -97,15 +97,55 @@ The deployment system automatically handles both infrastructure and application 
 If you deployed without a template, you can add them anytime:
 
 ```bash
-# Add a specific template after deployment
+# Add a specific template after deployment (redeploys Coder phase)
 ./scripts/lifecycle/setup.sh --env=dev --template=react-typescript --auto-approve
 
+# Or redeploy Coder phase with new template via GitHub Actions
+gh workflow run deploy-coder.yml \
+  -f environment=dev \
+  -f template=react-typescript
+
 # Or manually via Coder CLI
-export KUBECONFIG=<(terraform output -raw kubeconfig)
+export KUBECONFIG=~/.kube/config-coder-dev
 coder templates create my-template --directory=./templates/frontend/react-typescript
 ```
 
 > **Key Point**: Your Coder environment is fully functional immediately after deployment, regardless of whether you specify a template. Templates are workspace blueprints that can be managed independently.
+
+### Troubleshooting Failed Deployments
+
+#### **Phase 1 (Infrastructure) Failure**
+```bash
+# Infrastructure deployment failed - no cluster access available
+# Check Scaleway console and deployment logs
+# Fix issues and retry complete deployment
+./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai
+```
+
+#### **Phase 2 (Coder) Failure - Infrastructure Still Available**
+```bash
+# Infrastructure deployed successfully but Coder failed
+# You have full cluster access via kubeconfig for troubleshooting
+
+export KUBECONFIG=~/.kube/config-coder-dev
+
+# Investigate the issue
+kubectl get pods -n coder
+kubectl get pvc -n coder
+kubectl describe deployment coder -n coder
+kubectl get storageclass  # Verify scw-bssd storage class exists
+
+# Retry only Coder deployment (Phase 2)
+gh workflow run deploy-coder.yml \
+  -f environment=dev \
+  -f template=python-django-crewai
+
+# Or retry manually
+cd environments/dev/coder
+terraform init && terraform apply
+```
+
+> **Major Advantage**: With two-phase deployment, infrastructure failures don't block troubleshooting access, and Coder failures can be resolved independently without rebuilding the entire environment.
 
 ## Environment Management
 
@@ -123,19 +163,22 @@ coder templates create my-template --directory=./templates/frontend/react-typesc
 **Deployment**:
 
 ```bash
-# Quick development setup
+# Quick development setup (two-phase automatic)
 ./scripts/lifecycle/setup.sh \
   --env=dev \
   --template=python-django-crewai \
   --auto-approve
 
-# With custom configuration
+# Infrastructure only (Phase 1) - for troubleshooting setup
 ./scripts/lifecycle/setup.sh \
   --env=dev \
-  --template=react-typescript \
-  --nodes=2 \
-  --node-type=GP1-XS \
-  --disk-size=30
+  --infra-only
+
+# Complete setup via GitHub Actions (recommended for teams)
+gh workflow run deploy-environment.yml \
+  -f environment=dev \
+  -f template=python-django-crewai \
+  -f auto_approve=true
 ```
 
 ### Staging Environment
@@ -152,14 +195,21 @@ coder templates create my-template --directory=./templates/frontend/react-typesc
 **Deployment**:
 
 ```bash
-# Staging environment with monitoring
+# Staging environment with monitoring (two-phase automatic)
 ./scripts/lifecycle/setup.sh \
   --env=staging \
   --template=java-spring \
   --enable-monitoring \
   --backup-retention=7
 
-# Expected deployment time: 12-15 minutes
+# Via GitHub Actions (recommended for staging)
+gh workflow run deploy-environment.yml \
+  -f environment=staging \
+  -f template=java-spring \
+  -f enable_monitoring=true \
+  -f auto_approve=true
+
+# Expected deployment time: 12-15 minutes (Phase 1: 8-10 min, Phase 2: 4-5 min)
 ```
 
 ### Production Environment
@@ -176,7 +226,7 @@ coder templates create my-template --directory=./templates/frontend/react-typesc
 **Deployment**:
 
 ```bash
-# Production environment with full features
+# Production environment with full features (two-phase automatic)
 ./scripts/lifecycle/setup.sh \
   --env=prod \
   --template=claude-flow-enterprise \
@@ -186,6 +236,19 @@ coder templates create my-template --directory=./templates/frontend/react-typesc
   --auto-scaling-min=3 \
   --auto-scaling-max=15
 
+# Via GitHub Actions (recommended for production)
+gh workflow run deploy-environment.yml \
+  -f environment=prod \
+  -f template=claude-flow-enterprise \
+  -f enable_monitoring=true \
+  -f auto_approve=false  # Manual approval required for prod
+
+# Infrastructure-only deployment for troubleshooting setup
+gh workflow run deploy-infrastructure.yml \
+  -f environment=prod \
+  -f region=fr-par \
+  -f availability_zone=fr-par-1
+
 # Deployment includes:
 # - Pod Security Standards (restricted)
 # - Network Policies with default deny-all
@@ -193,6 +256,7 @@ coder templates create my-template --directory=./templates/frontend/react-typesc
 # - Monitoring stack (Prometheus + Grafana)
 # - Automated backups
 # - Cost tracking and alerts
+# - Immediate kubeconfig access after Phase 1
 ```
 
 ## Template Selection Guide
@@ -213,12 +277,16 @@ coder templates create my-template --directory=./templates/frontend/react-typesc
 **Use Case Example**:
 
 ```bash
-# Deploy Java environment for microservices development
+# Deploy Java environment for microservices development (two-phase)
 ./scripts/lifecycle/setup.sh \
   --env=staging \
-  --template=java-spring \
-  --cpu=4 \
-  --memory=8
+  --template=java-spring
+
+# Or deploy via GitHub Actions
+gh workflow run deploy-environment.yml \
+  -f environment=staging \
+  -f template=java-spring \
+  -f enable_monitoring=true
 
 # Workspace includes:
 # - OpenJDK 21 + Spring Boot 3.2

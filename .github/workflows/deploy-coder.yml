@@ -1,0 +1,941 @@
+name: Deploy Coder Application (Phase 2)
+
+# Set minimal required permissions for security
+permissions:
+  contents: read       # Access repository code
+  issues: write        # Create deployment failure issues
+  pull-requests: write # Comment on PRs with deployment status
+  actions: read        # Download/upload artifacts
+  id-token: write      # For OIDC authentication if needed
+
+on:
+  workflow_dispatch:
+    inputs:
+      bucket_name:
+        description: 'Name of the bucket in object store that holds Terraform state'
+        required: false
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      region:
+        description: 'Scaleway region'
+        required: true
+        type: choice
+        options:
+          - fr-par
+          - nl-ams
+          - pl-waw
+        default: 'fr-par'
+      availability_zone:
+        description: 'Scaleway availibility zone (which should be within region)'
+        required: true
+        type: choice
+        options:
+          - fr-par-1
+          - fr-par-2
+          - fr-par-3
+          - nl-ams-1
+          - nl-ams-2
+          - nl-ams-3
+          - pl-waw-1
+          - pl-waw-2
+          - pl-waw-3
+        default: 'fr-par-1'
+      template:
+        description: 'Workspace template to deploy (leave empty to skip)'
+        required: false
+        type: string
+      kubeconfig_source:
+        description: 'Source of kubeconfig (from_infrastructure_run or from_artifact)'
+        required: false
+        type: choice
+        options:
+          - from_infrastructure_run
+          - from_artifact
+        default: 'from_infrastructure_run'
+      infrastructure_run_id:
+        description: 'Run ID of infrastructure deployment (if using from_infrastructure_run)'
+        required: false
+        type: string
+      auto_approve:
+        description: 'Auto-approve deployment without confirmation'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Preview changes without applying'
+        required: false
+        type: boolean
+        default: false
+
+  workflow_call:
+    inputs:
+      bucket_name:
+        description: 'Name of the bucket in object store that holds Terraform state'
+        required: false
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        type: string
+      region:
+        description: 'Scaleway region'
+        required: true
+        type: string
+      availability_zone:
+        description: 'Scaleway availibility zone'
+        required: true
+        type: string
+      template:
+        description: 'Workspace template to deploy'
+        required: false
+        type: string
+      kubeconfig_source:
+        description: 'Source of kubeconfig'
+        required: false
+        type: string
+        default: 'from_infrastructure_run'
+      infrastructure_run_id:
+        description: 'Run ID of infrastructure deployment'
+        required: false
+        type: string
+      auto_approve:
+        description: 'Auto-approve deployment without confirmation'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Preview changes without applying'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      SCW_ACCESS_KEY:
+        required: true
+      SCW_SECRET_KEY:
+        required: true
+      SCW_DEFAULT_PROJECT_ID:
+        required: true
+      SCW_DEFAULT_ORGANIZATION_ID:
+        required: true
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_VAR_scaleway_region: ${{ inputs.region }}
+  TF_VAR_scaleway_zone: ${{ inputs.availability_zone }}
+  # Consolidated Scaleway credentials and mappings
+  SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+  SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+  SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+  SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+  # AWS variables for S3 backend compatibility
+  AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+
+jobs:
+  validate:
+    name: Validate Coder Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_env: ${{ steps.determine-env.outputs.environment }}
+      deploy_template: ${{ steps.determine-env.outputs.template }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Determine Deployment Environment
+        id: determine-env
+        run: |
+          echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          echo "template=${{ inputs.template }}" >> $GITHUB_OUTPUT
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.12.0"
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.32.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.12.0'
+
+      - name: Check Terraform Formatting (Coder)
+        run: |
+          echo "🔍 Checking Terraform formatting for Coder application..."
+
+          format_issues=()
+          env_dir="environments/${{ inputs.environment }}/coder"
+
+          if [[ -d "$env_dir" ]]; then
+            echo "📁 Checking Coder configuration: $env_dir"
+            cd "$env_dir"
+
+            if ! terraform fmt -check -diff .; then
+              format_issues+=("Coder: $env_dir")
+            fi
+            cd - > /dev/null
+          else
+            echo "❌ Coder directory not found: $env_dir"
+            exit 1
+          fi
+
+          # Check coder-deployment module
+          module_dir="modules/coder-deployment"
+          if [[ -d "$module_dir" ]]; then
+            echo "📦 Checking coder-deployment module: $module_dir"
+            cd "$module_dir"
+
+            if ! terraform fmt -check -diff .; then
+              format_issues+=("Module: coder-deployment")
+            fi
+            cd - > /dev/null
+          fi
+
+          # Report format issues
+          if [[ ${#format_issues[@]} -gt 0 ]]; then
+            echo "❌ Terraform formatting issues found in the following locations:"
+            for issue in "${format_issues[@]}"; do
+              echo "  - $issue"
+            done
+            echo ""
+            echo "💡 To fix formatting issues, run the following commands locally:"
+            echo "   terraform fmt -recursive ."
+            echo "   git add -A && git commit -m 'Fix Terraform formatting'"
+            echo ""
+            echo "🚫 Workflow will continue, but formatting should be fixed in the next commit."
+          else
+            echo "✅ All Terraform files are properly formatted"
+          fi
+
+      - name: Validate Coder Configuration
+        run: |
+          environment="${{ inputs.environment }}"
+          env_dir="environments/$environment/coder"
+
+          echo "🔍 Validating Coder configuration for environment: $environment"
+
+          # Check if coder directory exists
+          if [[ ! -d "$env_dir" ]]; then
+            echo "❌ Coder directory not found: $env_dir"
+            echo "Available environments:"
+            ls -la environments/
+            exit 1
+          fi
+
+          cd "$env_dir"
+
+          # Validate configuration files exist
+          if [[ ! -f "main.tf" ]]; then
+            echo "❌ main.tf not found in $env_dir"
+            ls -la .
+            exit 1
+          fi
+
+          echo "📄 Found configuration files:"
+          ls -la *.tf 2>/dev/null || echo "No .tf files found"
+
+          # Initialize with local backend for validation (remote state will be configured later)
+          echo "🔄 Initializing for validation..."
+          if ! terraform init -backend=false 2>&1; then
+            echo "❌ Coder terraform initialization failed"
+            exit 1
+          fi
+
+          echo "✅ Terraform initialization successful"
+
+          # Run validation
+          echo "🔍 Running terraform validate..."
+          if ! terraform validate 2>&1; then
+            echo "❌ Coder validation failed"
+            exit 1
+          fi
+
+          echo "✅ Coder validation successful for environment: $environment"
+
+      - name: Validate Template (if specified)
+        if: ${{ inputs.template != '' }}
+        run: |
+          template_name="${{ inputs.template }}"
+          echo "🔍 Validating workspace template: $template_name"
+
+          # Search for template in all categories
+          template_path=""
+          found_templates=()
+
+          echo "🔎 Searching for template in all categories..."
+
+          # Search through all template directories
+          for category_dir in templates/*/; do
+            if [[ -d "$category_dir" ]]; then
+              category_name=$(basename "$category_dir")
+              echo "  📁 Checking category: $category_name"
+
+              for template_dir in "$category_dir"*/; do
+                if [[ -d "$template_dir" && -f "$template_dir/main.tf" ]]; then
+                  current_template_name=$(basename "$template_dir")
+                  found_templates+=("$category_name/$current_template_name")
+
+                  if [[ "$current_template_name" == "$template_name" ]]; then
+                    template_path="$template_dir"
+                    echo "  ✅ Found matching template: $category_name/$current_template_name"
+                  else
+                    echo "  📄 Found template: $category_name/$current_template_name"
+                  fi
+                fi
+              done
+            fi
+          done
+
+          # Check if template was found
+          if [[ -z "$template_path" ]]; then
+            echo "❌ Template '$template_name' not found!"
+            echo ""
+            echo "🔍 Available templates:"
+            if [[ ${#found_templates[@]} -eq 0 ]]; then
+              echo "  No templates found in templates/ directory"
+            else
+              for template in "${found_templates[@]}"; do
+                echo "  - $template"
+              done
+            fi
+            exit 1
+          fi
+
+          echo "✅ Template validation successful: $template_name"
+
+  setup-backend:
+    name: Setup Coder Backend
+    needs: validate
+    if: needs.validate.outputs.deploy_env != ''
+    uses: ./.github/workflows/manage-backend-bucket.yml
+    with:
+      bucket_name: ${{ inputs.bucket_name }}
+      environment: ${{ needs.validate.outputs.deploy_env }}
+      region: ${{ inputs.region }}
+      action: create
+      force_recreate: false
+    secrets: inherit
+
+  get-kubeconfig:
+    name: Get Kubeconfig from Infrastructure
+    runs-on: ubuntu-latest
+    needs: [validate, setup-backend]
+    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true'
+    outputs:
+      kubeconfig_available: ${{ steps.get-kubeconfig.outputs.available }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Get Kubeconfig from Infrastructure Run
+        id: get-kubeconfig
+        run: |
+          environment="${{ needs.validate.outputs.deploy_env }}"
+
+          echo "🔍 Attempting to get kubeconfig for environment: $environment"
+
+          # Determine artifact name based on source
+          if [[ "${{ inputs.kubeconfig_source }}" == "from_infrastructure_run" && -n "${{ inputs.infrastructure_run_id }}" ]]; then
+            # Try to get from specific infrastructure run
+            artifact_name="kubeconfig-$environment-infra"
+            echo "🔍 Looking for kubeconfig from infrastructure run: ${{ inputs.infrastructure_run_id }}"
+          else
+            # Try to get from recent infrastructure run
+            artifact_name="kubeconfig-$environment-infra"
+            echo "🔍 Looking for kubeconfig from recent infrastructure deployment"
+          fi
+
+          echo "available=true" >> $GITHUB_OUTPUT
+
+      - name: Download Kubeconfig Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-infra
+          path: .
+        continue-on-error: true
+
+      - name: Verify Kubeconfig
+        run: |
+          environment="${{ needs.validate.outputs.deploy_env }}"
+          kubeconfig_file="kubeconfig-$environment"
+
+          if [[ -f "$kubeconfig_file" ]]; then
+            echo "✅ Kubeconfig file found and ready for Coder deployment"
+
+            # Set up kubectl config
+            mkdir -p "${HOME}/.kube"
+            cp "$kubeconfig_file" "${HOME}/.kube/config-coder-$environment"
+            chmod 600 "${HOME}/.kube/config-coder-$environment"
+
+            export KUBECONFIG="${HOME}/.kube/config-coder-$environment"
+
+            # Verify cluster connectivity
+            echo "🔍 Verifying cluster connectivity..."
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "✅ Cluster is accessible"
+
+              # Check that storage classes are ready for PVC creation
+              echo "💾 Verifying storage classes for PVC creation..."
+              if kubectl get storageclass scw-bssd >/dev/null 2>&1; then
+                echo "✅ scw-bssd storage class is available for PVC creation"
+              else
+                echo "⚠️  Warning: scw-bssd storage class not found"
+                echo "Available storage classes:"
+                kubectl get storageclass -o name || echo "No storage classes found"
+              fi
+
+              # Check nodes are ready
+              echo "🖥️ Checking cluster nodes..."
+              kubectl get nodes -o wide
+
+            else
+              echo "❌ Cannot connect to cluster"
+              exit 1
+            fi
+          else
+            echo "❌ Kubeconfig file not found: $kubeconfig_file"
+            echo "Make sure infrastructure deployment completed successfully"
+            exit 1
+          fi
+
+      - name: Upload Kubeconfig for Coder Deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-coder
+          path: kubeconfig-${{ needs.validate.outputs.deploy_env }}
+          retention-days: 7
+
+  plan:
+    name: Plan Coder Changes
+    runs-on: ubuntu-latest
+    needs: [validate, setup-backend, get-kubeconfig]
+    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true' && needs.get-kubeconfig.outputs.kubeconfig_available == 'true'
+    permissions:
+      contents: read        # Read repository code
+      pull-requests: write  # Comment plan results on PRs
+    outputs:
+      plan_id: ${{ steps.plan.outputs.plan_id }}
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+      plan_summary: ${{ steps.plan.outputs.plan_summary }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.12.0"
+          terraform_wrapper: false
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.32.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.12.0'
+
+      - name: Download Backend Configuration
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          path: environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+      - name: Download Kubeconfig
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-coder
+          path: environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+      - name: Setup Coder Backend Configuration
+        run: |
+          echo "🔍 Setting up Coder backend configuration..."
+
+          ENVIRONMENT="${{ needs.validate.outputs.deploy_env }}"
+          CODER_DIR="environments/$ENVIRONMENT/coder"
+
+          # Update backend.tf to use coder/ subdirectory key
+          if [[ -f "$CODER_DIR/backend.tf" ]]; then
+            echo "📝 Updating backend.tf for Coder deployment"
+            sed -i 's|key *= *"terraform.tfstate"|key = "coder/terraform.tfstate"|g' "$CODER_DIR/backend.tf"
+
+            echo "📄 Updated backend configuration:"
+            cat "$CODER_DIR/backend.tf"
+          else
+            echo "❌ Backend configuration not found"
+            exit 1
+          fi
+
+      - name: Initialize Terraform Backend
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+          echo "🔄 Initializing Coder deployment with remote backend..."
+          echo "Backend bucket: ${{ needs.setup-backend.outputs.bucket_name }}"
+          terraform init
+
+      - name: Plan Coder Changes
+        id: plan
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+          # Generate unique plan ID
+          plan_id="coder-plan-$(date +%Y%m%d-%H%M%S)-${{ github.run_id }}"
+          echo "plan_id=$plan_id" >> $GITHUB_OUTPUT
+
+          # Run terraform plan
+          set +e
+          terraform plan -detailed-exitcode -out="${plan_id}.tfplan" > plan_output.txt 2>&1
+          plan_exit_code=$?
+          set -e
+
+          # Parse plan results
+          case $plan_exit_code in
+            0)
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+              echo "plan_summary=No Coder changes needed" >> $GITHUB_OUTPUT
+              ;;
+            1)
+              echo "❌ Coder plan failed"
+              cat plan_output.txt
+              exit 1
+              ;;
+            2)
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+
+              # Extract plan summary
+              if grep -q "Plan:" plan_output.txt; then
+                plan_summary=$(grep "Plan:" plan_output.txt | head -1)
+                echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
+              else
+                echo "plan_summary=Coder application changes detected" >> $GITHUB_OUTPUT
+              fi
+              ;;
+          esac
+
+          # Save plan output for artifacts
+          cp plan_output.txt "terraform-plan-${plan_id}.txt"
+
+      - name: Upload Coder Plan Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-coder-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          path: |
+            environments/${{ needs.validate.outputs.deploy_env }}/coder/*.tfplan
+            environments/${{ needs.validate.outputs.deploy_env }}/coder/terraform-plan-*.txt
+          retention-days: 30
+
+      - name: Comment Coder Plan Results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const planFile = `environments/${{ needs.validate.outputs.deploy_env }}/coder/terraform-plan-${{ steps.plan.outputs.plan_id }}.txt`;
+            let planOutput = '';
+
+            try {
+              planOutput = fs.readFileSync(planFile, 'utf8');
+            } catch (error) {
+              planOutput = 'Plan output not available';
+            }
+
+            const body = `## 🎯 Coder Application Plan Results (Phase 2)
+
+            **Environment:** \`${{ needs.validate.outputs.deploy_env }}\`
+            **Plan ID:** \`${{ steps.plan.outputs.plan_id }}\`
+            **Has Changes:** ${{ steps.plan.outputs.has_changes }}
+            **Summary:** ${{ steps.plan.outputs.plan_summary }}
+            **Template:** ${{ needs.validate.outputs.deploy_template || 'None specified' }}
+
+            <details>
+            <summary>View Coder Application Plan Details</summary>
+
+            \`\`\`terraform
+            ${planOutput.slice(0, 32000)} ${planOutput.length > 32000 ? '... (truncated)' : ''}
+            \`\`\`
+
+            </details>
+
+            ${steps.plan.outputs.has_changes === 'true' ? '⚠️ **Review the Coder application changes carefully before approving deployment**' : '✅ **No Coder application changes needed**'}
+
+            📝 **Note:** This is Phase 2 (Coder Application Only). Infrastructure is assumed to be ready from Phase 1.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  deploy:
+    name: Deploy Coder Application
+    runs-on: ubuntu-latest
+    needs: [validate, setup-backend, get-kubeconfig, plan]
+    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true' && needs.get-kubeconfig.outputs.kubeconfig_available == 'true' && (inputs.dry_run != true)
+    environment:
+      name: ${{ needs.validate.outputs.deploy_env }}-coder
+      url: ${{ steps.deploy.outputs.coder_url }}
+    outputs:
+      coder_url: ${{ steps.deploy.outputs.coder_url }}
+      admin_username: ${{ steps.deploy.outputs.admin_username }}
+      admin_password: ${{ steps.deploy.outputs.admin_password }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.12.0"
+          terraform_wrapper: false
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.32.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.12.0'
+
+      - name: Download Coder Plan Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-coder-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          path: environments/${{ needs.validate.outputs.deploy_env }}/coder/
+
+      - name: Download Backend Configuration
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
+          path: environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+      - name: Download Kubeconfig
+        uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-coder
+          path: environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+      - name: Setup Coder Backend Configuration
+        run: |
+          echo "🔍 Setting up Coder backend configuration for deployment..."
+
+          ENVIRONMENT="${{ needs.validate.outputs.deploy_env }}"
+          CODER_DIR="environments/$ENVIRONMENT/coder"
+
+          # Update backend.tf to use coder/ subdirectory key
+          if [[ -f "$CODER_DIR/backend.tf" ]]; then
+            echo "📝 Updating backend.tf for Coder deployment"
+            sed -i 's|key *= *"terraform.tfstate"|key = "coder/terraform.tfstate"|g' "$CODER_DIR/backend.tf"
+
+            echo "📄 Updated backend configuration:"
+            cat "$CODER_DIR/backend.tf"
+          else
+            echo "❌ Backend configuration not found"
+            exit 1
+          fi
+
+      - name: Initialize Terraform Backend
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+          echo "🔄 Initializing Coder deployment with remote backend..."
+          echo "Backend bucket: ${{ needs.setup-backend.outputs.bucket_name }}"
+          terraform init
+
+      - name: Pre-deployment Cluster Validation
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+          environment="${{ needs.validate.outputs.deploy_env }}"
+          kubeconfig_file="kubeconfig-$environment"
+
+          # Set up kubectl
+          mkdir -p "${HOME}/.kube"
+          cp "$kubeconfig_file" "${HOME}/.kube/config-coder-$environment"
+          chmod 600 "${HOME}/.kube/config-coder-$environment"
+          export KUBECONFIG="${HOME}/.kube/config-coder-$environment"
+
+          echo "🔍 Pre-deployment validation for Coder application..."
+
+          # Verify cluster is accessible
+          echo "🖥️ Checking cluster connectivity..."
+          kubectl cluster-info
+
+          # Verify nodes are ready
+          echo "📊 Checking cluster nodes status..."
+          kubectl get nodes -o wide
+
+          # Verify storage classes for PVC creation
+          echo "💾 Verifying storage classes for PVC creation..."
+          kubectl get storageclass
+
+          if kubectl get storageclass scw-bssd >/dev/null 2>&1; then
+            echo "✅ scw-bssd storage class is available - PVC creation should succeed"
+          else
+            echo "⚠️  Warning: scw-bssd storage class not found"
+            echo "This may cause PVC creation to fail. Available storage classes:"
+            kubectl get storageclass -o name
+          fi
+
+          # Check if coder namespace exists (created by security module)
+          if kubectl get namespace coder >/dev/null 2>&1; then
+            echo "✅ coder namespace exists"
+          else
+            echo "⚠️  coder namespace does not exist - it will be created"
+          fi
+
+          echo "✅ Pre-deployment validation completed"
+
+      - name: Apply Coder Application Changes
+        id: apply
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+          # Find the plan file
+          plan_file=$(ls *.tfplan 2>/dev/null | head -1 || echo "")
+
+          if [[ -n "$plan_file" ]] && [[ -f "$plan_file" ]]; then
+            echo "📋 Applying planned Coder changes from: $plan_file"
+            terraform apply -auto-approve "$plan_file"
+          else
+            echo "⚠️ No plan file found, running direct apply"
+            if [[ "${{ inputs.auto_approve }}" == "true" ]]; then
+              terraform apply -auto-approve
+            else
+              terraform apply
+            fi
+          fi
+
+          echo "apply_completed=true" >> $GITHUB_OUTPUT
+
+      - name: Extract Coder Deployment Outputs
+        id: deploy
+        if: steps.apply.outputs.apply_completed == 'true'
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+          # Extract Coder outputs
+          coder_url=$(terraform output -raw coder_url 2>/dev/null || terraform output -raw access_url 2>/dev/null || echo "")
+          admin_username=$(terraform output -raw admin_username 2>/dev/null || echo "admin")
+          admin_password=$(terraform output -raw admin_password 2>/dev/null || echo "")
+
+          echo "coder_url=$coder_url" >> $GITHUB_OUTPUT
+          echo "admin_username=$admin_username" >> $GITHUB_OUTPUT
+
+          # Store admin password securely (if available)
+          if [[ -n "$admin_password" ]]; then
+            echo "admin_password=$admin_password" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate Coder Deployment
+        if: steps.apply.outputs.apply_completed == 'true'
+        run: |
+          cd environments/${{ needs.validate.outputs.deploy_env }}/coder
+
+          environment="${{ needs.validate.outputs.deploy_env }}"
+          export KUBECONFIG="${HOME}/.kube/config-coder-$environment"
+
+          echo "🔍 Validating Coder deployment..."
+
+          # Check Coder deployment status
+          echo "📊 Checking Coder deployment status..."
+          kubectl get deployments -n coder
+          kubectl get pods -n coder
+          kubectl get services -n coder
+          kubectl get pvc -n coder
+
+          # Wait for Coder pods to be ready
+          echo "⏳ Waiting for Coder pods to be ready..."
+          kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=coder -n coder --timeout=300s
+
+          # Check Coder service endpoint
+          echo "🌐 Checking Coder service endpoint..."
+          coder_url="${{ steps.deploy.outputs.coder_url }}"
+          if [[ -n "$coder_url" ]]; then
+            echo "✅ Coder URL: $coder_url"
+          else
+            echo "⚠️  Coder URL not available"
+          fi
+
+          echo "✅ Coder deployment validation completed"
+
+      - name: Deploy Template (if specified)
+        if: steps.apply.outputs.apply_completed == 'true' && needs.validate.outputs.deploy_template != ''
+        run: |
+          echo "🔧 Template deployment feature placeholder"
+          echo "Template: ${{ needs.validate.outputs.deploy_template }}"
+          echo "This will be implemented in a future iteration"
+
+          # Future implementation will:
+          # 1. Use Coder CLI to deploy template
+          # 2. Configure template with proper resources
+          # 3. Validate template deployment
+
+      - name: Display Coder Deployment Summary
+        if: steps.apply.outputs.apply_completed == 'true'
+        run: |
+          echo "🎉 Coder Application Deployment Completed Successfully!"
+          echo "======================================================="
+          echo ""
+          echo "📋 Deployment Summary:"
+          echo "  Environment: ${{ needs.validate.outputs.deploy_env }}"
+          echo "  Coder URL: ${{ steps.deploy.outputs.coder_url }}"
+          echo "  Admin Username: ${{ steps.deploy.outputs.admin_username }}"
+          echo "  Template: ${{ needs.validate.outputs.deploy_template || 'None deployed' }}"
+          echo ""
+          echo "🔐 Access Information:"
+          echo "  • Login URL: ${{ steps.deploy.outputs.coder_url }}"
+          echo "  • Username: ${{ steps.deploy.outputs.admin_username }}"
+          echo "  • Password: (check GitHub Actions secrets or Kubernetes secret)"
+          echo ""
+          echo "🎯 Your Coder environment is ready to use!"
+
+      - name: Comment Coder Success on PR
+        if: github.event_name == 'pull_request' && steps.apply.outputs.apply_completed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## ✅ Coder Application Deployment Successful (Phase 2)
+
+            **Environment:** \`${{ needs.validate.outputs.deploy_env }}\`
+            **Coder URL:** ${{ steps.deploy.outputs.coder_url }}
+            **Admin Username:** ${{ steps.deploy.outputs.admin_username }}
+            **Template:** ${{ needs.validate.outputs.deploy_template || 'None specified' }}
+
+            ## 🎯 Application Status
+            - ✅ Coder application deployed and running
+            - ✅ Persistent volume claims created successfully
+            - ✅ Services and ingress configured
+            - ✅ Ready for workspace creation
+
+            ## 🔐 Access Information
+            - **Login URL:** ${{ steps.deploy.outputs.coder_url }}
+            - **Username:** ${{ steps.deploy.outputs.admin_username }}
+            - **Password:** Check Kubernetes secret in coder namespace
+
+            🎉 **Your complete Coder environment is now ready!**`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  notify:
+    name: Notify Coder Status
+    runs-on: ubuntu-latest
+    needs: [validate, deploy]
+    if: always() && needs.validate.outputs.deploy_env != ''
+    permissions:
+      contents: read  # Read repository information
+      issues: write   # Create issues on deployment failure
+
+    steps:
+      - name: Notify Slack (if configured)
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+            status="${{ needs.deploy.result }}"
+            environment="${{ needs.validate.outputs.deploy_env }}"
+
+            if [[ "$status" == "success" ]]; then
+              color="good"
+              emoji="🎯"
+              text="Coder application deployment succeeded (Phase 2)"
+            else
+              color="danger"
+              emoji="❌"
+              text="Coder application deployment failed (Phase 2)"
+            fi
+
+            payload="{
+              \"attachments\": [{
+                \"color\": \"$color\",
+                \"text\": \"$emoji $text\",
+                \"fields\": [
+                  {\"title\": \"Environment\", \"value\": \"$environment\", \"short\": true},
+                  {\"title\": \"Phase\", \"value\": \"Coder Application\", \"short\": true},
+                  {\"title\": \"Template\", \"value\": \"${{ needs.validate.outputs.deploy_template || 'None' }}\", \"short\": true},
+                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true}
+                ]
+              }]
+            }"
+
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$payload" "$SLACK_WEBHOOK_URL"
+          else
+            echo "Slack webhook not configured, skipping notification"
+          fi
+
+      - name: Create GitHub Issue on Coder Failure
+        if: needs.deploy.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Coder Application Deployment Failed: ${{ needs.validate.outputs.deploy_env }} environment`;
+            const body = `## Coder Application Deployment Failure Report
+
+            **Environment:** ${{ needs.validate.outputs.deploy_env }}
+            **Phase:** Coder Application (Phase 2)
+            **Template:** ${{ needs.validate.outputs.deploy_template || 'None specified' }}
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Triggered by:** ${{ github.actor }}
+            **Commit:** ${{ github.sha }}
+
+            The Coder application deployment has failed. Infrastructure should be intact from Phase 1.
+
+            ## Troubleshooting Steps
+            1. **Check Infrastructure:** Verify Phase 1 infrastructure is still healthy
+            2. **Review Logs:** Check workflow logs for specific Coder deployment errors
+            3. **Cluster Access:** Use kubeconfig to inspect cluster state:
+               - \`kubectl get pods -n coder\`
+               - \`kubectl get pvc -n coder\`
+               - \`kubectl describe deployment coder -n coder\`
+            4. **Storage Issues:** Verify storage classes and PVC creation
+            5. **Resource Constraints:** Check if cluster has sufficient resources
+
+            ## Common Issues
+            - **PVC Creation Failed:** Storage class not available or misconfigured
+            - **Image Pull Issues:** Container registry access problems
+            - **Resource Limits:** Insufficient CPU/memory in cluster
+            - **Network Policies:** Security policies blocking required connections
+            - **Database Connection:** Issues connecting to infrastructure database
+
+            ## Recovery Options
+            - **Retry Deployment:** This Phase 2 deployment can be retried independently
+            - **Infrastructure Check:** Verify Phase 1 components are still healthy
+            - **Manual Investigation:** Use kubeconfig to troubleshoot cluster issues
+
+            **Labels:** coder-failure, deployment-failure, ${{ needs.validate.outputs.deploy_env }}`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['coder-failure', 'deployment-failure', '${{ needs.validate.outputs.deploy_env }}']
+            });

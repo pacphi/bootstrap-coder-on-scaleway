@@ -18,10 +18,40 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 
 ## Architecture Overview
 
+### Two-Phase Deployment Strategy
+The system uses a **two-phase deployment architecture** that separates infrastructure provisioning from application deployment:
+
+**Phase 1: Infrastructure** (`environments/{env}/infra/`)
+- Kubernetes cluster provisioning and configuration
+- Database setup with environment-specific sizing
+- Networking, load balancers, and security policies
+- Immediate kubeconfig availability for troubleshooting
+
+**Phase 2: Coder Application** (`environments/{env}/coder/`)
+- Coder platform deployment using infrastructure outputs
+- Persistent volume claims with validated storage classes
+- OAuth integration and ingress configuration
+- Workspace template deployment
+
 ### Multi-Environment Strategy
 - **`environments/dev/`**: Cost-optimized (€53.70/month) - 2x GP1-XS nodes, DB-DEV-S
 - **`environments/staging/`**: Production-like testing (€97.85/month) - 3x GP1-S nodes, DB-GP-S
 - **`environments/prod/`**: High-availability enterprise (€374.50/month) - 5x GP1-M nodes, DB-GP-M HA
+
+### Environment Structure
+```
+environments/{env}/
+├── infra/                    # Phase 1: Infrastructure
+│   ├── main.tf              # Cluster, database, networking
+│   ├── variables.tf          # Infrastructure variables
+│   ├── outputs.tf            # Kubeconfig, IPs, database info
+│   └── providers.tf          # Remote state: infra/terraform.tfstate
+└── coder/                    # Phase 2: Coder Application
+    ├── main.tf               # Coder deployment module
+    ├── variables.tf          # Application variables
+    ├── outputs.tf            # Coder URLs, admin credentials
+    └── providers.tf          # Remote state: coder/terraform.tfstate
+```
 
 ### Modular Infrastructure
 - **`modules/scaleway-cluster/`**: Kubernetes cluster management with auto-scaling
@@ -30,6 +60,12 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 - **`modules/coder-deployment/`**: Coder platform deployment with OAuth and ingress
 - **`modules/security/`**: RBAC, Pod Security Standards, network policies
 - **`modules/terraform-backend/`**: Remote state storage using Scaleway Object Storage
+
+### Benefits of Two-Phase Architecture
+- **Faster Troubleshooting**: Kubeconfig available immediately after Phase 1
+- **Independent Retries**: Coder deployment can be retried without rebuilding infrastructure
+- **Better Separation**: Clear distinction between infrastructure and application concerns
+- **Reduced Blast Radius**: Phase 2 failures don't affect infrastructure accessibility
 
 ### Template System (21+ Templates)
 - **Backend** (7): Java Spring, Python Django+CrewAI, Go Fiber, Ruby Rails, PHP Symfony, Rust Actix, .NET Core
@@ -44,20 +80,37 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 ### Environment Management
 
 ```bash
-# Deploy development environment with specific template
+# Two-Phase Deployment (Recommended)
+# Deploy complete environment (infrastructure + Coder application)
 ./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai
 
-# Deploy production with monitoring and HA (template optional)
-./scripts/lifecycle/setup.sh --env=prod --enable-monitoring --enable-ha
+# Deploy infrastructure only (Phase 1 - for troubleshooting)
+./scripts/lifecycle/setup.sh --env=staging --no-coder
 
-# Deploy Coder without templates (templates can be added later)
-./scripts/lifecycle/setup.sh --env=dev
+# Deploy production with monitoring and HA
+./scripts/lifecycle/setup.sh --env=prod --enable-monitoring
 
 # Dry run to preview changes
 ./scripts/lifecycle/setup.sh --env=staging --dry-run
 
 # Complete environment teardown with backup
-./scripts/lifecycle/teardown.sh --env=dev --create-backup
+./scripts/lifecycle/teardown.sh --env=dev --confirm
+```
+
+### GitHub Actions Workflows
+
+```bash
+# Method 1: Complete Environment (Two-Phase)
+# Uses: deploy-environment.yml
+# Deploys: Infrastructure (Phase 1) → Coder Application (Phase 2)
+
+# Method 2: Infrastructure Only
+# Uses: deploy-infrastructure.yml
+# Deploys: Only infrastructure, provides kubeconfig for manual Coder deployment
+
+# Method 3: Coder Application Only
+# Uses: deploy-coder.yml
+# Deploys: Only Coder application (requires existing infrastructure)
 ```
 
 ### Remote State Management
@@ -135,20 +188,25 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 ### Terraform Operations
 
 ```bash
-# Navigate to environment directory first
+# Two-Phase Structure Operations
+
+# Phase 1: Infrastructure Operations
+cd environments/dev/infra
+terraform plan    # Plan infrastructure changes
+terraform apply   # Apply infrastructure changes
+terraform output  # Get kubeconfig, IPs, database info
+
+# Phase 2: Coder Application Operations
+cd environments/dev/coder
+terraform plan    # Plan Coder application changes
+terraform apply   # Apply Coder application changes
+terraform output  # Get Coder URLs, admin credentials
+
+# Legacy Structure Operations (backward compatibility)
 cd environments/dev
-
-# Plan infrastructure changes
-terraform plan
-
-# Apply changes with auto-approval
-terraform apply -auto-approve
-
-# Check current state
-terraform show
-
-# Import existing resources
-terraform import <resource_type>.<name> <resource_id>
+terraform plan    # Plan all changes (infrastructure + Coder)
+terraform apply   # Apply all changes
+terraform show    # Check current state
 ```
 
 ### Kubernetes Management
@@ -172,17 +230,32 @@ kubectl top pods -A
 
 ## Configuration Files Structure
 
-### Terraform Configuration
+### Two-Phase Environment Structure (Current)
+Each `environments/{env}/` directory contains:
+
+**Infrastructure Phase** (`infra/`):
+- **`main.tf`**: Cluster, database, networking, security modules
+- **`variables.tf`**: Infrastructure-specific variables
+- **`providers.tf`**: Remote state backend (`infra/terraform.tfstate`)
+- **`outputs.tf`**: Kubeconfig, load balancer IPs, database connection
+
+**Coder Application Phase** (`coder/`):
+- **`main.tf`**: Coder deployment module with infrastructure remote state
+- **`variables.tf`**: Application-specific variables
+- **`providers.tf`**: Remote state backend (`coder/terraform.tfstate`)
+- **`outputs.tf`**: Coder URLs, admin credentials, namespace info
+
+### Legacy Environment Structure (Backward Compatible)
+Each `environments/{env}/` directory contains:
+- **`main.tf`**: All resource definitions (infrastructure + Coder)
+- **`providers.tf`**: Provider configurations with backend state
+- **`outputs.tf`**: All environment outputs (URLs, connection strings)
+
+### Shared Configuration
 - **`shared/variables.tf`**: Common variables across environments
 - **`shared/locals.tf`**: Environment-specific computed values
 - **`shared/providers.tf`**: Terraform provider configurations
 - **`shared/versions.tf`**: Version constraints and requirements
-
-### Environment-Specific Files
-Each `environments/{env}/` directory contains:
-- **`main.tf`**: Environment-specific resource definitions
-- **`providers.tf`**: Provider configurations with backend state
-- **`outputs.tf`**: Environment outputs (URLs, connection strings)
 
 ## Prerequisites and Setup
 
@@ -286,6 +359,25 @@ Templates are located in `templates/{category}/{framework}/` and contain:
 
 ### Common Issues
 
+**Two-Phase Deployment Issues**
+```bash
+# Phase 1 failure: Infrastructure deployment failed
+# Check infrastructure logs and retry Phase 1 only
+cd environments/<env>/infra
+terraform plan
+terraform apply
+
+# Phase 2 failure: Coder application deployment failed
+# Infrastructure is accessible via kubeconfig, retry Phase 2 only
+cd environments/<env>/coder
+terraform plan
+terraform apply
+
+# Check storage classes are ready for PVC creation
+kubectl get storageclass
+kubectl get pvc -n coder
+```
+
 **Template Deployment Failures**
 ```bash
 # Validate template syntax and dependencies
@@ -308,6 +400,10 @@ kubectl describe nodes
 
 **Database Connectivity**
 ```bash
+# Two-phase: Check from infrastructure outputs
+cd environments/<env>/infra
+terraform output database_host
+
 # Check database status and connection
 kubectl get secrets -n coder
 kubectl exec -it deployment/coder -n coder -- env | grep DB_
@@ -351,7 +447,9 @@ ls backups/state-migration/<env>/
 ### Log Locations
 - **Setup logs**: `/logs/setup/<timestamp>-<env>-setup.log`
 - **Terraform state**: Remote in Scaleway Object Storage (`terraform-state-coder-<env>` bucket)
-- **Local state backup**: `environments/<env>/terraform.tfstate` (after migration)
+  - **Infrastructure state**: `infra/terraform.tfstate`
+  - **Coder application state**: `coder/terraform.tfstate`
+- **Local state backup**: `environments/<env>/infra/` and `environments/<env>/coder/` (after migration)
 - **State migration logs**: `backups/state-migration/migration-<timestamp>-<env>-*.log`
 - **State backups**: `backups/state-backups/<env>-<timestamp>/`
 - **Kubeconfig**: `~/.kube/config-coder-<env>`

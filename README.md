@@ -151,6 +151,15 @@ cd bootstrap-coder-on-scaleway
 
 > **Important**: Ensure you've completed all [Prerequisites](#-prerequisites) before proceeding.
 
+### Two-Phase Deployment Architecture
+
+This project uses a **two-phase deployment strategy** for better reliability and troubleshooting:
+
+- **Phase 1 (Infrastructure)**: Deploy Kubernetes cluster, database, networking, and security
+- **Phase 2 (Coder Application)**: Deploy the Coder platform with workspace templates
+
+**Benefits**: Infrastructure failures don't block cluster access, better separation of concerns, independent retry capability, and immediate kubeconfig access for troubleshooting.
+
 ### Manual Deployment
 Deploy your first Coder environment in minutes:
 
@@ -158,7 +167,7 @@ Deploy your first Coder environment in minutes:
 # 1. Verify prerequisites are met
 ./scripts/test-runner.sh --suite=prerequisites
 
-# 2. Deploy development environment
+# 2. Deploy complete environment (both phases automatically)
 ./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai
 
 # 🎉 Your Coder instance will be available at the provided URL
@@ -166,7 +175,7 @@ Deploy your first Coder environment in minutes:
 ```
 
 ### GitHub Actions Deployment
-Deploy using GitHub Actions for better CI/CD integration:
+Deploy using GitHub Actions with automated two-phase workflow:
 
 ```bash
 # Prerequisites: GitHub CLI (gh) must be installed
@@ -177,23 +186,36 @@ gh secret set SCW_SECRET_KEY --body "your-secret-key"
 gh secret set SCW_DEFAULT_PROJECT_ID --body "your-project-id"
 gh secret set SCW_DEFAULT_ORGANIZATION_ID --body "your-organziation-id"
 
-# Deploy via GitHub Actions
+# Deploy complete environment (both phases)
 gh workflow run deploy-environment.yml \
   -f environment=dev \
   -f template=python-django-crewai \
   -f enable_monitoring=true
+
+# Or deploy infrastructure only for troubleshooting
+gh workflow run deploy-infrastructure.yml \
+  -f environment=dev
 
 # Monitor deployment progress
 gh run watch
 ```
 
 ### What Happens Next?
-- **Infrastructure Creation**: Kubernetes cluster, database, and networking (~10 min)
-- **Coder Installation**: Platform deployment and configuration (~5 min) - **Automatic**
-- **Template Deployment**: Your selected workspace template (if specified) - **Optional**
-- **Access Details**: URLs and credentials will be displayed upon completion
 
-> **Note**: Coder is automatically deployed and ready to use regardless of whether you specify a template. Templates are optional and can be added later if not specified during initial deployment.
+**Phase 1 - Infrastructure Deployment (~10 min)**:
+- ✅ Kubernetes cluster creation with auto-scaling
+- ✅ Managed PostgreSQL database provisioning
+- ✅ VPC networking and security groups
+- ✅ Load balancer and SSL configuration
+- ✅ **Kubeconfig uploaded for immediate cluster access**
+
+**Phase 2 - Coder Application Deployment (~5 min)**:
+- ✅ Coder platform installation and configuration
+- ✅ OAuth integration and user management
+- ✅ Workspace template deployment (if specified)
+- ✅ Final health checks and validation
+
+> **Key Advantage**: If Phase 2 fails, you still have full cluster access via kubeconfig to troubleshoot and retry Coder deployment independently.
 
 ## 🏗️ Multi-Environment Architecture
 
@@ -236,23 +258,42 @@ Flutter, React Native, Ionic
 
 ## 🤖 GitHub Actions CI/CD
 
-### Deploy Environment
+### Two-Phase Deployment Workflows
+
+**Complete Environment Deployment** (Recommended):
 ```bash
-# Trigger deployment workflow
+# Deploy both infrastructure and Coder application
 gh workflow run deploy-environment.yml \
   -f environment=staging \
   -f template=react-typescript \
-  -f enable_monitoring=true \
-  -f enable_cost_alerts=true
+  -f enable_monitoring=true
+```
+
+**Phase-Specific Deployments**:
+```bash
+# Deploy infrastructure only (Phase 1)
+gh workflow run deploy-infrastructure.yml \
+  -f environment=dev \
+  -f region=fr-par
+
+# Deploy Coder application only (Phase 2) - requires existing infrastructure
+gh workflow run deploy-coder.yml \
+  -f environment=dev \
+  -f template=python-django-crewai
 ```
 
 ### Teardown Environment
 ```bash
-# Secure teardown with confirmation
+# Complete teardown (both phases)
 gh workflow run teardown-environment.yml \
   -f environment=dev \
   -f confirmation="I understand this will destroy the environment" \
   -f create_backup=true
+
+# Selective teardown options
+gh workflow run teardown-environment.yml \
+  -f environment=dev \
+  -f teardown_mode=coder_only  # Keep infrastructure, remove Coder only
 ```
 
 ### Template Validation
@@ -380,7 +421,7 @@ gh workflow run validate-templates.yml \
 
 ### Complete Development Workflow
 ```bash
-# 1. Deploy development environment with AI template
+# 1. Deploy development environment with AI template (two-phase automatic)
 ./scripts/lifecycle/setup.sh --env=dev --template=claude-flow-base
 
 # 2. Validate deployment
@@ -398,7 +439,7 @@ gh workflow run validate-templates.yml \
 
 ### Production Deployment with Monitoring
 ```bash
-# Deploy production with all enterprise features
+# Deploy production with all enterprise features (two-phase automatic)
 ./scripts/lifecycle/setup.sh \
   --env=prod \
   --template=java-spring \
@@ -413,9 +454,26 @@ gh workflow run validate-templates.yml \
 ./scripts/scale.sh --env=prod --auto --min-nodes=5 --max-nodes=15
 ```
 
+### Troubleshooting with Two-Phase Architecture
+```bash
+# If Coder deployment fails, infrastructure is still accessible:
+
+# 1. Use kubeconfig from Phase 1 to investigate
+export KUBECONFIG=~/.kube/config-coder-dev
+kubectl get pods -n coder
+kubectl describe deployment coder -n coder
+
+# 2. Retry only Coder deployment (Phase 2)
+gh workflow run deploy-coder.yml -f environment=dev
+
+# 3. Or use manual deployment for Phase 2
+cd environments/dev/coder
+terraform init && terraform apply
+```
+
 ### CI/CD Pipeline Integration
 ```yaml
-# GitHub Actions example
+# GitHub Actions example - Two-Phase Deployment
 name: Deploy Staging on PR
 on:
   pull_request:
@@ -426,12 +484,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy staging environment
+      - name: Deploy complete environment (two-phase)
         uses: ./.github/workflows/deploy-environment.yml
         with:
           environment: staging
           template: react-typescript
-          pr_number: ${{ github.event.number }}
+          enable_monitoring: true
+          auto_approve: true
+```
+
+### Environment Structure
+
+The two-phase architecture organizes environments with separate configurations:
+
+```
+environments/
+├── dev/
+│   ├── infra/          # Phase 1: Infrastructure (cluster, database, networking)
+│   │   ├── main.tf
+│   │   ├── providers.tf
+│   │   └── outputs.tf
+│   └── coder/          # Phase 2: Coder application deployment
+│       ├── main.tf
+│       ├── providers.tf
+│       └── outputs.tf
+├── staging/
+│   ├── infra/
+│   └── coder/
+└── prod/
+    ├── infra/
+    └── coder/
 ```
 
 ## 🔍 Troubleshooting
@@ -451,6 +533,22 @@ jobs:
 
 # Check template syntax
 gh workflow run validate-templates.yml -f validation_scope=syntax
+```
+
+**Two-Phase Deployment Issues**
+```bash
+# Infrastructure deployment failed (Phase 1)
+# Check Scaleway console and workflow logs
+gh run list --workflow=deploy-infrastructure.yml
+
+# Coder deployment failed (Phase 2) - Infrastructure still accessible
+# Use kubeconfig to troubleshoot
+export KUBECONFIG=~/.kube/config-coder-<env>
+kubectl get storageclass  # Check if scw-bssd storage class exists
+kubectl get pvc -n coder  # Check persistent volume claims
+
+# Retry only Coder deployment
+gh workflow run deploy-coder.yml -f environment=<env>
 ```
 
 **Cost Overruns**

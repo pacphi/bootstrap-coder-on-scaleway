@@ -1,10 +1,10 @@
 # Architecture Documentation
 
-This document provides a comprehensive overview of the Bootstrap Coder on Scaleway system architecture, including component relationships, CI/CD workflows, deployment flows, management scripts, hooks framework, and integration patterns with advanced GitHub Actions automation.
+This document provides a comprehensive overview of the Bootstrap Coder on Scaleway system architecture, including the **two-phase deployment strategy**, component relationships, CI/CD workflows, deployment flows, management scripts, hooks framework, and integration patterns with advanced GitHub Actions automation.
 
 ## System Overview
 
-The Bootstrap Coder on Scaleway system is a multi-tier architecture designed for production-ready development environments. It combines infrastructure automation, platform orchestration, and workspace templating to deliver scalable development platforms.
+The Bootstrap Coder on Scaleway system is a multi-tier architecture designed for production-ready development environments with a **two-phase deployment strategy**. It combines infrastructure automation, platform orchestration, and workspace templating to deliver scalable development platforms with enhanced reliability and troubleshooting capabilities.
 
 ```mermaid
 graph TB
@@ -53,6 +53,71 @@ graph TB
     Network --> PostgreSQL
 ```
 
+## Two-Phase Deployment Strategy
+
+### Architecture Benefits
+
+The system implements a **two-phase deployment approach** that provides significant advantages over monolithic deployment:
+
+```mermaid
+graph LR
+    subgraph "Phase 1: Infrastructure"
+        InfraStart[Start Infrastructure Deployment]
+        Cluster[Deploy Kubernetes Cluster]
+        Database[Provision PostgreSQL]
+        Networking[Configure VPC & Security]
+        KubeconfigReady[Upload Kubeconfig Artifact]
+    end
+
+    subgraph "Phase 2: Coder Application"
+        CoderStart[Start Coder Deployment]
+        RemoteState[Read Infrastructure State]
+        ValidateStorage[Validate Storage Classes]
+        DeployCoder[Deploy Coder Platform]
+        DeployTemplates[Deploy Workspace Templates]
+    end
+
+    InfraStart --> Cluster
+    Cluster --> Database
+    Database --> Networking
+    Networking --> KubeconfigReady
+
+    KubeconfigReady --> CoderStart
+    CoderStart --> RemoteState
+    RemoteState --> ValidateStorage
+    ValidateStorage --> DeployCoder
+    DeployCoder --> DeployTemplates
+```
+
+### Key Advantages
+
+1. **Enhanced Reliability**: Infrastructure failures don't prevent cluster access for troubleshooting
+2. **Better Separation of Concerns**: Clear boundaries between infrastructure and application deployment
+3. **Independent Retry Capability**: Failed Coder deployments can be retried without rebuilding infrastructure
+4. **Immediate Troubleshooting Access**: Kubeconfig available immediately after Phase 1 completion
+5. **Cleaner State Management**: Separate Terraform state files for infrastructure and application components
+
+### Environment Structure
+
+```
+environments/
+├── dev/
+│   ├── infra/          # Phase 1: Infrastructure components
+│   │   ├── main.tf     # Cluster, database, networking, security
+│   │   ├── providers.tf # S3 backend: key="infra/terraform.tfstate"
+│   │   └── outputs.tf  # Infrastructure outputs for Phase 2
+│   └── coder/          # Phase 2: Coder application
+│       ├── main.tf     # Coder deployment with remote state data source
+│       ├── providers.tf # S3 backend: key="coder/terraform.tfstate"
+│       └── outputs.tf  # Coder application outputs
+├── staging/
+│   ├── infra/
+│   └── coder/
+└── prod/
+    ├── infra/
+    └── coder/
+```
+
 ## CI/CD & GitHub Actions Architecture
 
 ### GitHub Actions Workflow Architecture
@@ -67,10 +132,11 @@ graph TB
     end
 
     subgraph "Workflow Types"
-        Deploy[deploy-environment.yml]
-        Teardown[teardown-environment.yml]
+        Deploy[deploy-environment.yml<br/>Complete Two-Phase Deployment]
+        InfraDeploy[deploy-infrastructure.yml<br/>Phase 1: Infrastructure Only]
+        CoderDeploy[deploy-coder.yml<br/>Phase 2: Coder Application]
+        Teardown[teardown-environment.yml<br/>Two-Phase Teardown]
         Validate[validate-templates.yml]
-        Custom[Custom Workflows]
     end
 
     subgraph "Execution Environment"
@@ -307,16 +373,25 @@ sequenceDiagram
     end
 ```
 
-## Module Dependency Architecture
+## Two-Phase Module Dependency Architecture
 
 ### Terraform Module Relationships
 
 ```mermaid
 graph TB
     subgraph "Environment Configurations"
-        Dev[environments/dev/main.tf]
-        Staging[environments/staging/main.tf]
-        Prod[environments/prod/main.tf]
+        subgraph "Development"
+            DevInfra[environments/dev/infra/main.tf]
+            DevCoder[environments/dev/coder/main.tf]
+        end
+        subgraph "Staging"
+            StagingInfra[environments/staging/infra/main.tf]
+            StagingCoder[environments/staging/coder/main.tf]
+        end
+        subgraph "Production"
+            ProdInfra[environments/prod/infra/main.tf]
+            ProdCoder[environments/prod/coder/main.tf]
+        end
     end
 
     subgraph "Shared Resources"
@@ -325,12 +400,16 @@ graph TB
         SharedProviders[shared/providers.tf]
     end
 
-    subgraph "Core Modules"
+    subgraph "Infrastructure Modules (Phase 1)"
         Networking[modules/networking]
         Cluster[modules/scaleway-cluster]
         Database[modules/postgresql]
         Security[modules/security]
+    end
+
+    subgraph "Application Modules (Phase 2)"
         CoderDeploy[modules/coder-deployment]
+        RemoteState[terraform_remote_state.infra]
     end
 
     subgraph "Template System"
@@ -342,21 +421,22 @@ graph TB
         DataMLTemplates[templates/data-ml/*]
     end
 
-    Dev --> SharedVars
-    Staging --> SharedVars
-    Prod --> SharedVars
+    DevInfra --> SharedVars
+    StagingInfra --> SharedVars
+    ProdInfra --> SharedVars
 
-    Dev --> Networking
-    Dev --> Cluster
-    Dev --> Database
-    Dev --> Security
-    Dev --> CoderDeploy
+    DevInfra --> Networking
+    DevInfra --> Cluster
+    DevInfra --> Database
+    DevInfra --> Security
+
+    DevCoder --> RemoteState
+    DevCoder --> CoderDeploy
+    RemoteState -.->|"Reads infra outputs"| DevInfra
 
     Networking --> Cluster
     Networking --> Database
     Security --> Cluster
-    Database --> CoderDeploy
-    Cluster --> CoderDeploy
 
     CoderDeploy --> BackendTemplates
     CoderDeploy --> FrontendTemplates
@@ -366,34 +446,47 @@ graph TB
     CoderDeploy --> DataMLTemplates
 ```
 
-### Module Input/Output Flow
+### Two-Phase Module Input/Output Flow
 
 ```mermaid
 flowchart TD
-    subgraph "Networking Module"
-        NetIn[Inputs:<br/>• region<br/>• environment<br/>• cidr_block]
-        NetOut[Outputs:<br/>• vpc_id<br/>• private_network_id<br/>• security_group_ids]
+    subgraph "Phase 1: Infrastructure Modules"
+        subgraph "Networking Module"
+            NetIn[Inputs:<br/>• region<br/>• environment<br/>• cidr_block]
+            NetOut[Outputs:<br/>• vpc_id<br/>• private_network_id<br/>• security_group_ids]
+        end
+
+        subgraph "Cluster Module"
+            ClusterIn[Inputs:<br/>• vpc_id<br/>• private_network_id<br/>• node_type<br/>• node_count]
+            ClusterOut[Outputs:<br/>• cluster_id<br/>• kubeconfig<br/>• cluster_endpoint]
+        end
+
+        subgraph "PostgreSQL Module"
+            DBIn[Inputs:<br/>• vpc_id<br/>• private_network_id<br/>• instance_type<br/>• backup_retention]
+            DBOut[Outputs:<br/>• database_host<br/>• database_port<br/>• connection_string]
+        end
     end
 
-    subgraph "Cluster Module"
-        ClusterIn[Inputs:<br/>• vpc_id<br/>• private_network_id<br/>• node_type<br/>• node_count]
-        ClusterOut[Outputs:<br/>• cluster_id<br/>• kubeconfig<br/>• cluster_endpoint]
+    subgraph "Remote State Bridge"
+        S3Backend[S3 Backend Storage<br/>infra/terraform.tfstate]
+        RemoteStateData[Remote State Data Source<br/>Reads infra outputs]
     end
 
-    subgraph "PostgreSQL Module"
-        DBIn[Inputs:<br/>• vpc_id<br/>• private_network_id<br/>• instance_type<br/>• backup_retention]
-        DBOut[Outputs:<br/>• database_host<br/>• database_port<br/>• connection_string]
-    end
-
-    subgraph "Coder Module"
-        CoderIn[Inputs:<br/>• cluster_endpoint<br/>• database_host<br/>• domain_name<br/>• oauth_config]
-        CoderOut[Outputs:<br/>• coder_url<br/>• admin_credentials<br/>• workspace_templates]
+    subgraph "Phase 2: Application Module"
+        subgraph "Coder Module"
+            CoderIn[Inputs (from remote state):<br/>• cluster_endpoint<br/>• database_host<br/>• kubeconfig<br/>• domain_name<br/>• oauth_config]
+            CoderOut[Outputs:<br/>• coder_url<br/>• admin_credentials<br/>• workspace_templates]
+        end
     end
 
     NetOut --> ClusterIn
     NetOut --> DBIn
-    ClusterOut --> CoderIn
-    DBOut --> CoderIn
+    ClusterOut --> S3Backend
+    DBOut --> S3Backend
+    NetOut --> S3Backend
+
+    S3Backend --> RemoteStateData
+    RemoteStateData --> CoderIn
 ```
 
 ## Security Architecture
@@ -861,16 +954,16 @@ graph TB
     ScalewayStorage --> FullEnvironmentRestore
 ```
 
-## Management Scripts Architecture
+## Two-Phase Management Scripts Architecture
 
 ### Script Ecosystem Overview
 
 ```mermaid
 graph TB
-    subgraph "Core Lifecycle Scripts"
-        Setup[setup.sh<br/>Environment Deployment]
-        Teardown[teardown.sh<br/>Environment Cleanup]
-        Backup[backup.sh<br/>Data Protection]
+    subgraph "Core Lifecycle Scripts (Two-Phase Aware)"
+        Setup[setup.sh<br/>Two-Phase Environment Deployment<br/>Auto-detects infra/ + coder/ structure]
+        Teardown[teardown.sh<br/>Two-Phase Environment Cleanup<br/>Coder first, then infrastructure]
+        Backup[backup.sh<br/>Data Protection<br/>Separate infra/coder state backups]
     end
 
     subgraph "Operational Scripts"
@@ -882,27 +975,36 @@ graph TB
     subgraph "Utility Scripts"
         CostCalc[cost-calculator.sh<br/>Cost Management]
         ResourceTracker[resource-tracker.sh<br/>Usage Monitoring]
+        StateManager[state-manager.sh<br/>Remote State Operations]
     end
 
     subgraph "Integration Scripts"
         Hooks[Hooks Framework<br/>Custom Automation]
-        GitHub[GitHub Actions<br/>CI/CD Integration]
+        GitHub[GitHub Actions<br/>Two-Phase CI/CD]
     end
 
-    subgraph "External Systems"
+    subgraph "Phase 1: Infrastructure"
         Scaleway[Scaleway API]
+        InfraState[Infrastructure State<br/>infra/terraform.tfstate]
+    end
+
+    subgraph "Phase 2: Application"
         Kubernetes[Kubernetes API]
         Coder[Coder API]
+        CoderState[Coder State<br/>coder/terraform.tfstate]
         Monitoring[Monitoring Stack]
     end
 
     Setup --> Scaleway
+    Setup --> InfraState
     Setup --> Kubernetes
     Setup --> Coder
+    Setup --> CoderState
     Setup --> Hooks
 
     Teardown --> Backup
-    Teardown --> Scaleway
+    Teardown --> CoderState
+    Teardown --> InfraState
     Teardown --> Hooks
 
     Validate --> Kubernetes
@@ -916,44 +1018,58 @@ graph TB
     TestRunner --> Validate
     TestRunner --> GitHub
 
+    StateManager --> InfraState
+    StateManager --> CoderState
     CostCalc --> Scaleway
     ResourceTracker --> Kubernetes
     ResourceTracker --> Monitoring
 ```
 
-### Script Interaction Flow
+### Two-Phase Script Interaction Flow
 
 ```mermaid
 sequenceDiagram
     participant User as User/CI
     participant Setup as Setup Script
     participant PreHook as Pre-Setup Hook
-    participant Terraform as Terraform
+    participant InfraTF as Infrastructure Terraform
+    participant CoderTF as Coder Terraform
     participant PostHook as Post-Setup Hook
     participant Validate as Validation
     participant Backup as Backup System
 
     User->>Setup: ./setup.sh --env=prod
+    Setup->>Setup: Detect environment structure (infra/ + coder/)
     Setup->>Setup: Load configuration
     Setup->>PreHook: Execute pre-setup.sh
     PreHook-->>Setup: Pre-checks passed
 
-    Setup->>Terraform: terraform plan
-    Terraform-->>Setup: Plan ready
+    Note over Setup: Phase 1: Infrastructure Deployment
+    Setup->>InfraTF: terraform plan (infra/)
+    InfraTF-->>Setup: Infrastructure plan ready
     Setup->>User: Show cost estimate
     User->>Setup: Approve deployment
 
-    Setup->>Terraform: terraform apply
-    Terraform-->>Setup: Infrastructure ready
+    Setup->>InfraTF: terraform apply (infra/)
+    InfraTF-->>Setup: Infrastructure ready + kubeconfig
+
+    Note over Setup: Phase 2: Coder Application Deployment
+    Setup->>CoderTF: terraform plan (coder/)
+    Note over CoderTF: Uses remote state to read infra outputs
+    CoderTF-->>Setup: Coder application plan ready
+
+    Setup->>CoderTF: terraform apply (coder/)
+    CoderTF-->>Setup: Coder application ready
 
     Setup->>PostHook: Execute post-setup.sh
-    PostHook->>Validate: Run health checks
+    PostHook->>Validate: Run health checks (both phases)
     Validate-->>PostHook: All systems healthy
-    PostHook->>Backup: Create initial backup
+    PostHook->>Backup: Create initial backup (separate states)
     Backup-->>PostHook: Backup completed
     PostHook-->>Setup: Post-setup complete
 
-    Setup->>User: Environment ready
+    Setup->>User: Complete environment ready
+    Note over User: Kubeconfig available throughout for troubleshooting
 ```
 
 ## Hooks Framework Architecture

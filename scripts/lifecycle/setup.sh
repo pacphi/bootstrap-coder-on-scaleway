@@ -176,12 +176,37 @@ validate_environment() {
         exit 1
     fi
 
-    if [[ ! -f "${env_dir}/main.tf" ]]; then
-        log ERROR "Environment configuration not found: ${env_dir}/main.tf"
+    # Check for new two-phase structure
+    local infra_dir="${env_dir}/infra"
+    local coder_dir="${env_dir}/coder"
+
+    if [[ -d "$infra_dir" && -d "$coder_dir" ]]; then
+        log INFO "Two-phase environment structure detected"
+
+        if [[ ! -f "${infra_dir}/main.tf" ]]; then
+            log ERROR "Infrastructure configuration not found: ${infra_dir}/main.tf"
+            exit 1
+        fi
+
+        if [[ ! -f "${coder_dir}/main.tf" ]]; then
+            log ERROR "Coder configuration not found: ${coder_dir}/main.tf"
+            exit 1
+        fi
+
+        log INFO "✅ Two-phase environment configuration validated"
+        log INFO "   Infrastructure: ${infra_dir}/main.tf"
+        log INFO "   Coder: ${coder_dir}/main.tf"
+    elif [[ -f "${env_dir}/main.tf" ]]; then
+        log WARN "Legacy single-file environment structure detected"
+        log WARN "Consider migrating to two-phase structure (infra/ and coder/ subdirectories)"
+        log INFO "✅ Legacy environment configuration validated"
+    else
+        log ERROR "No valid environment configuration found"
+        log ERROR "Expected either:"
+        log ERROR "  - ${infra_dir}/main.tf and ${coder_dir}/main.tf (two-phase)"
+        log ERROR "  - ${env_dir}/main.tf (legacy)"
         exit 1
     fi
-
-    log INFO "✅ Environment configuration validated"
 }
 
 validate_domain() {
@@ -359,21 +384,43 @@ run_pre_setup_hooks() {
     fi
 }
 
-terraform_init() {
-    log STEP "Initializing Terraform..."
-
+detect_environment_structure() {
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
-    cd "$env_dir"
+    local infra_dir="${env_dir}/infra"
+    local coder_dir="${env_dir}/coder"
 
-    terraform init -upgrade
-    log INFO "✅ Terraform initialized"
+    if [[ -d "$infra_dir" && -d "$coder_dir" ]]; then
+        echo "two-phase"
+    elif [[ -f "${env_dir}/main.tf" ]]; then
+        echo "legacy"
+    else
+        echo "unknown"
+    fi
 }
 
-terraform_plan() {
-    log STEP "Creating Terraform execution plan..."
+terraform_init_infrastructure() {
+    log STEP "Initializing Terraform for infrastructure (Phase 1)..."
 
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
-    cd "$env_dir"
+    local structure=$(detect_environment_structure)
+
+    if [[ "$structure" == "two-phase" ]]; then
+        local infra_dir="${env_dir}/infra"
+        cd "$infra_dir"
+        terraform init -upgrade
+        log INFO "✅ Infrastructure Terraform initialized"
+    else
+        cd "$env_dir"
+        terraform init -upgrade
+        log INFO "✅ Legacy Terraform initialized"
+    fi
+}
+
+terraform_plan_infrastructure() {
+    log STEP "Creating infrastructure execution plan (Phase 1)..."
+
+    local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+    local structure=$(detect_environment_structure)
 
     # Build terraform variables
     local tf_vars=()
@@ -394,29 +441,37 @@ terraform_plan() {
         log INFO "Using IP-based access (no domain configured)"
     fi
 
-    local plan_file="${env_dir}/tfplan"
+    local plan_file=""
+    if [[ "$structure" == "two-phase" ]]; then
+        local infra_dir="${env_dir}/infra"
+        cd "$infra_dir"
+        plan_file="${infra_dir}/infra-tfplan"
+        log INFO "Creating infrastructure plan (two-phase structure)"
+    else
+        cd "$env_dir"
+        plan_file="${env_dir}/tfplan"
+        log INFO "Creating infrastructure plan (legacy structure)"
+    fi
+
     terraform plan -out="$plan_file" "${tf_vars[@]}"
 
     if [[ "$DRY_RUN" == "true" ]]; then
-        log INFO "🔍 Dry run complete. Plan saved to: $plan_file"
-        log INFO "Review the plan above and re-run without --dry-run to apply"
+        log INFO "🔍 Infrastructure dry run complete. Plan saved to: $plan_file"
         return 0
     fi
 
-    log INFO "✅ Plan created successfully"
+    log INFO "✅ Infrastructure plan created successfully"
 }
 
-terraform_apply() {
+terraform_apply_infrastructure() {
     if [[ "$DRY_RUN" == "true" ]]; then
         return 0
     fi
 
-    log STEP "Applying Terraform configuration..."
+    log STEP "Applying infrastructure configuration (Phase 1)..."
 
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
-    cd "$env_dir"
-
-    local plan_file="${env_dir}/tfplan"
+    local structure=$(detect_environment_structure)
 
     if [[ "$AUTO_APPROVE" == "false" ]]; then
         echo
@@ -430,15 +485,104 @@ terraform_apply() {
         fi
     fi
 
+    local plan_file=""
+    if [[ "$structure" == "two-phase" ]]; then
+        local infra_dir="${env_dir}/infra"
+        cd "$infra_dir"
+        plan_file="${infra_dir}/infra-tfplan"
+    else
+        cd "$env_dir"
+        plan_file="${env_dir}/tfplan"
+    fi
+
     terraform apply "$plan_file"
-    log INFO "✅ Infrastructure deployed successfully"
+    log INFO "✅ Infrastructure deployed successfully (Phase 1)"
+}
+
+terraform_init_coder() {
+    local structure=$(detect_environment_structure)
+
+    if [[ "$structure" != "two-phase" ]]; then
+        log INFO "Skipping Coder initialization (legacy structure - already initialized)"
+        return 0
+    fi
+
+    log STEP "Initializing Terraform for Coder application (Phase 2)..."
+
+    local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+    local coder_dir="${env_dir}/coder"
+    cd "$coder_dir"
+
+    terraform init -upgrade
+    log INFO "✅ Coder Terraform initialized"
+}
+
+terraform_plan_coder() {
+    local structure=$(detect_environment_structure)
+
+    if [[ "$structure" != "two-phase" ]]; then
+        log INFO "Skipping Coder planning (legacy structure - included in main plan)"
+        return 0
+    fi
+
+    log STEP "Creating Coder application execution plan (Phase 2)..."
+
+    local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+    local coder_dir="${env_dir}/coder"
+    cd "$coder_dir"
+
+    local plan_file="${coder_dir}/coder-tfplan"
+    terraform plan -out="$plan_file"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "🔍 Coder dry run complete. Plan saved to: $plan_file"
+        return 0
+    fi
+
+    log INFO "✅ Coder plan created successfully"
+}
+
+terraform_apply_coder() {
+    if [[ "$DRY_RUN" == "true" ]]; then
+        return 0
+    fi
+
+    local structure=$(detect_environment_structure)
+
+    if [[ "$structure" != "two-phase" ]]; then
+        log INFO "Skipping Coder application deployment (legacy structure - already deployed)"
+        return 0
+    fi
+
+    if [[ "$ENABLE_CODER" == "false" ]]; then
+        log INFO "Skipping Coder application deployment (--no-coder flag)"
+        return 0
+    fi
+
+    log STEP "Applying Coder application configuration (Phase 2)..."
+
+    local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+    local coder_dir="${env_dir}/coder"
+    cd "$coder_dir"
+
+    local plan_file="${coder_dir}/coder-tfplan"
+    terraform apply "$plan_file"
+    log INFO "✅ Coder application deployed successfully (Phase 2)"
 }
 
 get_cluster_info() {
     log STEP "Retrieving cluster information..."
 
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
-    cd "$env_dir"
+    local structure=$(detect_environment_structure)
+
+    # For two-phase structure, get kubeconfig from infrastructure directory
+    if [[ "$structure" == "two-phase" ]]; then
+        local infra_dir="${env_dir}/infra"
+        cd "$infra_dir"
+    else
+        cd "$env_dir"
+    fi
 
     # Extract kubeconfig
     terraform output -raw kubeconfig > "${HOME}/.kube/config-coder-${ENVIRONMENT}"
@@ -447,38 +591,68 @@ get_cluster_info() {
     # Set kubectl context
     export KUBECONFIG="${HOME}/.kube/config-coder-${ENVIRONMENT}"
 
-    log INFO "✅ Cluster access configured"
-    log INFO "Kubeconfig saved to: ${HOME}/.kube/config-coder-${ENVIRONMENT}"
+    # Verify cluster access
+    if kubectl cluster-info >/dev/null 2>&1; then
+        log INFO "✅ Cluster access configured and verified"
+        log INFO "Kubeconfig saved to: ${HOME}/.kube/config-coder-${ENVIRONMENT}"
+    else
+        log ERROR "Failed to connect to cluster"
+        log ERROR "Check kubeconfig and cluster status"
+        return 1
+    fi
 }
 
 deploy_coder() {
+    local structure=$(detect_environment_structure)
+
     if [[ "$ENABLE_CODER" == "false" ]]; then
         log INFO "Skipping Coder deployment (--no-coder flag)"
         return 0
     fi
 
-    log STEP "Deploying Coder..."
+    if [[ "$structure" == "two-phase" ]]; then
+        log STEP "Validating Coder deployment..."
 
-    local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
-    cd "$env_dir"
+        local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+        local coder_dir="${env_dir}/coder"
+        cd "$coder_dir"
 
-    # Get database connection string and access URL from Terraform outputs
-    local db_connection=$(terraform output -raw database_connection_string 2>/dev/null || echo "")
-    local access_url=$(terraform output -raw coder_url 2>/dev/null || echo "")
-    local wildcard_url=$(terraform output -raw wildcard_access_url 2>/dev/null || echo "")
+        # Get access URLs from Terraform outputs
+        local access_url=$(terraform output -raw coder_url 2>/dev/null || terraform output -raw access_url 2>/dev/null || echo "")
+        local wildcard_url=$(terraform output -raw wildcard_access_url 2>/dev/null || echo "")
 
-    if [[ -z "$db_connection" || -z "$access_url" ]]; then
-        log ERROR "Failed to retrieve database connection or access URL"
-        log ERROR "Please check Terraform outputs"
-        return 1
+        if [[ -n "$access_url" ]]; then
+            log INFO "✅ Coder deployed successfully"
+            log INFO "Access URL: $access_url"
+            if [[ -n "$wildcard_url" ]]; then
+                log INFO "Wildcard URL: $wildcard_url"
+            fi
+        else
+            log WARN "Coder deployment completed but access URL not available"
+            log WARN "Check Terraform outputs in: $coder_dir"
+        fi
+    else
+        log STEP "Validating legacy Coder deployment..."
+
+        local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
+        cd "$env_dir"
+
+        # Get database connection string and access URL from Terraform outputs
+        local db_connection=$(terraform output -raw database_connection_string 2>/dev/null || echo "")
+        local access_url=$(terraform output -raw coder_url 2>/dev/null || echo "")
+        local wildcard_url=$(terraform output -raw wildcard_access_url 2>/dev/null || echo "")
+
+        if [[ -n "$access_url" ]]; then
+            log INFO "✅ Legacy Coder deployment validated"
+            log INFO "Access URL: $access_url"
+            if [[ -n "$wildcard_url" ]]; then
+                log INFO "Wildcard URL: $wildcard_url"
+            fi
+        else
+            log WARN "Legacy Coder deployment issue - access URL not available"
+            log WARN "Check Terraform outputs in: $env_dir"
+        fi
     fi
-
-    # Deploy Coder using the module
-    log INFO "Database connection configured"
-    log INFO "Access URL: $access_url"
-    log INFO "Wildcard URL: $wildcard_url"
-
-    log INFO "✅ Coder deployment initiated"
 }
 
 deploy_template() {
@@ -745,7 +919,7 @@ print_summary() {
     log STEP "Setup Summary"
 
     local env_dir="${PROJECT_ROOT}/environments/${ENVIRONMENT}"
-    cd "$env_dir"
+    local structure=$(detect_environment_structure)
 
     local end_time=$(date +%s)
     local duration=$((end_time - START_TIME))
@@ -753,20 +927,56 @@ print_summary() {
     local duration_sec=$((duration % 60))
 
     echo
-    echo -e "${GREEN}🎉 Setup completed successfully! 🎉${NC}"
-    echo
-    echo -e "${WHITE}Environment:${NC} $ENVIRONMENT"
+    if [[ "$structure" == "two-phase" ]]; then
+        echo -e "${GREEN}🎉 Two-Phase Setup completed successfully! 🎉${NC}"
+        echo
+        echo -e "${WHITE}Environment:${NC} $ENVIRONMENT (Two-Phase Structure)"
+        echo -e "${WHITE}Infrastructure:${NC} Phase 1 ✅"
+        if [[ "$ENABLE_CODER" == "true" ]]; then
+            echo -e "${WHITE}Coder Application:${NC} Phase 2 ✅"
+        else
+            echo -e "${WHITE}Coder Application:${NC} Skipped (--no-coder)"
+        fi
+    else
+        echo -e "${GREEN}🎉 Legacy Setup completed successfully! 🎉${NC}"
+        echo
+        echo -e "${WHITE}Environment:${NC} $ENVIRONMENT (Legacy Structure)"
+    fi
+
     echo -e "${WHITE}Duration:${NC} ${duration_min}m ${duration_sec}s"
 
     if [[ -n "$TEMPLATE" ]]; then
         echo -e "${WHITE}Template:${NC} $TEMPLATE"
     fi
 
-    # Extract and display connection info
-    local access_url=$(terraform output -raw access_url 2>/dev/null || echo "")
-    local admin_username=$(terraform output -raw admin_username 2>/dev/null || echo "admin")
-    local admin_password=$(terraform output -raw admin_password 2>/dev/null || echo "")
-    local load_balancer_ip=$(terraform output -raw load_balancer_ip 2>/dev/null || echo "")
+    # Extract and display connection info based on structure
+    local access_url=""
+    local admin_username=""
+    local admin_password=""
+    local load_balancer_ip=""
+
+    if [[ "$structure" == "two-phase" ]]; then
+        # Get infrastructure outputs from infra directory
+        local infra_dir="${env_dir}/infra"
+        cd "$infra_dir"
+        load_balancer_ip=$(terraform output -raw load_balancer_ip 2>/dev/null || echo "")
+
+        # Get Coder outputs from coder directory (if enabled)
+        if [[ "$ENABLE_CODER" == "true" ]]; then
+            local coder_dir="${env_dir}/coder"
+            cd "$coder_dir"
+            access_url=$(terraform output -raw access_url 2>/dev/null || terraform output -raw coder_url 2>/dev/null || echo "")
+            admin_username=$(terraform output -raw admin_username 2>/dev/null || echo "admin")
+            admin_password=$(terraform output -raw admin_password 2>/dev/null || echo "")
+        fi
+    else
+        # Legacy structure - get all outputs from main directory
+        cd "$env_dir"
+        access_url=$(terraform output -raw access_url 2>/dev/null || echo "")
+        admin_username=$(terraform output -raw admin_username 2>/dev/null || echo "admin")
+        admin_password=$(terraform output -raw admin_password 2>/dev/null || echo "")
+        load_balancer_ip=$(terraform output -raw load_balancer_ip 2>/dev/null || echo "")
+    fi
 
     if [[ -n "$access_url" ]]; then
         echo
@@ -920,12 +1130,24 @@ main() {
         run_pre_setup_hooks
     fi
 
-    terraform_init
-    terraform_plan
-    terraform_apply
+    # Phase 1: Infrastructure deployment
+    terraform_init_infrastructure
+    terraform_plan_infrastructure
+    terraform_apply_infrastructure
 
     if [[ "$DRY_RUN" == "false" ]]; then
         get_cluster_info
+    fi
+
+    # Phase 2: Coder application deployment (only for two-phase structure)
+    local structure=$(detect_environment_structure)
+    if [[ "$structure" == "two-phase" ]]; then
+        terraform_init_coder
+        terraform_plan_coder
+        terraform_apply_coder
+    fi
+
+    if [[ "$DRY_RUN" == "false" ]]; then
         deploy_coder
         deploy_template
         setup_monitoring

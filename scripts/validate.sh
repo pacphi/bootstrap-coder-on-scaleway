@@ -29,6 +29,8 @@ SECURITY_AUDIT=false
 TIMEOUT=300
 LOG_FILE=""
 VALIDATION_RESULTS=()
+PHASE=""
+TWO_PHASE=false
 
 print_banner() {
     echo -e "${BLUE}"
@@ -46,10 +48,12 @@ print_usage() {
 Usage: $0 [OPTIONS]
 
 Validate the health and functionality of Coder environments including
-infrastructure, Kubernetes resources, applications, and connectivity.
+infrastructure, Kubernetes resources, applications, and connectivity with two-phase support.
 
 Options:
     --env=ENV                   Environment to validate (dev|staging|prod|all) [required]
+    --phase=PHASE               Specific phase to validate (infra|coder) for two-phase environments
+    --two-phase                 Validate both phases (infra and coder) for two-phase environments
     --quick                     Quick connectivity check only
     --detailed                  Detailed validation with metrics
     --comprehensive             Full validation including performance tests
@@ -62,10 +66,25 @@ Options:
     --help                      Show this help message
 
 Examples:
+    # Legacy single-phase validation
     $0 --env=dev --quick
     $0 --env=prod --detailed --output=health-report.json
-    $0 --env=staging --components=coder,database
+
+    # Two-phase validation
+    $0 --env=dev --two-phase --comprehensive
+    $0 --env=staging --phase=infra --detailed
+    $0 --env=prod --phase=coder --components=coder,database
+
     $0 --env=all --comprehensive --security
+
+Two-Phase Architecture:
+    This script automatically detects environment structure:
+    - Legacy: Single main.tf in environments/<env>/
+    - Two-Phase: Separate infra/ and coder/ directories
+
+    For two-phase environments:
+    - infra/: Infrastructure validation (cluster, database, networking)
+    - coder/: Application validation (Coder platform, templates)
 
 Component Checks:
     • Infrastructure: Terraform state, Scaleway resources
@@ -119,6 +138,22 @@ add_result() {
     VALIDATION_RESULTS+=("$component|$check|$status|$message|$details")
 }
 
+# Detect environment structure
+detect_environment_structure() {
+    local env="$1"
+    local env_dir="${PROJECT_ROOT}/environments/${env}"
+    local infra_dir="${env_dir}/infra"
+    local coder_dir="${env_dir}/coder"
+
+    if [[ -d "$infra_dir" && -d "$coder_dir" ]]; then
+        echo "two-phase"
+    elif [[ -f "${env_dir}/main.tf" ]]; then
+        echo "legacy"
+    else
+        echo "unknown"
+    fi
+}
+
 validate_environment() {
     if [[ "$ENVIRONMENT" == "all" ]]; then
         return 0
@@ -140,57 +175,185 @@ validate_environment() {
         log ERROR "Environment directory not found: $env_dir"
         exit 1
     fi
+
+    # Detect and validate structure
+    local structure=$(detect_environment_structure "$ENVIRONMENT")
+    log INFO "Detected environment structure: $structure"
+
+    if [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == false && -z "$PHASE" ]]; then
+            log ERROR "Two-phase environment detected but no phase specified"
+            log ERROR "Use --phase=[infra|coder] or --two-phase flag"
+            exit 1
+        fi
+    elif [[ "$structure" == "legacy" ]]; then
+        if [[ "$TWO_PHASE" == true || -n "$PHASE" ]]; then
+            log ERROR "Legacy single-phase environment detected, but two-phase options specified"
+            log ERROR "Remove --phase or --two-phase flags for legacy environments"
+            exit 1
+        fi
+    elif [[ "$structure" == "unknown" ]]; then
+        log ERROR "Unknown environment structure: $structure"
+        exit 1
+    fi
 }
 
-check_infrastructure() {
+# Check infrastructure for a specific phase
+check_phase_infrastructure() {
     local env_name="$1"
-
-    log STEP "Validating infrastructure for environment: $env_name"
-
+    local phase="$2"
     local env_dir="${PROJECT_ROOT}/environments/${env_name}"
+    local phase_dir="${env_dir}/${phase}"
 
-    # Check Terraform state
-    if [[ -f "${env_dir}/terraform.tfstate" ]]; then
-        log PASS "Terraform state file exists"
-        add_result "infrastructure" "terraform_state" "pass" "State file exists" "${env_dir}/terraform.tfstate"
+    if [[ ! -d "$phase_dir" ]]; then
+        log ERROR "Phase directory not found: $phase_dir"
+        add_result "infrastructure" "${phase}_phase_dir" "fail" "Phase directory not found" "$phase_dir"
+        return 1
+    fi
 
-        # Validate state is not empty
-        local resource_count=$(jq -r '.resources | length' "${env_dir}/terraform.tfstate" 2>/dev/null || echo "0")
-        if [[ "$resource_count" -gt 0 ]]; then
-            log PASS "Terraform state contains $resource_count resources"
-            add_result "infrastructure" "terraform_resources" "pass" "$resource_count resources in state" "$resource_count"
-        else
-            log FAIL "Terraform state is empty or invalid"
-            add_result "infrastructure" "terraform_resources" "fail" "State is empty or invalid" "$resource_count"
-        fi
+    log STEP "Validating $phase phase infrastructure for environment: $env_name"
+
+    # Check for remote state (providers.tf with backend config)
+    if [[ -f "${phase_dir}/providers.tf" ]]; then
+        log PASS "$phase phase backend configuration exists"
+        add_result "infrastructure" "${phase}_backend_config" "pass" "Backend configuration exists" "${phase_dir}/providers.tf"
     else
-        log FAIL "Terraform state file not found"
-        add_result "infrastructure" "terraform_state" "fail" "State file not found" ""
+        log FAIL "$phase phase backend configuration not found"
+        add_result "infrastructure" "${phase}_backend_config" "fail" "Backend configuration not found" "${phase_dir}/providers.tf"
         return 1
     fi
 
     # Check Terraform configuration
-    cd "$env_dir"
+    cd "$phase_dir"
     if terraform validate &>/dev/null; then
-        log PASS "Terraform configuration is valid"
-        add_result "infrastructure" "terraform_config" "pass" "Configuration is valid" ""
+        log PASS "$phase phase Terraform configuration is valid"
+        add_result "infrastructure" "${phase}_terraform_config" "pass" "Configuration is valid" ""
     else
-        log FAIL "Terraform configuration validation failed"
-        add_result "infrastructure" "terraform_config" "fail" "Configuration validation failed" ""
+        log FAIL "$phase phase Terraform configuration validation failed"
+        add_result "infrastructure" "${phase}_terraform_config" "fail" "Configuration validation failed" ""
     fi
 
-    # Check if we can refresh state (tests Scaleway connectivity)
-    if timeout "$TIMEOUT" terraform refresh -input=false &>/dev/null; then
-        log PASS "Terraform can connect to Scaleway"
-        add_result "infrastructure" "scaleway_connectivity" "pass" "Scaleway API accessible" ""
+    # Initialize and check remote state connectivity
+    if terraform init -input=false &>/dev/null; then
+        log PASS "$phase phase Terraform backend initialization successful"
+        add_result "infrastructure" "${phase}_backend_init" "pass" "Backend initialization successful" ""
+
+        # Check if we can refresh state (tests connectivity)
+        if timeout "$TIMEOUT" terraform refresh -input=false &>/dev/null; then
+            log PASS "$phase phase can connect to Scaleway and refresh state"
+            add_result "infrastructure" "${phase}_scaleway_connectivity" "pass" "Scaleway API accessible" ""
+
+            # Check resource count from remote state
+            local state_data
+            if state_data=$(terraform show -json 2>/dev/null); then
+                local resource_count=$(echo "$state_data" | jq -r '.values.root_module.resources | length' 2>/dev/null || echo "0")
+                if [[ "$resource_count" -gt 0 ]]; then
+                    log PASS "$phase phase remote state contains $resource_count resources"
+                    add_result "infrastructure" "${phase}_remote_resources" "pass" "$resource_count resources in remote state" "$resource_count"
+                else
+                    log WARN "$phase phase remote state is empty or has no resources"
+                    add_result "infrastructure" "${phase}_remote_resources" "warn" "Remote state is empty" "$resource_count"
+                fi
+            else
+                log WARN "Could not read $phase phase remote state"
+                add_result "infrastructure" "${phase}_remote_state" "warn" "Could not read remote state" ""
+            fi
+        else
+            log FAIL "$phase phase cannot connect to Scaleway or refresh failed"
+            add_result "infrastructure" "${phase}_scaleway_connectivity" "fail" "Scaleway API connectivity issue" ""
+        fi
     else
-        log FAIL "Cannot connect to Scaleway or refresh failed"
-        add_result "infrastructure" "scaleway_connectivity" "fail" "Scaleway API connectivity issue" ""
+        log FAIL "$phase phase Terraform backend initialization failed"
+        add_result "infrastructure" "${phase}_backend_init" "fail" "Backend initialization failed" ""
     fi
 
     cd - &>/dev/null
 
-    log INFO "✅ Infrastructure validation completed for: $env_name"
+    log INFO "✅ $phase phase infrastructure validation completed for: $env_name"
+}
+
+check_infrastructure() {
+    local env_name="$1"
+    local structure=$(detect_environment_structure "$env_name")
+
+    if [[ "$structure" == "legacy" ]]; then
+        log STEP "Validating infrastructure for environment: $env_name"
+
+        local env_dir="${PROJECT_ROOT}/environments/${env_name}"
+
+        # Check Terraform state (could be local or remote)
+        if [[ -f "${env_dir}/terraform.tfstate" ]]; then
+            log PASS "Terraform local state file exists"
+            add_result "infrastructure" "terraform_state" "pass" "State file exists" "${env_dir}/terraform.tfstate"
+
+            # Validate state is not empty
+            local resource_count=$(jq -r '.resources | length' "${env_dir}/terraform.tfstate" 2>/dev/null || echo "0")
+            if [[ "$resource_count" -gt 0 ]]; then
+                log PASS "Terraform state contains $resource_count resources"
+                add_result "infrastructure" "terraform_resources" "pass" "$resource_count resources in state" "$resource_count"
+            else
+                log FAIL "Terraform state is empty or invalid"
+                add_result "infrastructure" "terraform_resources" "fail" "State is empty or invalid" "$resource_count"
+            fi
+        elif [[ -f "${env_dir}/backend.tf" ]]; then
+            log PASS "Remote backend configuration exists"
+            add_result "infrastructure" "backend_config" "pass" "Remote backend configured" "${env_dir}/backend.tf"
+
+            # Check remote state connectivity
+            cd "$env_dir"
+            if terraform init -input=false &>/dev/null; then
+                local state_data
+                if state_data=$(terraform show -json 2>/dev/null); then
+                    local resource_count=$(echo "$state_data" | jq -r '.values.root_module.resources | length' 2>/dev/null || echo "0")
+                    log PASS "Remote state contains $resource_count resources"
+                    add_result "infrastructure" "remote_state" "pass" "Remote state accessible with $resource_count resources" "$resource_count"
+                else
+                    log FAIL "Cannot read remote state"
+                    add_result "infrastructure" "remote_state" "fail" "Remote state not accessible" ""
+                fi
+            else
+                log FAIL "Cannot initialize remote backend"
+                add_result "infrastructure" "backend_init" "fail" "Backend initialization failed" ""
+            fi
+            cd - &>/dev/null
+        else
+            log FAIL "No Terraform state file found (local or remote backend)"
+            add_result "infrastructure" "terraform_state" "fail" "No state configuration found" ""
+            return 1
+        fi
+
+        # Check Terraform configuration
+        cd "$env_dir"
+        if terraform validate &>/dev/null; then
+            log PASS "Terraform configuration is valid"
+            add_result "infrastructure" "terraform_config" "pass" "Configuration is valid" ""
+        else
+            log FAIL "Terraform configuration validation failed"
+            add_result "infrastructure" "terraform_config" "fail" "Configuration validation failed" ""
+        fi
+
+        # Check if we can refresh state (tests Scaleway connectivity)
+        if timeout "$TIMEOUT" terraform refresh -input=false &>/dev/null; then
+            log PASS "Terraform can connect to Scaleway"
+            add_result "infrastructure" "scaleway_connectivity" "pass" "Scaleway API accessible" ""
+        else
+            log FAIL "Cannot connect to Scaleway or refresh failed"
+            add_result "infrastructure" "scaleway_connectivity" "fail" "Scaleway API connectivity issue" ""
+        fi
+
+        cd - &>/dev/null
+
+        log INFO "✅ Infrastructure validation completed for: $env_name"
+    elif [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == true ]]; then
+            log STEP "Validating two-phase infrastructure for environment: $env_name"
+            check_phase_infrastructure "$env_name" "infra"
+            check_phase_infrastructure "$env_name" "coder"
+            log INFO "✅ Two-phase infrastructure validation completed for: $env_name"
+        elif [[ -n "$PHASE" ]]; then
+            check_phase_infrastructure "$env_name" "$PHASE"
+        fi
+    fi
 }
 
 check_cluster() {
@@ -603,6 +766,7 @@ check_network() {
 
 check_security() {
     local env_name="$1"
+    local structure=$(detect_environment_structure "$env_name")
 
     # Security audit runs when explicitly called as a component
 
@@ -618,6 +782,7 @@ check_security() {
     # Run security audit and capture results
     local audit_output_file="/tmp/security-audit-${env_name}-$(date +%s).json"
     local audit_mode=""
+    local audit_phase_args=""
 
     if [[ "$COMPREHENSIVE" == "true" ]]; then
         audit_mode="--comprehensive"
@@ -625,7 +790,16 @@ check_security() {
         audit_mode="--detailed"
     fi
 
-    if bash "$security_audit_script" --env="$env_name" $audit_mode --format=json --output="$audit_output_file" &>/dev/null; then
+    # Add phase arguments if two-phase environment
+    if [[ "$structure" == "two-phase" ]]; then
+        if [[ "$TWO_PHASE" == true ]]; then
+            audit_phase_args="--two-phase"
+        elif [[ -n "$PHASE" ]]; then
+            audit_phase_args="--phase=$PHASE"
+        fi
+    fi
+
+    if bash "$security_audit_script" --env="$env_name" $audit_mode $audit_phase_args --format=json --output="$audit_output_file" &>/dev/null; then
         log PASS "Security audit completed successfully"
         add_result "security" "audit_execution" "pass" "Security audit completed" "$audit_output_file"
 
@@ -892,6 +1066,14 @@ main() {
                 DETAILED=true
                 shift
                 ;;
+            --phase=*)
+                PHASE="${1#*=}"
+                shift
+                ;;
+            --two-phase)
+                TWO_PHASE=true
+                shift
+                ;;
             --security)
                 SECURITY_AUDIT=true
                 shift
@@ -931,6 +1113,18 @@ main() {
         exit 1
     fi
 
+    # Validate phase if specified
+    if [[ -n "$PHASE" && ! "$PHASE" =~ ^(infra|coder)$ ]]; then
+        log ERROR "Invalid phase: $PHASE. Must be one of: infra, coder"
+        exit 1
+    fi
+
+    # Validate phase options compatibility
+    if [[ "$TWO_PHASE" == true && -n "$PHASE" ]]; then
+        log ERROR "Cannot specify both --two-phase and --phase options"
+        exit 1
+    fi
+
     print_banner
     setup_logging
 
@@ -938,6 +1132,8 @@ main() {
     [[ "$QUICK_CHECK" == "true" ]] && log INFO "🚀 Running in quick check mode"
     [[ "$DETAILED" == "true" ]] && log INFO "🔍 Running detailed validation"
     [[ "$COMPREHENSIVE" == "true" ]] && log INFO "🎯 Running comprehensive validation"
+    [[ "$TWO_PHASE" == true ]] && log INFO "🔄 Two-phase validation enabled (infra + coder)"
+    [[ -n "$PHASE" ]] && log INFO "⚙️ Phase-specific validation: $PHASE"
 
     validate_environment
 

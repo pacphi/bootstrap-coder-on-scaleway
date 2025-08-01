@@ -1,4 +1,4 @@
-name: Deploy Coder Environment
+name: Deploy Complete Coder Environment
 
 # Set minimal required permissions for security
 permissions:
@@ -74,39 +74,32 @@ on:
         required: false
         type: boolean
         default: false
+      skip_coder_deployment:
+        description: 'Deploy infrastructure only (skip Coder application)'
+        required: false
+        type: boolean
+        default: false
 
-  # # Allow manual PR triggers for staging deployments
-  # pull_request:
-  #   types: [opened, synchronize, labeled]
-  #   paths:
-  #     - 'environments/**'
-  #     - 'modules/**'
-  #     - 'templates/**'
-  #     - 'scripts/**'
+  # Allow manual PR triggers for staging deployments
+  pull_request:
+    types: [opened, synchronize, labeled]
+    paths:
+      - 'environments/**'
+      - 'modules/**'
+      - 'templates/**'
+      - 'scripts/**'
+      - '.github/workflows/deploy-*.yml'
 
-  # # Auto-deploy on push to main for staging
-  # push:
-  #   branches: [main]
-  #   paths:
-  #     - 'environments/staging/**'
-  #     - 'modules/**'
-
-env:
-  TF_IN_AUTOMATION: true
-  TF_VAR_scaleway_region: ${{ github.event.inputs.region }}
-  TF_VAR_scaleway_zone: ${{ github.event.inputs.availability_zone }}
-  # Consolidated Scaleway credentials and mappings
-  SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-  SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-  SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
-  SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
-  # AWS variables for S3 backend compatibility
-  AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+  # Auto-deploy on push to main for staging
+  push:
+    branches: [main]
+    paths:
+      - 'environments/staging/**'
+      - 'modules/**'
 
 jobs:
-  validate:
-    name: Validate Configuration
+  determine-strategy:
+    name: Determine Deployment Strategy
     runs-on: ubuntu-latest
     outputs:
       deploy_env: ${{ steps.determine-env.outputs.environment }}
@@ -114,12 +107,15 @@ jobs:
       deploy_domain: ${{ steps.determine-env.outputs.domain_name }}
       deploy_subdomain: ${{ steps.determine-env.outputs.subdomain }}
       enable_monitoring: ${{ steps.determine-env.outputs.enable_monitoring }}
+      skip_coder: ${{ steps.determine-env.outputs.skip_coder }}
+      auto_approve: ${{ steps.determine-env.outputs.auto_approve }}
+      dry_run: ${{ steps.determine-env.outputs.dry_run }}
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Determine Deployment Environment
+      - name: Determine Deployment Strategy
         id: determine-env
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -128,6 +124,10 @@ jobs:
             echo "domain_name=${{ github.event.inputs.domain_name }}" >> $GITHUB_OUTPUT
             echo "subdomain=${{ github.event.inputs.subdomain }}" >> $GITHUB_OUTPUT
             echo "enable_monitoring=${{ github.event.inputs.enable_monitoring }}" >> $GITHUB_OUTPUT
+            echo "skip_coder=${{ github.event.inputs.skip_coder_deployment }}" >> $GITHUB_OUTPUT
+            echo "auto_approve=${{ github.event.inputs.auto_approve }}" >> $GITHUB_OUTPUT
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-staging') }}" == "true" ]]; then
               echo "environment=staging" >> $GITHUB_OUTPUT
@@ -135,881 +135,259 @@ jobs:
               echo "domain_name=" >> $GITHUB_OUTPUT
               echo "subdomain=" >> $GITHUB_OUTPUT
               echo "enable_monitoring=false" >> $GITHUB_OUTPUT
+              echo "skip_coder=false" >> $GITHUB_OUTPUT
+              echo "auto_approve=true" >> $GITHUB_OUTPUT
+              echo "dry_run=false" >> $GITHUB_OUTPUT
             else
               echo "Skip deployment for this PR"
               exit 0
             fi
+
           elif [[ "${{ github.event_name }}" == "push" ]]; then
             echo "environment=staging" >> $GITHUB_OUTPUT
             echo "template=" >> $GITHUB_OUTPUT
             echo "domain_name=" >> $GITHUB_OUTPUT
             echo "subdomain=" >> $GITHUB_OUTPUT
             echo "enable_monitoring=true" >> $GITHUB_OUTPUT
+            echo "skip_coder=false" >> $GITHUB_OUTPUT
+            echo "auto_approve=true" >> $GITHUB_OUTPUT
+            echo "dry_run=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~1.12.0"
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: 'v1.32.0'
-
-      - name: Setup Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: 'v3.12.0'
-
-
-      - name: Check Terraform Formatting
+      - name: Display Deployment Plan
         run: |
-          echo "🔍 Checking Terraform formatting across the repository..."
+          echo "🚀 Complete Environment Deployment Plan"
+          echo "========================================"
+          echo ""
+          echo "📋 Deployment Configuration:"
+          echo "  Environment: ${{ steps.determine-env.outputs.environment }}"
+          echo "  Template: ${{ steps.determine-env.outputs.template || 'None specified' }}"
+          echo "  Domain: ${{ steps.determine-env.outputs.domain_name || 'IP-based access' }}"
+          echo "  Subdomain: ${{ steps.determine-env.outputs.subdomain || 'Auto-generated' }}"
+          echo "  Monitoring: ${{ steps.determine-env.outputs.enable_monitoring }}"
+          echo "  Skip Coder: ${{ steps.determine-env.outputs.skip_coder }}"
+          echo "  Auto Approve: ${{ steps.determine-env.outputs.auto_approve }}"
+          echo "  Dry Run: ${{ steps.determine-env.outputs.dry_run }}"
+          echo ""
+          echo "🔄 Deployment Phases:"
+          echo "  Phase 1: Infrastructure (cluster, database, networking, security)"
+          echo "  Phase 2: Coder Application ${{ steps.determine-env.outputs.skip_coder == 'true' && '⏭️ SKIPPED' || '✅ INCLUDED' }}"
+          echo ""
+          echo "⚡ Benefits of Two-Phase Deployment:"
+          echo "  • Infrastructure failures don't block cluster access"
+          echo "  • Coder deployment can be retried independently"
+          echo "  • Better troubleshooting with immediate kubeconfig access"
+          echo "  • Cleaner separation of concerns"
 
-          # Check format for all .tf files and collect issues
-          format_issues=()
-
-          # Check environment files
-          for env_dir in environments/*/; do
-            if [[ -d "$env_dir" ]]; then
-              echo "📁 Checking environment: $(basename "$env_dir")"
-              cd "$env_dir"
-
-              # Run format check and capture output
-              if ! terraform fmt -check -diff .; then
-                format_issues+=("Environment: $(basename "$env_dir")")
-              fi
-              cd - > /dev/null
-            fi
-          done
-
-          # Check modules
-          for module_dir in modules/*/; do
-            if [[ -d "$module_dir" ]]; then
-              echo "📦 Checking module: $(basename "$module_dir")"
-              cd "$module_dir"
-
-              if ! terraform fmt -check -diff .; then
-                format_issues+=("Module: $(basename "$module_dir")")
-              fi
-              cd - > /dev/null
-            fi
-          done
-
-          # Check templates
-          for template_dir in templates/*/*/; do
-            if [[ -d "$template_dir" && -f "$template_dir/main.tf" ]]; then
-              template_name=$(echo "$template_dir" | sed 's|templates/||' | sed 's|/$||')
-              echo "🔧 Checking template: $template_name"
-              cd "$template_dir"
-
-              if ! terraform fmt -check -diff .; then
-                format_issues+=("Template: $template_name")
-              fi
-              cd - > /dev/null
-            fi
-          done
-
-          # Report format issues
-          if [[ ${#format_issues[@]} -gt 0 ]]; then
-            echo "❌ Terraform formatting issues found in the following locations:"
-            for issue in "${format_issues[@]}"; do
-              echo "  - $issue"
-            done
-            echo ""
-            echo "💡 To fix formatting issues, run the following commands locally:"
-            echo "   terraform fmt -recursive ."
-            echo "   git add -A && git commit -m 'Fix Terraform formatting'"
-            echo ""
-            echo "🚫 Workflow will continue, but formatting should be fixed in the next commit."
-            # Don't exit with failure - allow validation to continue
-          else
-            echo "✅ All Terraform files are properly formatted"
-          fi
-
-      - name: Validate Terraform Configuration
-        run: |
-          environment="${{ steps.determine-env.outputs.environment }}"
-          env_dir="environments/$environment"
-
-          echo "🔍 Validating Terraform configuration for environment: $environment"
-
-          # Check if environment directory exists
-          if [[ ! -d "$env_dir" ]]; then
-            echo "❌ Environment directory not found: $env_dir"
-            echo "Available environments:"
-            ls -la environments/
-            exit 1
-          fi
-
-          cd "$env_dir"
-
-          # Validate configuration files exist
-          if [[ ! -f "main.tf" ]]; then
-            echo "❌ main.tf not found in $env_dir"
-            ls -la .
-            exit 1
-          fi
-
-          echo "📄 Found configuration files:"
-          ls -la *.tf 2>/dev/null || echo "No .tf files found"
-
-          # Initialize with remote backend if backend.tf exists, otherwise use local backend
-          if [[ -f "backend.tf" ]]; then
-            echo "🔄 Initializing with remote backend..."
-            echo "Backend configuration found:"
-            head -10 backend.tf
-
-            # Initialize with detailed error output
-            if ! terraform init 2>&1; then
-              echo "❌ Terraform initialization failed with remote backend"
-              echo "🔍 Checking backend configuration..."
-              cat backend.tf
-              exit 1
-            fi
-          else
-            echo "⚠️ No remote backend configured, using local backend for validation"
-            if ! terraform init -backend=false 2>&1; then
-              echo "❌ Terraform initialization failed with local backend"
-              exit 1
-            fi
-          fi
-
-          echo "✅ Terraform initialization successful"
-
-          # Run validation with detailed output
-          echo "🔍 Running terraform validate..."
-          if ! terraform validate 2>&1; then
-            echo "❌ Terraform validation failed"
-            echo "🔍 Configuration details:"
-            echo "Working directory: $(pwd)"
-            echo "Terraform files:"
-            ls -la *.tf
-            echo "Terraform version:"
-            terraform version
-            exit 1
-          fi
-
-          echo "✅ Terraform validation successful for environment: $environment"
-
-      - name: Validate Template (if specified)
-        if: ${{ steps.determine-env.outputs.template != '' }}
-        run: |
-          template_name="${{ steps.determine-env.outputs.template }}"
-          echo "🔍 Validating workspace template: $template_name"
-
-          # Search for template in all categories
-          template_path=""
-          found_templates=()
-
-          echo "🔎 Searching for template in all categories..."
-
-          # Search through all template directories
-          for category_dir in templates/*/; do
-            if [[ -d "$category_dir" ]]; then
-              category_name=$(basename "$category_dir")
-              echo "  📁 Checking category: $category_name"
-
-              for template_dir in "$category_dir"*/; do
-                if [[ -d "$template_dir" && -f "$template_dir/main.tf" ]]; then
-                  current_template_name=$(basename "$template_dir")
-                  found_templates+=("$category_name/$current_template_name")
-
-                  if [[ "$current_template_name" == "$template_name" ]]; then
-                    template_path="$template_dir"
-                    echo "  ✅ Found matching template: $category_name/$current_template_name"
-                  else
-                    echo "  📄 Found template: $category_name/$current_template_name"
-                  fi
-                fi
-              done
-            fi
-          done
-
-          # Check if template was found
-          if [[ -z "$template_path" ]]; then
-            echo "❌ Template '$template_name' not found!"
-            echo ""
-            echo "🔍 Available templates:"
-            if [[ ${#found_templates[@]} -eq 0 ]]; then
-              echo "  No templates found in templates/ directory"
-              echo "  Directory structure:"
-              find templates/ -type f -name "main.tf" 2>/dev/null | head -10 || echo "  No main.tf files found"
-            else
-              for template in "${found_templates[@]}"; do
-                echo "  - $template"
-              done
-            fi
-            echo ""
-            echo "💡 Make sure the template name matches exactly (case sensitive)"
-            echo "💡 Template should be in format: category/template-name"
-            exit 1
-          fi
-
-          echo "📂 Template path: $template_path"
-
-          # Validate template directory structure
-          cd "$template_path"
-          echo "📄 Template files found:"
-          ls -la
-
-          # Check for required files
-          if [[ ! -f "main.tf" ]]; then
-            echo "❌ main.tf not found in template directory"
-            exit 1
-          fi
-
-          # Initialize Terraform for template
-          echo "🔄 Initializing Terraform for template validation..."
-          if ! terraform init -backend=false 2>&1; then
-            echo "❌ Template Terraform initialization failed"
-            echo "🔍 Template directory contents:"
-            ls -la
-            echo "🔍 main.tf content (first 50 lines):"
-            head -50 main.tf
-            exit 1
-          fi
-
-          # Validate template configuration
-          echo "🔍 Running terraform validate on template..."
-          if ! terraform validate 2>&1; then
-            echo "❌ Template validation failed"
-            echo "🔍 Template details:"
-            echo "  Path: $template_path"
-            echo "  Template: $template_name"
-            echo "🔍 Terraform files in template:"
-            ls -la *.tf 2>/dev/null || echo "No .tf files found"
-            echo "🔍 Terraform version:"
-            terraform version
-            exit 1
-          fi
-
-          echo "✅ Template validation successful: $template_name"
-          echo "📊 Template summary:"
-          echo "  Name: $template_name"
-          echo "  Path: $template_path"
-          echo "  Category: $(dirname "$template_path" | sed 's|templates/||')"
-
-  setup-backend:
-    name: Setup Terraform Backend
-    needs: validate
-    if: needs.validate.outputs.deploy_env != ''
-    uses: ./.github/workflows/manage-backend-bucket.yml
+  deploy-infrastructure:
+    name: Deploy Infrastructure (Phase 1)
+    needs: determine-strategy
+    if: needs.determine-strategy.outputs.deploy_env != ''
+    uses: ./.github/workflows/deploy-infrastructure.yml
     with:
       bucket_name: ${{ github.event.inputs.bucket_name }}
-      environment: ${{ needs.validate.outputs.deploy_env }}
+      environment: ${{ needs.determine-strategy.outputs.deploy_env }}
       region: ${{ github.event.inputs.region }}
-      action: create
-      force_recreate: false
+      availability_zone: ${{ github.event.inputs.availability_zone }}
+      domain_name: ${{ needs.determine-strategy.outputs.deploy_domain }}
+      subdomain: ${{ needs.determine-strategy.outputs.deploy_subdomain }}
+      auto_approve: ${{ needs.determine-strategy.outputs.auto_approve == 'true' }}
+      dry_run: ${{ needs.determine-strategy.outputs.dry_run == 'true' }}
     secrets: inherit
 
-  estimate-costs:
-    name: Estimate Costs
+  deploy-coder:
+    name: Deploy Coder Application (Phase 2)
+    needs: [determine-strategy, deploy-infrastructure]
+    if: needs.determine-strategy.outputs.deploy_env != '' && needs.determine-strategy.outputs.skip_coder != 'true' && needs.deploy-infrastructure.result == 'success'
+    uses: ./.github/workflows/deploy-coder.yml
+    with:
+      bucket_name: ${{ github.event.inputs.bucket_name }}
+      environment: ${{ needs.determine-strategy.outputs.deploy_env }}
+      region: ${{ github.event.inputs.region }}
+      availability_zone: ${{ github.event.inputs.availability_zone }}
+      template: ${{ needs.determine-strategy.outputs.deploy_template }}
+      kubeconfig_source: 'from_infrastructure_run'
+      infrastructure_run_id: ${{ github.run_id }}
+      auto_approve: ${{ needs.determine-strategy.outputs.auto_approve == 'true' }}
+      dry_run: ${{ needs.determine-strategy.outputs.dry_run == 'true' }}
+    secrets: inherit
+
+  deployment-summary:
+    name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [validate, setup-backend]
-    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true'
+    needs: [determine-strategy, deploy-infrastructure, deploy-coder]
+    if: always() && needs.determine-strategy.outputs.deploy_env != ''
     permissions:
-      contents: read        # Read repository code
-      pull-requests: write  # Comment cost estimates on PRs
+      contents: read        # Read repository information
+      pull-requests: write  # Comment on PRs with deployment status
+      issues: write         # Create issues on deployment failure
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Calculate Cost Estimate
-        id: cost-estimate
+      - name: Evaluate Deployment Results
+        id: evaluate
         run: |
-          environment="${{ needs.validate.outputs.deploy_env }}"
-
-          # Cost estimation based on environment
-          case "$environment" in
-            dev)
-              monthly_cost="53.70"
-              description="2×GP1-XS nodes, DB-DEV-S, Basic LB"
-              ;;
-            staging)
-              monthly_cost="97.85"
-              description="3×GP1-S nodes, DB-GP-S, Basic LB"
-              ;;
-            prod)
-              monthly_cost="374.50"
-              description="5×GP1-M nodes, DB-GP-M HA, Enhanced LB"
-              ;;
-          esac
-
-          echo "monthly_cost=$monthly_cost" >> $GITHUB_OUTPUT
-          echo "description=$description" >> $GITHUB_OUTPUT
-          echo "environment=$environment" >> $GITHUB_OUTPUT
-
-      - name: Comment Cost Estimate on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { monthly_cost, description, environment } = ${{ steps.cost-estimate.outputs }};
-
-            const body = `## 💰 Cost Impact Analysis
-
-            **Environment:** \`${environment}\`
-            **Estimated Monthly Cost:** €${monthly_cost}
-            **Resources:** ${description}
-
-            > This is an estimate based on Scaleway pricing. Actual costs may vary.
-
-            **Template:** ${{ needs.validate.outputs.deploy_template || 'None specified' }}
-            **Monitoring:** ${{ needs.validate.outputs.enable_monitoring }}`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
-
-  plan:
-    name: Plan Infrastructure Changes
-    runs-on: ubuntu-latest
-    needs: [validate, setup-backend, estimate-costs]
-    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true'
-    permissions:
-      contents: read        # Read repository code
-      pull-requests: write  # Comment plan results on PRs
-    outputs:
-      plan_id: ${{ steps.plan.outputs.plan_id }}
-      has_changes: ${{ steps.plan.outputs.has_changes }}
-      plan_summary: ${{ steps.plan.outputs.plan_summary }}
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~1.12.0"
-          terraform_wrapper: false
-
-
-      - name: Download Backend Configuration
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
-          path: environments/${{ needs.validate.outputs.deploy_env }}
-
-      - name: Debug Downloaded Files
-        run: |
-          echo "🔍 Debugging downloaded backend configuration files..."
-          echo
-          echo "Current directory contents:"
-          ls -la
-          echo
-          echo "Environment directory structure:"
-          if [ -d "environments" ]; then
-            find environments -type f -name "*.tf" | sort
-          else
-            echo "❌ environments directory not found"
-          fi
-          echo
-          echo "Looking for backend.tf files specifically:"
-          find . -name "backend.tf" -type f 2>/dev/null || echo "❌ No backend.tf files found"
-          echo
-          echo "Full directory tree:"
-          tree . 2>/dev/null || find . -type f | head -20
-
-      - name: Verify Backend Configuration
-        run: |
-          echo "🔍 Verifying backend configuration..."
-
-          # Define variables
-          ENVIRONMENT="${{ needs.validate.outputs.deploy_env }}"
-          REGION="${{ github.event.inputs.region }}"
-          BACKEND_FILE="environments/$ENVIRONMENT/backend.tf"
-          ENV_DIR="environments/$ENVIRONMENT"
-
-          # Ensure environment directory exists
-          if [ ! -d "$ENV_DIR" ]; then
-            echo "❌ Environment directory not found: $ENV_DIR"
-            echo "Available environments:"
-            ls -la environments/ 2>/dev/null || echo "No environments directory found"
-            exit 1
-          fi
-
-          # Check if backend.tf exists
-          if [ ! -f "$BACKEND_FILE" ]; then
-            echo "❌ ERROR: backend.tf not found at: $BACKEND_FILE"
-            echo "This indicates the backend setup job failed or artifacts were not properly downloaded."
-            echo "Please check:"
-            echo "1. The setup-backend job completed successfully"
-            echo "2. The backend-config artifact was created"
-            echo "3. The artifact download step succeeded"
-            echo ""
-            echo "Available files in $ENV_DIR:"
-            ls -la "$ENV_DIR/" || echo "Directory not found"
-            echo ""
-            echo "Current directory structure:"
-            find . -name "backend.tf" -type f 2>/dev/null || echo "No backend.tf files found anywhere"
-            exit 1
-          else
-            echo "✅ backend.tf found at: $BACKEND_FILE"
-          fi
-
-          # Validate backend.tf content
-          echo "🔍 Validating backend configuration content..."
-
-          # Check for deprecated endpoint parameter
-          if grep -q "^[[:space:]]*endpoint[[:space:]]*=" "$BACKEND_FILE"; then
-            echo "❌ ERROR: backend.tf contains deprecated 'endpoint' parameter"
-            echo "Should use 'endpoints = { s3 = ... }' instead"
-            exit 1
-          fi
-
-          # Check for endpoints block
-          if grep -q "endpoints[[:space:]]*=" "$BACKEND_FILE"; then
-            echo "✅ Using correct 'endpoints' block"
-          else
-            echo "❌ ERROR: backend.tf missing 'endpoints' block"
-            exit 1
-          fi
-
-          # Check for skip_metadata_api_check
-          if grep -q "skip_metadata_api_check[[:space:]]*=" "$BACKEND_FILE"; then
-            echo "✅ Has skip_metadata_api_check flag"
-          else
-            echo "⚠️  WARNING: Missing skip_metadata_api_check flag"
-          fi
-
-          # Check for correct bucket name
-          expected_bucket="terraform-state-coder-$ENVIRONMENT"
-          if grep -q "bucket = \"$expected_bucket\"" "$BACKEND_FILE"; then
-            echo "✅ Correct bucket name: $expected_bucket"
-          else
-            echo "⚠️  WARNING: Bucket name may not match expected: $expected_bucket"
-          fi
-
-          echo "📄 Backend configuration content:"
-          cat "$BACKEND_FILE"
-
-          # Verify credentials
-          echo -e "\n🔐 Checking S3 backend credentials..."
-          [ -n "$AWS_ACCESS_KEY_ID" ] && echo "✅ AWS_ACCESS_KEY_ID is set" || echo "❌ AWS_ACCESS_KEY_ID missing"
-          [ -n "$AWS_SECRET_ACCESS_KEY" ] && echo "✅ AWS_SECRET_ACCESS_KEY is set" || echo "❌ AWS_SECRET_ACCESS_KEY missing"
-
-      - name: Initialize Terraform Backend
-        run: |
-          cd environments/${{ needs.validate.outputs.deploy_env }}
-
-          echo "🔄 Initializing with remote backend..."
-          echo "Backend bucket: ${{ needs.setup-backend.outputs.bucket_name }}"
-          terraform init
-
-      - name: Plan Infrastructure Changes
-        id: plan
-        run: |
-          cd environments/${{ needs.validate.outputs.deploy_env }}
-
-          # Generate unique plan ID
-          plan_id="plan-$(date +%Y%m%d-%H%M%S)-${{ github.run_id }}"
-          echo "plan_id=$plan_id" >> $GITHUB_OUTPUT
-
-          # Run terraform plan
-          set +e
-          terraform plan -detailed-exitcode -out="${plan_id}.tfplan" > plan_output.txt 2>&1
-          plan_exit_code=$?
-          set -e
-
-          # Parse plan results
-          case $plan_exit_code in
-            0)
-              echo "has_changes=false" >> $GITHUB_OUTPUT
-              echo "plan_summary=No changes needed" >> $GITHUB_OUTPUT
-              ;;
-            1)
-              echo "❌ Terraform plan failed"
-              cat plan_output.txt
-              exit 1
-              ;;
-            2)
-              echo "has_changes=true" >> $GITHUB_OUTPUT
-
-              # Extract plan summary
-              if grep -q "Plan:" plan_output.txt; then
-                plan_summary=$(grep "Plan:" plan_output.txt | head -1)
-                echo "plan_summary=$plan_summary" >> $GITHUB_OUTPUT
-              else
-                echo "plan_summary=Infrastructure changes detected" >> $GITHUB_OUTPUT
-              fi
-              ;;
-          esac
-
-          # Save plan output for artifacts
-          cp plan_output.txt "terraform-plan-${plan_id}.txt"
-
-      - name: Upload Plan Artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
-          path: |
-            environments/${{ needs.validate.outputs.deploy_env }}/*.tfplan
-            environments/${{ needs.validate.outputs.deploy_env }}/terraform-plan-*.txt
-          retention-days: 30
-
-      - name: Comment Plan Results on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-
-            const planFile = `environments/${{ needs.validate.outputs.deploy_env }}/terraform-plan-${{ steps.plan.outputs.plan_id }}.txt`;
-            let planOutput = '';
-
-            try {
-              planOutput = fs.readFileSync(planFile, 'utf8');
-            } catch (error) {
-              planOutput = 'Plan output not available';
-            }
-
-            const body = `## 📋 Terraform Plan Results
-
-            **Environment:** \`${{ needs.validate.outputs.deploy_env }}\`
-            **Plan ID:** \`${{ steps.plan.outputs.plan_id }}\`
-            **Has Changes:** ${{ steps.plan.outputs.has_changes }}
-            **Summary:** ${{ steps.plan.outputs.plan_summary }}
-
-            <details>
-            <summary>View Plan Details</summary>
-
-            \`\`\`terraform
-            ${planOutput.slice(0, 32000)} ${planOutput.length > 32000 ? '... (truncated)' : ''}
-            \`\`\`
-
-            </details>
-
-            ${steps.plan.outputs.has_changes === 'true' ? '⚠️ **Review the changes carefully before approving deployment**' : '✅ **No infrastructure changes needed**'}`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
-
-  deploy:
-    name: Deploy Environment
-    runs-on: ubuntu-latest
-    needs: [validate, setup-backend, estimate-costs, plan]
-    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true' && (github.event.inputs.dry_run != 'true' || github.event.inputs.dry_run == '')
-    environment:
-      name: ${{ needs.validate.outputs.deploy_env }}
-      url: ${{ steps.deploy.outputs.coder_url }}
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~1.12.0"
-          terraform_wrapper: false
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: 'v1.32.0'
-
-      - name: Setup Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: 'v3.12.0'
-
-
-      - name: Setup Deployment Flags
-        id: setup-flags
-        run: |
-          flags="--env=${{ needs.validate.outputs.deploy_env }}"
-
-          if [[ "${{ needs.validate.outputs.deploy_template }}" != "" ]]; then
-            flags="$flags --template=${{ needs.validate.outputs.deploy_template }}"
-          fi
-
-          if [[ "${{ needs.validate.outputs.deploy_domain }}" != "" ]]; then
-            flags="$flags --domain=${{ needs.validate.outputs.deploy_domain }}"
-          fi
-
-          if [[ "${{ needs.validate.outputs.deploy_subdomain }}" != "" ]]; then
-            flags="$flags --subdomain=${{ needs.validate.outputs.deploy_subdomain }}"
-          fi
-
-          if [[ "${{ needs.validate.outputs.enable_monitoring }}" == "true" ]]; then
-            flags="$flags --enable-monitoring"
-          fi
-
-          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
-            flags="$flags --dry-run"
-          else
-            flags="$flags --auto-approve"
-          fi
-
-          echo "deployment_flags=$flags" >> $GITHUB_OUTPUT
-
-      - name: Download Plan Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
-          path: environments/${{ needs.validate.outputs.deploy_env }}/
-
-      - name: Download Backend Configuration
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-config-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
-          path: environments/${{ needs.validate.outputs.deploy_env }}
-
-      - name: Debug Downloaded Files (Deploy)
-        run: |
-          echo "🔍 Debugging downloaded backend configuration files for deploy..."
-          echo
-          echo "Current directory contents:"
-          ls -la
-          echo
-          echo "Environment directory structure:"
-          if [ -d "environments" ]; then
-            find environments -type f -name "*.tf" | sort
-          else
-            echo "❌ environments directory not found"
-          fi
-          echo
-          echo "Looking for backend.tf files specifically:"
-          find . -name "backend.tf" -type f 2>/dev/null || echo "❌ No backend.tf files found"
-
-      - name: Ensure Backend Configuration (Deploy)
-        run: |
-          echo "🔍 Ensuring backend configuration exists for deploy..."
-
-          # Define variables
-          ENVIRONMENT="${{ needs.validate.outputs.deploy_env }}"
-          REGION="${{ github.event.inputs.region }}"
-          BACKEND_FILE="environments/$ENVIRONMENT/backend.tf"
-          ENV_DIR="environments/$ENVIRONMENT"
-
-          # Ensure environment directory exists
-          if [ ! -d "$ENV_DIR" ]; then
-            echo "❌ Environment directory not found: $ENV_DIR"
-            exit 1
-          fi
-
-          # Check if backend.tf exists
-          if [ ! -f "$BACKEND_FILE" ]; then
-            echo "❌ ERROR: backend.tf not found in deploy job at: $BACKEND_FILE"
-            echo "This indicates the backend setup job failed or artifacts were not properly downloaded."
-            echo "Please check:"
-            echo "1. The setup-backend job completed successfully"
-            echo "2. The backend-config artifact was created and uploaded"
-            echo "3. The artifact download step in this job succeeded"
-            echo ""
-            echo "Available files in $ENV_DIR:"
-            ls -la "$ENV_DIR/" || echo "Directory not found"
-            echo ""
-            echo "Current directory structure:"
-            find . -name "backend.tf" -type f 2>/dev/null || echo "No backend.tf files found anywhere"
-            exit 1
-          else
-            echo "✅ backend.tf found for deploy at: $BACKEND_FILE"
-          fi
-
-          echo "📄 Backend configuration content:"
-          cat "$BACKEND_FILE"
-
-      - name: Initialize Terraform Backend
-        run: |
-          cd environments/${{ needs.validate.outputs.deploy_env }}
-
-          echo "🔄 Initializing with remote backend..."
-          echo "Backend bucket: ${{ needs.setup-backend.outputs.bucket_name }}"
-          terraform init
-
-      - name: Apply Infrastructure Changes
-        id: apply
-        run: |
-          cd environments/${{ needs.validate.outputs.deploy_env }}
-
-          # Find the plan file
-          plan_file=$(ls *.tfplan 2>/dev/null | head -1 || echo "")
-
-          if [[ -n "$plan_file" ]] && [[ -f "$plan_file" ]]; then
-            echo "📋 Applying planned changes from: $plan_file"
-            terraform apply -auto-approve "$plan_file"
-          else
-            echo "⚠️ No plan file found, running direct apply"
-            if [[ "${{ github.event.inputs.auto_approve }}" == "true" ]]; then
-              terraform apply -auto-approve
+          infrastructure_result="${{ needs.deploy-infrastructure.result }}"
+          coder_result="${{ needs.deploy-coder.result }}"
+          skip_coder="${{ needs.determine-strategy.outputs.skip_coder }}"
+
+          echo "🔍 Evaluating deployment results..."
+          echo "Infrastructure (Phase 1): $infrastructure_result"
+          echo "Coder (Phase 2): $coder_result"
+          echo "Skip Coder: $skip_coder"
+
+          # Determine overall status
+          if [[ "$infrastructure_result" == "success" ]]; then
+            if [[ "$skip_coder" == "true" ]]; then
+              overall_status="success"
+              deployment_type="Infrastructure Only"
+              status_emoji="🏗️"
+              status_message="Infrastructure deployment completed successfully"
+            elif [[ "$coder_result" == "success" ]]; then
+              overall_status="success"
+              deployment_type="Complete Environment"
+              status_emoji="🎉"
+              status_message="Complete environment deployment successful"
+            elif [[ "$coder_result" == "failure" ]]; then
+              overall_status="partial"
+              deployment_type="Infrastructure Only (Coder Failed)"
+              status_emoji="⚠️"
+              status_message="Infrastructure deployed, but Coder application failed"
             else
-              terraform apply
+              overall_status="partial"
+              deployment_type="Infrastructure Only (Coder Skipped/Cancelled)"
+              status_emoji="🏗️"
+              status_message="Infrastructure deployed, Coder deployment not completed"
             fi
+          else
+            overall_status="failure"
+            deployment_type="Failed"
+            status_emoji="❌"
+            status_message="Infrastructure deployment failed"
           fi
 
-          echo "apply_completed=true" >> $GITHUB_OUTPUT
+          echo "overall_status=$overall_status" >> $GITHUB_OUTPUT
+          echo "deployment_type=$deployment_type" >> $GITHUB_OUTPUT
+          echo "status_emoji=$status_emoji" >> $GITHUB_OUTPUT
+          echo "status_message=$status_message" >> $GITHUB_OUTPUT
 
-      - name: Extract Deployment Outputs
-        id: deploy
-        if: steps.apply.outputs.apply_completed == 'true'
+      - name: Display Deployment Summary
         run: |
-          cd environments/${{ needs.validate.outputs.deploy_env }}
+          echo "${{ steps.evaluate.outputs.status_emoji }} Deployment Summary"
+          echo "=============================="
+          echo ""
+          echo "📋 Final Status: ${{ steps.evaluate.outputs.status_message }}"
+          echo "🏷️  Deployment Type: ${{ steps.evaluate.outputs.deployment_type }}"
+          echo "🌍 Environment: ${{ needs.determine-strategy.outputs.deploy_env }}"
+          echo ""
+          echo "📊 Phase Results:"
+          echo "  Phase 1 (Infrastructure): ${{ needs.deploy-infrastructure.result }}"
+          echo "  Phase 2 (Coder): ${{ needs.deploy-coder.result || 'skipped' }}"
+          echo ""
 
-          # Extract outputs
-          coder_url=$(terraform output -raw access_url 2>/dev/null || terraform output -raw coder_url 2>/dev/null || echo "")
-          admin_username=$(terraform output -raw admin_username 2>/dev/null || echo "admin")
-          load_balancer_ip=$(terraform output -raw load_balancer_ip 2>/dev/null || echo "")
-
-          echo "coder_url=$coder_url" >> $GITHUB_OUTPUT
-          echo "admin_username=$admin_username" >> $GITHUB_OUTPUT
-          echo "load_balancer_ip=$load_balancer_ip" >> $GITHUB_OUTPUT
-
-          # Generate DNS instructions if domain is configured
-          if [[ "${{ needs.validate.outputs.deploy_domain }}" != "" ]]; then
-            subdomain="${{ needs.validate.outputs.deploy_subdomain }}"
-            if [[ -z "$subdomain" ]]; then
-              case "${{ needs.validate.outputs.deploy_env }}" in
-                dev) subdomain="coder-dev" ;;
-                staging) subdomain="coder-staging" ;;
-                prod) subdomain="coder" ;;
-              esac
+          if [[ "${{ steps.evaluate.outputs.overall_status }}" == "success" ]]; then
+            if [[ "${{ needs.determine-strategy.outputs.skip_coder }}" == "true" ]]; then
+              echo "🎯 Infrastructure Ready!"
+              echo "  • Kubernetes cluster deployed and accessible"
+              echo "  • Database and networking configured"
+              echo "  • Security policies applied"
+              echo "  • Kubeconfig available for Coder deployment"
+              echo ""
+              echo "📝 Next Steps:"
+              echo "  • Run 'Deploy Coder Application' workflow to complete setup"
+              echo "  • Or deploy manually using kubectl with provided kubeconfig"
+            else
+              echo "🎉 Complete Environment Ready!"
+              echo "  • Full infrastructure deployed"
+              echo "  • Coder application running"
+              echo "  • Ready for workspace creation"
+              echo ""
+              echo "🔗 Access Information:"
+              echo "  • Coder URL: ${{ needs.deploy-coder.outputs.coder_url || 'Check deployment logs' }}"
+              echo "  • Admin User: ${{ needs.deploy-coder.outputs.admin_username || 'admin' }}"
             fi
-            full_domain="${subdomain}.${{ needs.validate.outputs.deploy_domain }}"
-
-            echo "full_domain=$full_domain" >> $GITHUB_OUTPUT
-            echo "dns_required=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ steps.evaluate.outputs.overall_status }}" == "partial" ]]; then
+            echo "⚠️  Partial Deployment"
+            echo "  • Infrastructure deployed successfully"
+            echo "  • Coder application deployment issues"
+            echo "  • Cluster accessible via kubeconfig"
+            echo ""
+            echo "🔧 Troubleshooting Options:"
+            echo "  • Use kubeconfig to investigate cluster state"
+            echo "  • Retry Coder deployment independently"
+            echo "  • Check storage classes and resource availability"
           else
-            echo "dns_required=false" >> $GITHUB_OUTPUT
+            echo "❌ Deployment Failed"
+            echo "  • Infrastructure deployment failed"
+            echo "  • Check workflow logs for specific errors"
+            echo "  • Verify Scaleway credentials and quotas"
           fi
 
-          # Extract and save kubeconfig
-          echo "🔄 Extracting kubeconfig from Terraform output..."
-
-          # Extract kubeconfig content from Terraform output
-          kubeconfig_content=$(terraform output -raw kubeconfig 2>/dev/null || echo "")
-
-          if [[ -n "$kubeconfig_content" ]]; then
-            # Create .kube directory if it doesn't exist
-            mkdir -p "${HOME}/.kube"
-
-            # Save kubeconfig to expected location
-            kubeconfig_file="${HOME}/.kube/config-coder-${{ needs.validate.outputs.deploy_env }}"
-            echo "$kubeconfig_content" > "$kubeconfig_file"
-
-            # Set proper permissions for security
-            chmod 600 "$kubeconfig_file"
-
-            # Copy to artifact location
-            cp "$kubeconfig_file" "./kubeconfig-${{ needs.validate.outputs.deploy_env }}"
-
-            echo "✅ Kubeconfig saved to: $kubeconfig_file"
-            echo "✅ Kubeconfig artifact created: ./kubeconfig-${{ needs.validate.outputs.deploy_env }}"
-          else
-            echo "⚠️  Warning: No kubeconfig content found in Terraform output"
-            echo "This may indicate an issue with the cluster module or output configuration"
-          fi
-
-      - name: Display DNS Setup Instructions
-        if: steps.deploy.outputs.dns_required == 'true'
-        run: |
-          echo "🌐 DNS Configuration Required"
-          echo "================================"
-          echo ""
-          echo "Your Coder environment has been deployed with domain configuration."
-          echo "To complete the setup, configure these DNS records at your domain registrar:"
-          echo ""
-          echo "📋 Required DNS Records:"
-          echo ""
-          echo "1. A Record (Main Domain):"
-          echo "   Name: ${{ steps.deploy.outputs.full_domain }}"
-          echo "   Type: A"
-          echo "   Value: ${{ steps.deploy.outputs.load_balancer_ip }}"
-          echo "   TTL: 300"
-          echo ""
-          echo "2. CNAME Record (Wildcard for Workspaces):"
-          echo "   Name: *.${{ steps.deploy.outputs.full_domain }}"
-          echo "   Type: CNAME"
-          echo "   Value: ${{ steps.deploy.outputs.full_domain }}"
-          echo "   TTL: 300"
-          echo ""
-          echo "⏱️  DNS Propagation Timeline:"
-          echo "   • DNS changes typically propagate within 5-15 minutes"
-          echo "   • SSL certificates will be issued automatically after DNS resolves"
-          echo "   • You can check propagation at: https://whatsmydns.net"
-          echo ""
-          echo "🔗 After DNS propagation:"
-          echo "   • Main Coder URL: https://${{ steps.deploy.outputs.full_domain }}"
-          echo "   • Workspace URLs: https://[workspace-name].${{ steps.deploy.outputs.full_domain }}"
-          echo ""
-          echo "📖 For registrar-specific instructions and troubleshooting:"
-          echo "   See docs/DOMAIN-GUIDE.md in this repository"
-          echo ""
-          echo "✅ Your infrastructure is ready - just waiting for DNS configuration!"
-
-      - name: Upload Kubeconfig Artifact
-        if: steps.apply.outputs.apply_completed == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: kubeconfig-${{ needs.validate.outputs.deploy_env }}
-          path: environments/${{ needs.validate.outputs.deploy_env }}/kubeconfig-${{ needs.validate.outputs.deploy_env }}
-          retention-days: 7
-
-      - name: Validate Deployment
-        if: steps.apply.outputs.apply_completed == 'true'
-        run: |
-          chmod +x scripts/validate.sh
-          ./scripts/validate.sh --env=${{ needs.validate.outputs.deploy_env }} --quick
-
-      - name: Comment Deployment Success on PR
-        if: github.event_name == 'pull_request' && steps.apply.outputs.apply_completed == 'true'
+      - name: Comment Deployment Summary on PR
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            let body = `## ✅ Deployment Successful
+            const overallStatus = '${{ steps.evaluate.outputs.overall_status }}';
+            const deploymentType = '${{ steps.evaluate.outputs.deployment_type }}';
+            const statusEmoji = '${{ steps.evaluate.outputs.status_emoji }}';
+            const statusMessage = '${{ steps.evaluate.outputs.status_message }}';
+            const environment = '${{ needs.determine-strategy.outputs.deploy_env }}';
+            const infraResult = '${{ needs.deploy-infrastructure.result }}';
+            const coderResult = '${{ needs.deploy-coder.result || 'skipped' }}';
 
-            **Environment:** \`${{ needs.validate.outputs.deploy_env }}\`
-            **Template:** ${{ needs.validate.outputs.deploy_template || 'None' }}
-            **Coder URL:** ${{ steps.deploy.outputs.coder_url }}
-            **Admin Username:** ${{ steps.deploy.outputs.admin_username }}
-            **Load Balancer IP:** ${{ steps.deploy.outputs.load_balancer_ip }}`;
+            let body = `## ${statusEmoji} Complete Environment Deployment Results
 
-            // Add DNS configuration if domain is configured
-            if ('${{ steps.deploy.outputs.dns_required }}' === 'true') {
+            **Status:** ${statusMessage}
+            **Environment:** \`${environment}\`
+            **Deployment Type:** ${deploymentType}
+
+            ### 📊 Phase Results
+            - **Phase 1 (Infrastructure):** ${infraResult}
+            - **Phase 2 (Coder Application):** ${coderResult}
+
+            ### 🔍 Deployment Details
+            - **Template:** ${{ needs.determine-strategy.outputs.deploy_template || 'None specified' }}
+            - **Domain:** ${{ needs.determine-strategy.outputs.deploy_domain || 'IP-based access' }}
+            - **Monitoring:** ${{ needs.determine-strategy.outputs.enable_monitoring }}`;
+
+            if (overallStatus === 'success') {
+              if ('${{ needs.determine-strategy.outputs.skip_coder }}' === 'true') {
+                body += `
+
+            ### 🏗️ Infrastructure Ready
+            - ✅ Kubernetes cluster deployed and accessible
+            - ✅ Database and networking configured
+            - ✅ Security policies applied
+            - ✅ Kubeconfig available for Coder deployment
+
+            **Next Steps:** Run 'Deploy Coder Application' workflow to complete setup.`;
+              } else {
+                body += `
+
+            ### 🎉 Complete Environment Ready
+            - ✅ Full infrastructure deployed
+            - ✅ Coder application running
+            - ✅ Ready for workspace creation
+
+            **Access URL:** ${{ needs.deploy-coder.outputs.coder_url || 'Check deployment outputs' }}`;
+              }
+            } else if (overallStatus === 'partial') {
               body += `
 
-            ## 🌐 DNS Configuration Required
+            ### ⚠️ Partial Deployment
+            - ✅ Infrastructure deployed successfully
+            - ❌ Coder application deployment issues
+            - 🔧 Cluster accessible via kubeconfig for troubleshooting
 
-            **Domain:** ${{ steps.deploy.outputs.full_domain }}
-
-            Configure these DNS records at your domain registrar:
-
-            **A Record:**
-            - Name: \`${{ steps.deploy.outputs.full_domain }}\`
-            - Value: \`${{ steps.deploy.outputs.load_balancer_ip }}\`
-            - TTL: \`300\`
-
-            **CNAME Record (Wildcard):**
-            - Name: \`*.${{ steps.deploy.outputs.full_domain }}\`
-            - Value: \`${{ steps.deploy.outputs.full_domain }}\`
-            - TTL: \`300\`
-
-            After DNS propagation (5-15 minutes):
-            - SSL certificates will be issued automatically
-            - Access Coder at: https://${{ steps.deploy.outputs.full_domain }}
-            - Workspaces will use: https://*.${{ steps.deploy.outputs.full_domain }}`;
+            **Recovery:** Retry Coder deployment independently or investigate using kubeconfig.`;
             } else {
               body += `
 
-            ⚠️ **IP-Based Access:** This deployment uses IP-based access. Users will see browser warnings for self-signed certificates.`;
+            ### ❌ Deployment Failed
+            - ❌ Infrastructure deployment failed
+            - 🔍 Check workflow logs for specific errors
+            - 🔧 Verify Scaleway credentials and quotas`;
             }
-
-            body += `
-
-            🎉 Your Coder environment is ready to use!`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -1017,29 +395,12 @@ jobs:
               repo: context.repo.repo,
               body: body
             });
-
-      - name: Update Deployment Status
-        if: always()
-        run: |
-          if [[ "${{ job.status }}" == "success" && "${{ steps.apply.outputs.apply_completed }}" == "true" ]]; then
-            echo "✅ Deployment completed successfully!"
-            echo "Environment: ${{ needs.validate.outputs.deploy_env }}"
-            echo "Coder URL: ${{ steps.deploy.outputs.coder_url }}"
-            echo "Plan Summary: ${{ needs.plan.outputs.plan_summary }}"
-          elif [[ "${{ job.status }}" == "success" && "${{ needs.plan.outputs.has_changes }}" == "false" ]]; then
-            echo "✅ No changes were needed!"
-            echo "Environment: ${{ needs.validate.outputs.deploy_env }}"
-            echo "Infrastructure is up to date."
-          else
-            echo "❌ Deployment failed!"
-            exit 1
-          fi
 
   notify:
     name: Notify Teams
     runs-on: ubuntu-latest
-    needs: [validate, deploy]
-    if: always() && needs.validate.outputs.deploy_env != ''
+    needs: [determine-strategy, deploy-infrastructure, deploy-coder, deployment-summary]
+    if: always() && needs.determine-strategy.outputs.deploy_env != ''
     permissions:
       contents: read  # Read repository information
       issues: write   # Create issues on deployment failure
@@ -1050,17 +411,30 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
-            status="${{ needs.deploy.result }}"
-            environment="${{ needs.validate.outputs.deploy_env }}"
+            infrastructure_result="${{ needs.deploy-infrastructure.result }}"
+            coder_result="${{ needs.deploy-coder.result }}"
+            environment="${{ needs.determine-strategy.outputs.deploy_env }}"
+            skip_coder="${{ needs.determine-strategy.outputs.skip_coder }}"
 
-            if [[ "$status" == "success" ]]; then
-              color="good"
-              emoji="✅"
-              text="Coder environment deployment succeeded"
+            # Determine notification details
+            if [[ "$infrastructure_result" == "success" ]]; then
+              if [[ "$skip_coder" == "true" ]]; then
+                color="good"
+                emoji="🏗️"
+                text="Infrastructure deployment succeeded (Coder skipped)"
+              elif [[ "$coder_result" == "success" ]]; then
+                color="good"
+                emoji="🎉"
+                text="Complete environment deployment succeeded"
+              else
+                color="warning"
+                emoji="⚠️"
+                text="Infrastructure succeeded, Coder failed"
+              fi
             else
               color="danger"
               emoji="❌"
-              text="Coder environment deployment failed"
+              text="Environment deployment failed"
             fi
 
             payload="{
@@ -1069,7 +443,9 @@ jobs:
                 \"text\": \"$emoji $text\",
                 \"fields\": [
                   {\"title\": \"Environment\", \"value\": \"$environment\", \"short\": true},
-                  {\"title\": \"Template\", \"value\": \"${{ needs.validate.outputs.deploy_template || 'None' }}\", \"short\": true},
+                  {\"title\": \"Infrastructure\", \"value\": \"$infrastructure_result\", \"short\": true},
+                  {\"title\": \"Coder App\", \"value\": \"${coder_result:-skipped}\", \"short\": true},
+                  {\"title\": \"Template\", \"value\": \"${{ needs.determine-strategy.outputs.deploy_template || 'None' }}\", \"short\": true},
                   {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
                   {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true}
                 ]
@@ -1082,34 +458,106 @@ jobs:
             echo "Slack webhook not configured, skipping notification"
           fi
 
-      - name: Create GitHub Issue on Failure
-        if: needs.deploy.result == 'failure'
+      - name: Create GitHub Issue on Complete Failure
+        if: needs.deploy-infrastructure.result == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
-            const title = `Deployment Failed: ${{ needs.validate.outputs.deploy_env }} environment`;
-            const body = `## Deployment Failure Report
+            const title = `Complete Environment Deployment Failed: ${{ needs.determine-strategy.outputs.deploy_env }} environment`;
+            const body = `## Complete Environment Deployment Failure Report
 
-            **Environment:** ${{ needs.validate.outputs.deploy_env }}
-            **Template:** ${{ needs.validate.outputs.deploy_template || 'None' }}
+            **Environment:** ${{ needs.determine-strategy.outputs.deploy_env }}
+            **Deployment Type:** Two-Phase (Infrastructure + Coder)
+            **Failure Point:** Phase 1 (Infrastructure)
             **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             **Triggered by:** ${{ github.actor }}
             **Commit:** ${{ github.sha }}
 
-            The automated deployment has failed. Please check the workflow logs for details.
+            The complete environment deployment has failed during the infrastructure phase.
+
+            ## Failure Analysis
+            - **Phase 1 (Infrastructure):** ❌ Failed
+            - **Phase 2 (Coder Application):** ⏭️ Not attempted (dependency failed)
+
+            ## Components Affected
+            - Kubernetes cluster deployment
+            - Database provisioning
+            - Networking and load balancer setup
+            - Security policy configuration
 
             ## Next Steps
-            1. Review the workflow logs
-            2. Check Scaleway console for any resources that need cleanup
+            1. Review infrastructure deployment logs
+            2. Check Scaleway console for partially created resources
             3. Verify Scaleway credentials and quotas
-            4. Re-run the deployment after fixing issues
+            4. Check for resource conflicts or naming issues
+            5. Clean up any orphaned resources
+            6. Re-run complete deployment after fixing issues
 
-            **Labels:** deployment-failure, ${{ needs.validate.outputs.deploy_env }}`;
+            ## Recovery Options
+            - **Full Retry:** Re-run this complete deployment workflow
+            - **Manual Phases:** Run infrastructure and Coder deployments separately
+            - **Cleanup First:** Use teardown workflow before retrying
+
+            **Labels:** deployment-failure, infrastructure-failure, ${{ needs.determine-strategy.outputs.deploy_env }}`;
 
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: title,
               body: body,
-              labels: ['deployment-failure', '${{ needs.validate.outputs.deploy_env }}']
+              labels: ['deployment-failure', 'infrastructure-failure', '${{ needs.determine-strategy.outputs.deploy_env }}']
+            });
+
+      - name: Create GitHub Issue on Partial Failure
+        if: needs.deploy-infrastructure.result == 'success' && needs.deploy-coder.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Coder Application Deployment Failed: ${{ needs.determine-strategy.outputs.deploy_env }} environment`;
+            const body = `## Partial Environment Deployment Failure Report
+
+            **Environment:** ${{ needs.determine-strategy.outputs.deploy_env }}
+            **Deployment Type:** Two-Phase (Infrastructure + Coder)
+            **Failure Point:** Phase 2 (Coder Application)
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Triggered by:** ${{ github.actor }}
+            **Commit:** ${{ github.sha }}
+
+            The infrastructure deployed successfully, but Coder application deployment failed.
+
+            ## Deployment Status
+            - **Phase 1 (Infrastructure):** ✅ Successful
+            - **Phase 2 (Coder Application):** ❌ Failed
+
+            ## Available Resources
+            - ✅ Kubernetes cluster is accessible
+            - ✅ Database is running and accessible
+            - ✅ Networking and load balancer configured
+            - ✅ Security policies applied
+            - ✅ Kubeconfig available for troubleshooting
+
+            ## Troubleshooting Steps
+            1. **Access Cluster:** Use kubeconfig from infrastructure deployment
+            2. **Check Resources:**
+               - \`kubectl get pods -n coder\`
+               - \`kubectl get pvc -n coder\`
+               - \`kubectl describe deployment coder -n coder\`
+            3. **Review Logs:** Check Coder deployment workflow logs
+            4. **Storage Issues:** Verify storage classes and PVC creation
+            5. **Resource Limits:** Ensure cluster has sufficient resources
+
+            ## Recovery Options
+            - **Retry Coder Only:** Run 'Deploy Coder Application' workflow
+            - **Manual Investigation:** Use kubeconfig to troubleshoot
+            - **Complete Retry:** Re-run this complete deployment workflow
+            - **Infrastructure Intact:** No need to redeploy infrastructure
+
+            **Labels:** coder-failure, partial-deployment, ${{ needs.determine-strategy.outputs.deploy_env }}`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['coder-failure', 'partial-deployment', '${{ needs.determine-strategy.outputs.deploy_env }}']
             });
