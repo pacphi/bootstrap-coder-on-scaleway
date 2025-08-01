@@ -64,11 +64,6 @@ on:
         required: false
         type: boolean
         default: false
-      auto_approve:
-        description: 'Auto-approve deployment without confirmation'
-        required: false
-        type: boolean
-        default: false
       dry_run:
         description: 'Preview changes without applying'
         required: false
@@ -108,7 +103,6 @@ jobs:
       deploy_subdomain: ${{ steps.determine-env.outputs.subdomain }}
       enable_monitoring: ${{ steps.determine-env.outputs.enable_monitoring }}
       skip_coder: ${{ steps.determine-env.outputs.skip_coder }}
-      auto_approve: ${{ steps.determine-env.outputs.auto_approve }}
       dry_run: ${{ steps.determine-env.outputs.dry_run }}
 
     steps:
@@ -125,7 +119,6 @@ jobs:
             echo "subdomain=${{ github.event.inputs.subdomain }}" >> $GITHUB_OUTPUT
             echo "enable_monitoring=${{ github.event.inputs.enable_monitoring }}" >> $GITHUB_OUTPUT
             echo "skip_coder=${{ github.event.inputs.skip_coder_deployment }}" >> $GITHUB_OUTPUT
-            echo "auto_approve=${{ github.event.inputs.auto_approve }}" >> $GITHUB_OUTPUT
             echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
 
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -136,7 +129,6 @@ jobs:
               echo "subdomain=" >> $GITHUB_OUTPUT
               echo "enable_monitoring=false" >> $GITHUB_OUTPUT
               echo "skip_coder=false" >> $GITHUB_OUTPUT
-              echo "auto_approve=true" >> $GITHUB_OUTPUT
               echo "dry_run=false" >> $GITHUB_OUTPUT
             else
               echo "Skip deployment for this PR"
@@ -150,7 +142,6 @@ jobs:
             echo "subdomain=" >> $GITHUB_OUTPUT
             echo "enable_monitoring=true" >> $GITHUB_OUTPUT
             echo "skip_coder=false" >> $GITHUB_OUTPUT
-            echo "auto_approve=true" >> $GITHUB_OUTPUT
             echo "dry_run=false" >> $GITHUB_OUTPUT
           fi
 
@@ -166,7 +157,6 @@ jobs:
           echo "  Subdomain: ${{ steps.determine-env.outputs.subdomain || 'Auto-generated' }}"
           echo "  Monitoring: ${{ steps.determine-env.outputs.enable_monitoring }}"
           echo "  Skip Coder: ${{ steps.determine-env.outputs.skip_coder }}"
-          echo "  Auto Approve: ${{ steps.determine-env.outputs.auto_approve }}"
           echo "  Dry Run: ${{ steps.determine-env.outputs.dry_run }}"
           echo ""
           echo "🔄 Deployment Phases:"
@@ -191,7 +181,7 @@ jobs:
       availability_zone: ${{ github.event.inputs.availability_zone }}
       domain_name: ${{ needs.determine-strategy.outputs.deploy_domain }}
       subdomain: ${{ needs.determine-strategy.outputs.deploy_subdomain }}
-      auto_approve: ${{ needs.determine-strategy.outputs.auto_approve == 'true' }}
+      auto_approve: true
       dry_run: ${{ needs.determine-strategy.outputs.dry_run == 'true' }}
     secrets: inherit
 
@@ -208,7 +198,7 @@ jobs:
       template: ${{ needs.determine-strategy.outputs.deploy_template }}
       kubeconfig_source: 'from_infrastructure_run'
       infrastructure_run_id: ${{ github.run_id }}
-      auto_approve: ${{ needs.determine-strategy.outputs.auto_approve == 'true' }}
+      auto_approve: true
       dry_run: ${{ needs.determine-strategy.outputs.dry_run == 'true' }}
     secrets: inherit
 
