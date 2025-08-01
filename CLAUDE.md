@@ -282,6 +282,19 @@ export SCW_DEFAULT_REGION="fr-par"
 export SCW_DEFAULT_ZONE="fr-par-1"
 ```
 
+### GitHub Actions Secrets
+
+When using GitHub Actions workflows:
+
+**Required Secrets**:
+- `SCW_ACCESS_KEY`: Scaleway API access key
+- `SCW_SECRET_KEY`: Scaleway API secret key
+- `SCW_DEFAULT_PROJECT_ID`: Scaleway project ID
+- `SCW_DEFAULT_ORGANIZATION_ID`: Scaleway organization ID
+
+**Optional Feature Flags**:
+- `ENABLE_AUTO_STAGING_DEPLOY`: Set to "true" to enable automatic staging deployments on push/PR events. When not set or set to any other value, automatic deployments are disabled while manual deployments continue to work.
+
 ## Template Development
 
 ### Template Structure

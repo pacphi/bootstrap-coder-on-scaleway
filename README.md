@@ -147,6 +147,18 @@ cd bootstrap-coder-on-scaleway
 ./scripts/test-runner.sh --suite=prerequisites
 ```
 
+### 6. GitHub Actions Configuration (Optional)
+
+For automatic staging deployments via GitHub Actions:
+
+**Repository Secret Configuration**:
+```bash
+# In your GitHub repository settings, add this secret:
+ENABLE_AUTO_STAGING_DEPLOY=true  # Enables automatic staging deployment on push/PR
+```
+
+**Note**: This is a feature flag that controls continuous deployment. Set to `true` only when you want automatic deployments enabled. When not set or set to any other value, automatic deployments are disabled while manual deployments continue to work.
+
 ## ⚡ Quick Start
 
 > **Important**: Ensure you've completed all [Prerequisites](#-prerequisites) before proceeding.

@@ -493,6 +493,32 @@ permissions:
 - `SLACK_WEBHOOK_URL`: Slack notifications
 - `NOTIFICATION_EMAIL`: Email alerts
 
+### Automatic Deployment Control
+
+The project uses a **feature flag** to control automatic staging deployments:
+
+**Secret Name**: `ENABLE_AUTO_STAGING_DEPLOY`
+- **Purpose**: Controls whether staging environment is automatically deployed on push/PR
+- **Values**: Set to `"true"` to enable, any other value or unset to disable
+- **Default**: Disabled (deployments are skipped if secret is not set)
+
+**Configuration**:
+1. Go to Settings → Secrets and variables → Actions
+2. Add new repository secret: `ENABLE_AUTO_STAGING_DEPLOY`
+3. Set value to `true` to enable automatic staging deployments
+
+**Behavior**:
+- When enabled: Push to main branch triggers staging deployment
+- When disabled: Push events log skip message, manual deployment still works
+- Pull requests with `deploy-staging` label also respect this setting
+- Manual workflow_dispatch always works regardless of this setting
+
+**Workflow Logs**:
+The workflows will clearly log the deployment decision:
+- `🚀 Auto staging deployment ENABLED - proceeding with deployment`
+- `⏸️ Auto staging deployment DISABLED - skipping deployment`
+- `💡 Set ENABLE_AUTO_STAGING_DEPLOY secret to 'true' to enable automatic deployments`
+
 ### Environment Protection
 
 Production environments should use **GitHub Environment Protection**:

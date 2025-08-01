@@ -104,6 +104,8 @@ jobs:
       enable_monitoring: ${{ steps.determine-env.outputs.enable_monitoring }}
       skip_coder: ${{ steps.determine-env.outputs.skip_coder }}
       dry_run: ${{ steps.determine-env.outputs.dry_run }}
+      deploy_region: ${{ steps.determine-env.outputs.region }}
+      deploy_zone: ${{ steps.determine-env.outputs.availability_zone }}
 
     steps:
       - name: Checkout Code
@@ -113,6 +115,7 @@ jobs:
         id: determine-env
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "🎯 Manual workflow dispatch detected"
             echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
             echo "template=${{ github.event.inputs.template }}" >> $GITHUB_OUTPUT
             echo "domain_name=${{ github.event.inputs.domain_name }}" >> $GITHUB_OUTPUT
@@ -120,29 +123,58 @@ jobs:
             echo "enable_monitoring=${{ github.event.inputs.enable_monitoring }}" >> $GITHUB_OUTPUT
             echo "skip_coder=${{ github.event.inputs.skip_coder_deployment }}" >> $GITHUB_OUTPUT
             echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+            echo "region=${{ github.event.inputs.region }}" >> $GITHUB_OUTPUT
+            echo "availability_zone=${{ github.event.inputs.availability_zone }}" >> $GITHUB_OUTPUT
 
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "🔄 Pull request event detected"
             if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-staging') }}" == "true" ]]; then
-              echo "environment=staging" >> $GITHUB_OUTPUT
-              echo "template=" >> $GITHUB_OUTPUT
-              echo "domain_name=" >> $GITHUB_OUTPUT
-              echo "subdomain=" >> $GITHUB_OUTPUT
-              echo "enable_monitoring=false" >> $GITHUB_OUTPUT
-              echo "skip_coder=false" >> $GITHUB_OUTPUT
-              echo "dry_run=false" >> $GITHUB_OUTPUT
+              # Check if auto staging deployment is enabled
+              if [[ "${{ secrets.ENABLE_AUTO_STAGING_DEPLOY }}" == "true" ]]; then
+                echo "🚀 Auto staging deployment ENABLED for PR with 'deploy-staging' label"
+                echo "📋 Deployment triggered by: pull request with deploy-staging label"
+                echo "environment=staging" >> $GITHUB_OUTPUT
+                echo "template=" >> $GITHUB_OUTPUT
+                echo "domain_name=" >> $GITHUB_OUTPUT
+                echo "subdomain=" >> $GITHUB_OUTPUT
+                echo "enable_monitoring=false" >> $GITHUB_OUTPUT
+                echo "skip_coder=false" >> $GITHUB_OUTPUT
+                echo "dry_run=false" >> $GITHUB_OUTPUT
+                echo "region=fr-par" >> $GITHUB_OUTPUT
+                echo "availability_zone=fr-par-1" >> $GITHUB_OUTPUT
+              else
+                echo "⏸️ Auto staging deployment DISABLED - skipping PR deployment"
+                echo "💡 Set ENABLE_AUTO_STAGING_DEPLOY secret to 'true' to enable automatic deployments"
+                echo "environment=" >> $GITHUB_OUTPUT
+                exit 0
+              fi
             else
-              echo "Skip deployment for this PR"
+              echo "ℹ️ PR does not have 'deploy-staging' label - skipping deployment"
               exit 0
             fi
 
           elif [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "environment=staging" >> $GITHUB_OUTPUT
-            echo "template=" >> $GITHUB_OUTPUT
-            echo "domain_name=" >> $GITHUB_OUTPUT
-            echo "subdomain=" >> $GITHUB_OUTPUT
-            echo "enable_monitoring=true" >> $GITHUB_OUTPUT
-            echo "skip_coder=false" >> $GITHUB_OUTPUT
-            echo "dry_run=false" >> $GITHUB_OUTPUT
+            echo "📤 Push event detected on branch: ${{ github.ref_name }}"
+            # Check if auto staging deployment is enabled
+            if [[ "${{ secrets.ENABLE_AUTO_STAGING_DEPLOY }}" == "true" ]]; then
+              echo "🚀 Auto staging deployment ENABLED - proceeding with deployment"
+              echo "📋 Deployment triggered by: push to ${{ github.ref_name }} branch"
+              echo "environment=staging" >> $GITHUB_OUTPUT
+              echo "template=" >> $GITHUB_OUTPUT
+              echo "domain_name=" >> $GITHUB_OUTPUT
+              echo "subdomain=" >> $GITHUB_OUTPUT
+              echo "enable_monitoring=true" >> $GITHUB_OUTPUT
+              echo "skip_coder=false" >> $GITHUB_OUTPUT
+              echo "dry_run=false" >> $GITHUB_OUTPUT
+              echo "region=fr-par" >> $GITHUB_OUTPUT
+              echo "availability_zone=fr-par-1" >> $GITHUB_OUTPUT
+            else
+              echo "⏸️ Auto staging deployment DISABLED - skipping deployment"
+              echo "💡 Set ENABLE_AUTO_STAGING_DEPLOY secret to 'true' to enable automatic deployments"
+              echo "📝 To deploy manually, use the 'Deploy Complete Coder Environment' workflow"
+              echo "environment=" >> $GITHUB_OUTPUT
+              exit 0
+            fi
           fi
 
       - name: Display Deployment Plan
@@ -177,8 +209,8 @@ jobs:
     with:
       bucket_name: ${{ github.event.inputs.bucket_name }}
       environment: ${{ needs.determine-strategy.outputs.deploy_env }}
-      region: ${{ github.event.inputs.region }}
-      availability_zone: ${{ github.event.inputs.availability_zone }}
+      region: ${{ needs.determine-strategy.outputs.deploy_region || github.event.inputs.region }}
+      availability_zone: ${{ needs.determine-strategy.outputs.deploy_zone || github.event.inputs.availability_zone }}
       domain_name: ${{ needs.determine-strategy.outputs.deploy_domain }}
       subdomain: ${{ needs.determine-strategy.outputs.deploy_subdomain }}
       auto_approve: true
@@ -193,8 +225,8 @@ jobs:
     with:
       bucket_name: ${{ github.event.inputs.bucket_name }}
       environment: ${{ needs.determine-strategy.outputs.deploy_env }}
-      region: ${{ github.event.inputs.region }}
-      availability_zone: ${{ github.event.inputs.availability_zone }}
+      region: ${{ needs.determine-strategy.outputs.deploy_region || github.event.inputs.region }}
+      availability_zone: ${{ needs.determine-strategy.outputs.deploy_zone || github.event.inputs.availability_zone }}
       template: ${{ needs.determine-strategy.outputs.deploy_template }}
       kubeconfig_source: 'from_infrastructure_run'
       infrastructure_run_id: ${{ github.run_id }}
