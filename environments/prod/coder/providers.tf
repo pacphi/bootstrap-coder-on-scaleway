@@ -20,21 +20,6 @@ terraform {
   # or can be configured manually for local development
 }
 
-# Data source to get kubeconfig from infrastructure state
-data "terraform_remote_state" "infra" {
-  backend = "s3"
-  config = {
-    bucket = "terraform-state-coder-prod"
-    key    = "infra/terraform.tfstate"
-    region = var.scaleway_region
-    endpoints = {
-      s3 = "https://s3.${var.scaleway_region}.scw.cloud"
-    }
-    skip_credentials_validation = true
-    skip_metadata_api_check     = true
-    skip_region_validation      = true
-  }
-}
 
 # Configure Kubernetes provider using kubeconfig from infrastructure
 provider "kubernetes" {

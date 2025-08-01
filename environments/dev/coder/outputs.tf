@@ -37,7 +37,7 @@ output "service_name" {
 
 output "persistent_volume_claim_name" {
   description = "Name of the persistent volume claim for Coder data"
-  value       = module.coder_deployment.persistent_volume_claim_name
+  value       = module.coder_deployment.pvc_name
 }
 
 # Environment information
