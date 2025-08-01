@@ -6,9 +6,9 @@ terraform {
 data "terraform_remote_state" "infra" {
   backend = "s3"
   config = {
-    bucket                      = "terraform-state-coder-prod"
-    key                         = "infra/terraform.tfstate"
-    region                      = var.scaleway_region
+    bucket = "terraform-state-coder-prod"
+    key    = "infra/terraform.tfstate"
+    region = var.scaleway_region
     endpoints = {
       s3 = "https://s3.${var.scaleway_region}.scw.cloud"
     }
@@ -24,9 +24,9 @@ locals {
   project_name = "coder"
 
   # Get infrastructure outputs
-  kubeconfig              = data.terraform_remote_state.infra.outputs.kubeconfig
-  access_url              = data.terraform_remote_state.infra.outputs.access_url
-  wildcard_access_url     = data.terraform_remote_state.infra.outputs.wildcard_access_url
+  kubeconfig                 = data.terraform_remote_state.infra.outputs.kubeconfig
+  access_url                 = data.terraform_remote_state.infra.outputs.access_url
+  wildcard_access_url        = data.terraform_remote_state.infra.outputs.wildcard_access_url
   database_connection_string = data.terraform_remote_state.infra.outputs.database_connection_string
 
   monitoring_config = {
@@ -34,7 +34,7 @@ locals {
   }
 
   # Domain configuration
-  domain_name = ""      # Configure your production domain here
+  domain_name = "" # Configure your production domain here
 }
 
 # Coder Deployment Module - Production Configuration
