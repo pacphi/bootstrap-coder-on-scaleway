@@ -45,7 +45,7 @@ output "database_connection_string" {
 
 output "database_host" {
   description = "Database host"
-  value       = module.postgresql.host
+  value       = module.postgresql.endpoint
 }
 
 output "database_port" {
