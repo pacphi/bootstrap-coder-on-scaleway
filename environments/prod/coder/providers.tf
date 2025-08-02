@@ -23,17 +23,13 @@ terraform {
 
 # Configure Kubernetes provider using kubeconfig from infrastructure
 provider "kubernetes" {
-  config_path = "${path.module}/kubeconfig"
+  # Use the kubeconfig content directly from remote state
+  config_raw = data.terraform_remote_state.infra.outputs.kubeconfig
 }
 
 provider "helm" {
   kubernetes {
-    config_path = "${path.module}/kubeconfig"
+    # Use the kubeconfig content directly from remote state
+    config_raw = data.terraform_remote_state.infra.outputs.kubeconfig
   }
-}
-
-# Write kubeconfig to file for providers
-resource "local_file" "kubeconfig" {
-  content  = data.terraform_remote_state.infra.outputs.kubeconfig
-  filename = "${path.module}/kubeconfig"
 }
