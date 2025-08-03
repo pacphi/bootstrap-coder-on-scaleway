@@ -169,9 +169,23 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup AWS CLI for S3 operations
+      - name: Setup Scaleway CLI
+        uses: scaleway/action-scw@v0
+        with:
+          save-config: true
+          export-config: true
+          access-key: ${{ env.SCW_ACCESS_KEY }}
+          secret-key: ${{ env.SCW_SECRET_KEY }}
+          default-project-id: ${{ env.SCW_DEFAULT_PROJECT_ID }}
+          default-organization-id: ${{ env.SCW_DEFAULT_ORGANIZATION_ID }}
+
+      - name: Install s3cmd
+        run: sudo apt-get update && sudo apt-get install -y s3cmd
+
+      - name: Generate s3cmd configuration using Scaleway CLI
         run: |
-          sudo apt-get update && sudo apt-get install -y awscli
+          scw object config get type=s3cmd > ~/.s3cfg
+          echo "✅ s3cmd configured for Scaleway Object Storage"
 
       - name: Discover State Files
         id: discover
@@ -189,14 +203,9 @@ jobs:
           echo "backend_bucket=$bucket_name" >> $GITHUB_OUTPUT
           echo "🔍 Checking for state files in bucket: $bucket_name"
 
-          # Configure AWS CLI for Scaleway S3
-          aws configure set aws_access_key_id "$SCW_ACCESS_KEY"
-          aws configure set aws_secret_access_key "$SCW_SECRET_KEY"
-          aws configure set default.region "$region"
-
           # Check for Coder state file
           coder_state_exists="false"
-          if aws s3 ls "s3://$bucket_name/coder/terraform.tfstate" --endpoint-url="https://s3.$region.scw.cloud" >/dev/null 2>&1; then
+          if s3cmd ls "s3://$bucket_name/$environment/coder/terraform.tfstate" >/dev/null 2>&1; then
             coder_state_exists="true"
             echo "✅ Coder state file found"
           else
@@ -206,7 +215,7 @@ jobs:
 
           # Check for Infrastructure state file
           infra_state_exists="false"
-          if aws s3 ls "s3://$bucket_name/infra/terraform.tfstate" --endpoint-url="https://s3.$region.scw.cloud" >/dev/null 2>&1; then
+          if s3cmd ls "s3://$bucket_name/$environment/infra/terraform.tfstate" >/dev/null 2>&1; then
             infra_state_exists="true"
             echo "✅ Infrastructure state file found"
           else
@@ -555,9 +564,23 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup AWS CLI for S3 operations
+      - name: Setup Scaleway CLI
+        uses: scaleway/action-scw@v0
+        with:
+          save-config: true
+          export-config: true
+          access-key: ${{ env.SCW_ACCESS_KEY }}
+          secret-key: ${{ env.SCW_SECRET_KEY }}
+          default-project-id: ${{ env.SCW_DEFAULT_PROJECT_ID }}
+          default-organization-id: ${{ env.SCW_DEFAULT_ORGANIZATION_ID }}
+
+      - name: Install s3cmd
+        run: sudo apt-get update && sudo apt-get install -y s3cmd
+
+      - name: Generate s3cmd configuration using Scaleway CLI
         run: |
-          sudo apt-get update && sudo apt-get install -y awscli
+          scw object config get type=s3cmd > ~/.s3cfg
+          echo "✅ s3cmd configured for Scaleway Object Storage"
 
       - name: Cleanup State Files
         run: |
@@ -567,29 +590,24 @@ jobs:
 
           echo "🧹 Cleaning up state files..."
 
-          # Configure AWS CLI for Scaleway S3
-          aws configure set aws_access_key_id "$SCW_ACCESS_KEY"
-          aws configure set aws_secret_access_key "$SCW_SECRET_KEY"
-          aws configure set default.region "$region"
-
           # Clean up Coder state file if teardown was successful
           if [[ "${{ needs.teardown-coder.result }}" == "success" ]]; then
             echo "🗑️ Removing Coder state file..."
-            aws s3 rm "s3://$bucket_name/coder/terraform.tfstate" --endpoint-url="https://s3.$region.scw.cloud" || true
+            s3cmd rm "s3://$bucket_name/$environment/coder/terraform.tfstate" || true
             echo "✅ Coder state file cleaned up"
           fi
 
           # Clean up Infrastructure state file if teardown was successful
           if [[ "${{ needs.teardown-infrastructure.result }}" == "success" ]]; then
             echo "🗑️ Removing Infrastructure state file..."
-            aws s3 rm "s3://$bucket_name/infra/terraform.tfstate" --endpoint-url="https://s3.$region.scw.cloud" || true
+            s3cmd rm "s3://$bucket_name/$environment/infra/terraform.tfstate" || true
             echo "✅ Infrastructure state file cleaned up"
           fi
 
           # If both components are gone, clean up the entire bucket
           if [[ "${{ needs.teardown-coder.result }}" == "success" && "${{ needs.teardown-infrastructure.result }}" == "success" ]]; then
             echo "🗑️ Removing entire state bucket..."
-            aws s3 rb "s3://$bucket_name" --force --endpoint-url="https://s3.$region.scw.cloud" || true
+            s3cmd rb "s3://$bucket_name" --recursive || true
             echo "✅ State bucket removed"
           fi
 
