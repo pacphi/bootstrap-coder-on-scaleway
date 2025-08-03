@@ -77,6 +77,8 @@ environments/{env}/
 
 ## Essential Commands
 
+> **Note**: For a detailed comparison of features available through shell scripts vs Terraform CLI vs GitHub Actions, see [docs/FEATURES.md](docs/FEATURES.md).
+
 ### Environment Management
 
 ```bash

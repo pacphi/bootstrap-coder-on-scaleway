@@ -53,6 +53,15 @@ chmod +x scripts/**/*.sh
 ./scripts/lifecycle/setup.sh --check-prereqs
 ```
 
+## 🎯 Choosing Your Deployment Method
+
+Before starting, review our [Feature Comparison Guide](FEATURES.md) to understand the capabilities of each deployment approach:
+- **Shell Scripts** - Best for local development and comprehensive features
+- **Terraform/CLI** - Best for infrastructure as code and manual control
+- **GitHub Actions** - Best for team collaboration and CI/CD
+
+See the full [feature comparison matrix](FEATURES.md) for detailed information.
+
 ### First Deployment
 
 Deploy your first development environment:

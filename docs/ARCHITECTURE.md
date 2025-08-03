@@ -118,6 +118,8 @@ environments/
     └── coder/
 ```
 
+For a comprehensive comparison of deployment methods and their capabilities, see the [Feature Comparison Guide](FEATURES.md).
+
 ## CI/CD & GitHub Actions Architecture
 
 ### GitHub Actions Workflow Architecture

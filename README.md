@@ -260,6 +260,7 @@ Flutter, React Native, Ionic
 ## 📖 Documentation
 
 - **[📋 Usage Guide](docs/USAGE.md)** - Complete usage examples, GitHub Actions workflows, and troubleshooting
+- **[🎯 Feature Comparison](docs/FEATURES.md)** - Detailed feature matrix comparing shell scripts, Terraform/CLI, and GitHub Actions deployment methods
 - **[🏗️ Architecture Guide](docs/ARCHITECTURE.md)** - System design, components, CI/CD flows, and Mermaid diagrams
 - **[🎯 Templates Guide](docs/TEMPLATES.md)** - Comprehensive listing of all 21+ workspace templates with usage examples
 - **[🤖 AI Assistant Context](CLAUDE.md)** - Technical context for Claude Code integration and new capabilities
@@ -610,9 +611,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-**🚀 Ready to get started?** Choose your deployment method:
-- **Quick Start**: `./scripts/lifecycle/setup.sh --env=dev --template=react-typescript`
+**🚀 Ready to get started?** Check our [Feature Comparison](docs/FEATURES.md) to choose your deployment method:
+- **Shell Scripts**: `./scripts/lifecycle/setup.sh --env=dev --template=react-typescript`
 - **GitHub Actions**: `gh workflow run deploy-environment.yml`
-- **Comprehensive Setup**: Check the [Usage Guide](docs/USAGE.md)
+- **Terraform/CLI**: See the [Usage Guide](docs/USAGE.md)
 
 **Need help?** Check the [documentation](docs/) or [create an issue](../../issues) 📞
