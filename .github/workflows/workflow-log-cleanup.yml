@@ -4,7 +4,14 @@ name: Cleanup Old Workflow Runs
 on:
   schedule:
     - cron: '0 0 * * 0' # Every Sunday at midnight UTC
+
   workflow_dispatch:
+    inputs:
+      days_before:
+        description: 'The number of days before today'
+        required: false
+        type: string
+        default: '7'
 
 permissions:
   actions: write
@@ -16,4 +23,4 @@ jobs:
       - name: Clean old workflow runs
         uses: igorjs/gh-actions-clean-workflow@v6
         with:
-          runs_older_than: "7"  # Delete runs older than 7 days
+          runs_older_than: ${{ inputs.days_before || '7' }}  # Delete runs older than specified days (default: 7)
