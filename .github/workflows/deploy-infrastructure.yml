@@ -357,7 +357,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Download Backend Configuration
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-infra-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/infra
@@ -513,13 +513,13 @@ jobs:
           version: 'v1.32.0'
 
       - name: Download Infrastructure Plan Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: terraform-infra-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/infra/
 
       - name: Download Backend Configuration
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-infra-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/infra
