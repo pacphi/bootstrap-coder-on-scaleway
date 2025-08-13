@@ -148,7 +148,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Determine Deployment Environment
         id: determine-env
@@ -339,7 +339,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Get Kubeconfig from Infrastructure Run
         id: get-kubeconfig
@@ -362,7 +362,7 @@ jobs:
           echo "available=true" >> $GITHUB_OUTPUT
 
       - name: Download Kubeconfig Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-infra
           path: .
@@ -434,7 +434,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -453,13 +453,13 @@ jobs:
           version: 'v3.12.0'
 
       - name: Download Backend Configuration
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-coder-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
 
       - name: Download Kubeconfig
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-coder
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
@@ -601,7 +601,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -620,19 +620,19 @@ jobs:
           version: 'v3.12.0'
 
       - name: Download Coder Plan Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: terraform-coder-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder/
 
       - name: Download Backend Configuration
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-coder-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
 
       - name: Download Kubeconfig
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-coder
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
