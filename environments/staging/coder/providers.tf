@@ -21,15 +21,16 @@ terraform {
 }
 
 
-# Configure Kubernetes provider using kubeconfig from infrastructure
 provider "kubernetes" {
-  # Use the kubeconfig content directly from remote state
-  config_raw = data.terraform_remote_state.infra.outputs.kubeconfig
+  host                   = module.scaleway_cluster.cluster_endpoint
+  token                  = module.scaleway_cluster.cluster_token
+  cluster_ca_certificate = base64decode(module.scaleway_cluster.cluster_ca_certificate)
 }
 
 provider "helm" {
   kubernetes {
-    # Use the kubeconfig content directly from remote state
-    config_raw = data.terraform_remote_state.infra.outputs.kubeconfig
+    host                   = module.scaleway_cluster.cluster_endpoint
+    token                  = module.scaleway_cluster.cluster_token
+    cluster_ca_certificate = base64decode(module.scaleway_cluster.cluster_ca_certificate)
   }
 }
