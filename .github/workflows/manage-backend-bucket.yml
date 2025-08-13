@@ -200,7 +200,7 @@ jobs:
             if [[ -n "$phase" ]]; then
               state_key="${environment}/${phase}/terraform.tfstate"
             else
-              state_key="${environment}/terraform.tfstate" 
+              state_key="${environment}/terraform.tfstate"
             fi
             echo "Checking for state file: $state_key"
 
