@@ -83,7 +83,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Deploy Coder Template
         run: |
           ./scripts/lifecycle/setup.sh \

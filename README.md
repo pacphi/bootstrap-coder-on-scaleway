@@ -496,7 +496,7 @@ jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Deploy complete environment (two-phase)
         uses: ./.github/workflows/deploy-environment.yml
         with:

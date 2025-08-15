@@ -1059,7 +1059,7 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Deploy Development
         run: |
           ./scripts/lifecycle/setup.sh \
@@ -1073,7 +1073,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Deploy Staging
         run: |
           ./scripts/lifecycle/setup.sh \
@@ -1088,7 +1088,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Deploy Production
         run: |
           ./scripts/lifecycle/setup.sh \
