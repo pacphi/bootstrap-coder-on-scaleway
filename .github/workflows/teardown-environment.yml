@@ -768,7 +768,7 @@ jobs:
 
       - name: Create GitHub Issue on Teardown Failure
         if: needs.teardown-summary.outputs.overall_status == 'failure' || needs.teardown-summary.outputs.overall_status == 'partial'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const overallStatus = '${{ needs.teardown-summary.outputs.overall_status }}';
