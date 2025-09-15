@@ -544,7 +544,7 @@ jobs:
 
       - name: Comment Coder Plan Results on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -813,7 +813,7 @@ jobs:
 
       - name: Comment Coder Success on PR
         if: github.event_name == 'pull_request' && steps.apply.outputs.apply_completed == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const body = `## ✅ Coder Application Deployment Successful (Phase 2)
@@ -892,7 +892,7 @@ jobs:
 
       - name: Create GitHub Issue on Coder Failure
         if: needs.deploy.result == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const title = `Coder Application Deployment Failed: ${{ needs.validate.outputs.deploy_env }} environment`;

@@ -311,7 +311,7 @@ jobs:
 
       - name: Comment Infrastructure Cost Estimate on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { monthly_cost, description, environment } = ${{ steps.cost-estimate.outputs }};
@@ -441,7 +441,7 @@ jobs:
 
       - name: Comment Infrastructure Plan Results on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -662,7 +662,7 @@ jobs:
 
       - name: Comment Infrastructure Success on PR
         if: github.event_name == 'pull_request' && steps.apply.outputs.apply_completed == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const body = `## ✅ Infrastructure Deployment Successful (Phase 1)
@@ -742,7 +742,7 @@ jobs:
 
       - name: Create GitHub Issue on Infrastructure Failure
         if: needs.deploy.result == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const title = `Infrastructure Deployment Failed: ${{ needs.validate.outputs.deploy_env }} environment`;

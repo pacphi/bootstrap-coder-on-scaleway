@@ -518,7 +518,7 @@ jobs:
 
       - name: Comment Validation Results on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -594,7 +594,7 @@ jobs:
 
       - name: Create Issue on Critical Failure
         if: steps.status.outputs.overall_status == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const title = `Template Validation Failure: Critical Issues Detected`;
