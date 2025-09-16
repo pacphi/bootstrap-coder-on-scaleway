@@ -2,11 +2,12 @@ name: Deploy Coder Application (Phase 2)
 
 # Set minimal required permissions for security
 permissions:
-  contents: read       # Access repository code
-  issues: write        # Create deployment failure issues
-  pull-requests: write # Comment on PRs with deployment status
-  actions: read        # Download/upload artifacts
-  id-token: write      # For OIDC authentication if needed
+  contents: read         # Access repository code
+  issues: write          # Create deployment failure issues
+  pull-requests: write   # Comment on PRs with deployment status
+  actions: read          # Download/upload artifacts
+  id-token: write        # For OIDC authentication if needed
+  security-events: write # Upload SARIF security scan results
 
 on:
   workflow_dispatch:
