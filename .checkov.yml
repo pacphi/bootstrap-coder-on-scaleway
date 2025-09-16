@@ -45,16 +45,6 @@ check:
 download-external-modules: true
 external-modules-download-path: .external_modules
 
-# Logging
-log-level: INFO
-
-# Custom policies directory (if we add custom checks)
-external-checks-dir:
-  - .checkov/custom_checks
-
-# Baseline file to ignore existing findings (can be created with --create-baseline)
-# baseline: .checkov.baseline
-
 # File inclusion/exclusion patterns
 skip-path:
   - .terraform/
@@ -67,45 +57,11 @@ skip-path:
   - .venv/
   - .external_modules/
 
-# Include specific file patterns
-include:
-  - "*.tf"
-  - "*.tfvars"
-  - "*.yml"
-  - "*.yaml"
-  - "*.json"
-
-# Custom severity mapping for specific checks
-custom-policy-output-file: .checkov/custom_policies.json
-
 # Integration settings
 create-baseline: false
 use-enforcement-rules: false
 
-# Performance settings
-parallel: true
 enable-secret-scan-all-files: true
-
-# SARIF output configuration
-sarif-file-output: true
 
 # Repository settings
 repo-root-for-plan-enrichment: .
-
-# Annotations
-enable-github-annotations: true
-
-# Policy metadata
-policy-metadata-filter:
-  - severity:HIGH
-  - severity:CRITICAL
-  - severity:MEDIUM
-
-# Output format specific settings
-output-format-specific:
-  sarif:
-    include-severity: true
-    include-policy-url: true
-  cli:
-    color: true
-    verbose: false
