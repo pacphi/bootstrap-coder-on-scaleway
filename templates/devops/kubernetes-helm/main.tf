@@ -551,9 +551,9 @@ type: Opaque
 data:
   # These are base64 encoded values
   # Use: echo -n 'your-secret' | base64
-  database-password: cGFzc3dvcmQxMjM=  # password123
-  api-key: YWJjZGVmZ2hpams=             # abcdefghijk
-  jwt-secret: bXlzZWNyZXRqd3RrZXk=     # mysecretjwtkey
+  database-password: <BASE64_ENCODED_DB_PASSWORD>  # Replace with: echo -n 'your-db-password' | base64
+  api-key: <BASE64_ENCODED_API_KEY>             # Replace with: echo -n 'your-api-key' | base64
+  jwt-secret: <BASE64_ENCODED_JWT_SECRET>       # Replace with: echo -n 'your-jwt-secret' | base64
 stringData:
   # These will be automatically base64 encoded
   database-url: "postgresql://user:password@postgresql.database.svc.cluster.local:5432/sampleapp"

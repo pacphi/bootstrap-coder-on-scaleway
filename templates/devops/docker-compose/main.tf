@@ -660,10 +660,10 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_ROOT_PASSWORD=\$${MYSQL_ROOT_PASSWORD:-your-secure-root-password}
       - MYSQL_DATABASE=lampdb
       - MYSQL_USER=lampuser
-      - MYSQL_PASSWORD=lamppass
+      - MYSQL_PASSWORD=\$${MYSQL_PASSWORD:-your-secure-password}
     ports:
       - "3306:3306"
     volumes:
@@ -754,7 +754,7 @@ EOF
             <?php
             $servername = "mysql";
             $username = "lampuser";
-            $password = "lamppass";
+            $password = getenv('DB_PASSWORD') ?: 'your-secure-password-here';
             $dbname = "lampdb";
 
             try {
@@ -1846,8 +1846,20 @@ resource "kubernetes_deployment" "main" {
           image_pull_policy = "Always"
 
           security_context {
-            privileged                = true # Required for DinD, but isolated to sidecar
+            # Use specific capabilities instead of privileged mode for better security
+            privileged                = false
             read_only_root_filesystem = true
+            run_as_non_root           = false  # Docker daemon needs to run as root
+            allow_privilege_escalation = true  # Required for Docker daemon operations
+            capabilities {
+              add = [
+                "SYS_ADMIN",    # Required for mount operations in Docker
+                "DAC_OVERRIDE", # Required for file access in Docker
+                "SETUID",       # Required for user switching in containers
+                "SETGID"        # Required for group switching in containers
+              ]
+              drop = ["ALL"]
+            }
           }
 
           args = ["--host=tcp://0.0.0.0:2376", "--tls=false"]

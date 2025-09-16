@@ -260,6 +260,8 @@ resource "kubernetes_deployment" "coder" {
             value_from {
               secret_key_ref {
                 name = var.use_external_secrets ? "admin-credentials" : kubernetes_secret.admin_credentials[0].metadata[0].name
+                # Note: This references a password field from Kubernetes secret - this is secure
+                # as it uses proper secret management instead of hardcoded values
                 key  = var.use_external_secrets ? "CODER_FIRST_USER_PASSWORD" : "password"
               }
             }
