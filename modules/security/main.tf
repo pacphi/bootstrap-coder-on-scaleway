@@ -57,19 +57,89 @@ resource "kubernetes_service_account" "coder" {
   automount_service_account_token = true
 }
 
-# ClusterRole for Coder
-resource "kubernetes_cluster_role" "coder" {
+# Restricted Role for Coder (least privilege)
+resource "kubernetes_role" "coder_restricted" {
   count = var.enable_rbac ? 1 : 0
 
   metadata {
-    name = "coder"
+    name      = "coder-restricted"
+    namespace = kubernetes_namespace.secured_namespaces[var.namespace].metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "coder"
       "managed-by"             = "terraform"
     }
   }
 
-  # Permissions for managing workspaces
+  # Minimal permissions for workspace management
+  rule {
+    api_groups = [""]
+    resources = [
+      "pods",
+      "pods/log"
+    ]
+    verbs = ["get", "list", "create", "update", "patch", "watch"]
+  }
+
+  # Read-only access to secrets
+  rule {
+    api_groups = [""]
+    resources  = ["secrets"]
+    verbs      = ["get", "list"]
+  }
+
+  # Limited ConfigMap access
+  rule {
+    api_groups = [""]
+    resources  = ["configmaps"]
+    verbs      = ["get", "list", "create", "update", "patch"]
+  }
+
+  # PVC management for workspaces
+  rule {
+    api_groups = [""]
+    resources  = ["persistentvolumeclaims"]
+    verbs      = ["get", "list", "create", "update", "patch", "delete"]
+  }
+
+  # Service management for workspaces
+  rule {
+    api_groups = [""]
+    resources  = ["services"]
+    verbs      = ["get", "list", "create", "update", "patch", "delete"]
+  }
+
+  # Deployment management (limited scope)
+  rule {
+    api_groups = ["apps"]
+    resources = [
+      "deployments",
+      "replicasets"
+    ]
+    verbs = ["get", "list", "create", "update", "patch", "delete"]
+  }
+
+  # Read-only metrics access
+  rule {
+    api_groups = ["metrics.k8s.io"]
+    resources  = ["pods"]
+    verbs      = ["get", "list"]
+  }
+}
+
+# Legacy ClusterRole (deprecated - for backward compatibility only)
+resource "kubernetes_cluster_role" "coder_legacy" {
+  count = var.enable_legacy_rbac ? 1 : 0
+
+  metadata {
+    name = "coder-legacy"
+    labels = {
+      "app.kubernetes.io/name" = "coder"
+      "managed-by"             = "terraform"
+      "deprecated"             = "true"
+    }
+  }
+
+  # Legacy permissions (overly broad)
   rule {
     api_groups = [""]
     resources = [
@@ -106,12 +176,13 @@ resource "kubernetes_cluster_role" "coder" {
   }
 }
 
-# ClusterRoleBinding for Coder
-resource "kubernetes_cluster_role_binding" "coder" {
+# RoleBinding for Coder (namespace-scoped, least privilege)
+resource "kubernetes_role_binding" "coder_restricted" {
   count = var.enable_rbac ? 1 : 0
 
   metadata {
-    name = "coder"
+    name      = "coder-restricted"
+    namespace = kubernetes_namespace.secured_namespaces[var.namespace].metadata[0].name
     labels = {
       "app.kubernetes.io/name" = "coder"
       "managed-by"             = "terraform"
@@ -120,8 +191,34 @@ resource "kubernetes_cluster_role_binding" "coder" {
 
   role_ref {
     api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role.coder_restricted[0].metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account.coder[0].metadata[0].name
+    namespace = kubernetes_service_account.coder[0].metadata[0].namespace
+  }
+}
+
+# Legacy ClusterRoleBinding (deprecated)
+resource "kubernetes_cluster_role_binding" "coder_legacy" {
+  count = var.enable_legacy_rbac ? 1 : 0
+
+  metadata {
+    name = "coder-legacy"
+    labels = {
+      "app.kubernetes.io/name" = "coder"
+      "managed-by"             = "terraform"
+      "deprecated"             = "true"
+    }
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
     kind      = "ClusterRole"
-    name      = kubernetes_cluster_role.coder[0].metadata[0].name
+    name      = kubernetes_cluster_role.coder_legacy[0].metadata[0].name
   }
 
   subject {

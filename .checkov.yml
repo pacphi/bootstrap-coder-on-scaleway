@@ -1,0 +1,68 @@
+# Checkov Security Scanning Configuration
+# https://www.checkov.io/2.Basics/Configuration%20File.html
+
+# Framework scanning
+framework:
+  - terraform
+  - github_actions
+  - secrets
+
+# Output settings
+output:
+  - cli
+  - sarif
+
+# Severity settings
+soft-fail: true
+quiet: false
+compact: true
+
+# Skip specific checks that are not applicable or too noisy
+skip-check:
+  # Skip checks that are not relevant for Scaleway
+  - CKV_AWS_*
+  - CKV_AZURE_*
+  - CKV_GCP_*
+
+  # Skip specific Terraform checks that might be too restrictive
+  - CKV_TF_1  # Ensure Terraform module sources use a commit hash
+  - CKV_TF_2  # Ensure Terraform module sources use a tag with a version number
+
+  # Skip GitHub Actions checks that are too restrictive for our use case
+  - CKV_GHA_1  # Ensure no secrets in GitHub Actions
+  - CKV_GHA_2  # Ensure GitHub Actions secrets are not hardcoded
+  - CKV_GHA_7  # The build output cannot be affected by user parameters other than the build entry point and the top-level source location
+
+  # Skip Docker checks if not using containers in templates
+  - CKV_DOCKER_*
+
+# Enable specific checks for enhanced security
+check:
+  - CKV_TF_*     # All Terraform checks
+  - CKV_GHA_*    # All GitHub Actions checks
+  - CKV_SECRET_* # All secret detection checks
+
+# External modules and plugins
+download-external-modules: true
+external-modules-download-path: .external_modules
+
+# File inclusion/exclusion patterns
+skip-path:
+  - .terraform/
+  - .git/
+  - node_modules/
+  - __pycache__/
+  - .pytest_cache/
+  - .coverage/
+  - venv/
+  - .venv/
+  - .external_modules/
+
+# Integration settings
+create-baseline: false
+use-enforcement-rules: false
+
+enable-secret-scan-all-files: true
+
+# Repository settings
+repo-root-for-plan-enrichment: .

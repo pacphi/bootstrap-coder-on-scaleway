@@ -2,11 +2,12 @@ name: Deploy Infrastructure (Phase 1)
 
 # Set minimal required permissions for security
 permissions:
-  contents: read       # Access repository code
-  issues: write        # Create deployment failure issues
-  pull-requests: write # Comment on PRs with deployment status
-  actions: read        # Download/upload artifacts
-  id-token: write      # For OIDC authentication if needed
+  contents: read         # Access repository code
+  issues: write          # Create deployment failure issues
+  pull-requests: write   # Comment on PRs with deployment status
+  actions: read          # Download/upload artifacts
+  id-token: write        # For OIDC authentication if needed
+  security-events: write # Upload SARIF security scan results
 
 on:
   workflow_dispatch:
@@ -65,6 +66,11 @@ on:
         required: false
         type: boolean
         default: false
+      advanced_config:
+        description: 'Advanced configuration as JSON'
+        required: false
+        type: string
+        default: '{}'
 
   workflow_call:
     inputs:
@@ -102,6 +108,11 @@ on:
         required: false
         type: boolean
         default: false
+      advanced_config:
+        description: 'Advanced configuration as JSON'
+        required: false
+        type: string
+        default: '{}'
     secrets:
       SCW_ACCESS_KEY:
         required: true
@@ -138,6 +149,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v5
 
+      - name: Cache Terraform Providers and Modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            **/.terraform
+            **/.terraform.lock.hcl
+          key: terraform-validate-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl', '**/versions.tf') }}
+          restore-keys: |
+            terraform-validate-${{ runner.os }}-
+
       - name: Determine Deployment Environment
         id: determine-env
         run: |
@@ -149,6 +171,17 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.12.0"
+        env:
+          TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+
+      - name: Create Terraform Plugin Cache Directory
+        run: mkdir -p ~/.terraform.d/plugin-cache
+
+      - name: Cache kubectl Binary
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/kubectl
+          key: kubectl-${{ runner.os }}-v1.32.0
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
@@ -333,10 +366,21 @@ jobs:
               body: body
             });
 
+  security-scan:
+    name: Security Scan Infrastructure
+    needs: [validate, setup-backend]
+    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true'
+    uses: ./.github/workflows/security-scan.yml
+    with:
+      scan_scope: infrastructure
+      environment: ${{ needs.validate.outputs.deploy_env }}
+      severity_threshold: MEDIUM
+      fail_on_findings: false
+
   plan:
     name: Plan Infrastructure Changes
     runs-on: ubuntu-latest
-    needs: [validate, setup-backend, estimate-costs]
+    needs: [validate, setup-backend, estimate-costs, security-scan]
     if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true'
     permissions:
       contents: read        # Read repository code
@@ -350,11 +394,28 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v5
 
+      - name: Cache Terraform Providers and Modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            **/.terraform
+            **/.terraform.lock.hcl
+          key: terraform-plan-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl', '**/versions.tf') }}
+          restore-keys: |
+            terraform-plan-${{ runner.os }}-
+            terraform-validate-${{ runner.os }}-
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.12.0"
           terraform_wrapper: false
+        env:
+          TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+
+      - name: Create Terraform Plugin Cache Directory
+        run: mkdir -p ~/.terraform.d/plugin-cache
 
       - name: Download Backend Configuration
         uses: actions/download-artifact@v5
@@ -501,11 +562,35 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v5
 
+      - name: Cache Terraform Providers and Modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            **/.terraform
+            **/.terraform.lock.hcl
+          key: terraform-deploy-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl', '**/versions.tf') }}
+          restore-keys: |
+            terraform-deploy-${{ runner.os }}-
+            terraform-plan-${{ runner.os }}-
+            terraform-validate-${{ runner.os }}-
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.12.0"
           terraform_wrapper: false
+        env:
+          TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+
+      - name: Create Terraform Plugin Cache Directory
+        run: mkdir -p ~/.terraform.d/plugin-cache
+
+      - name: Cache kubectl Binary
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/kubectl
+          key: kubectl-${{ runner.os }}-v1.32.0
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4

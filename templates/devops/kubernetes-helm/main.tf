@@ -1602,7 +1602,6 @@ resource "kubernetes_deployment" "main" {
             read_only_root_filesystem  = true
             capabilities {
               drop = ["ALL"]
-              add  = ["NET_ADMIN"] # Only NET_ADMIN needed for K8s tools, removed dangerous SYS_ADMIN
             }
           }
 

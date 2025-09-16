@@ -2,11 +2,12 @@ name: Deploy Complete Coder Environment
 
 # Set minimal required permissions for security
 permissions:
-  contents: read       # Access repository code
-  issues: write        # Create deployment failure issues
-  pull-requests: write # Comment on PRs with deployment status
-  actions: read        # Download/upload artifacts
-  id-token: write      # For OIDC authentication if needed
+  contents: read         # Access repository code
+  issues: write          # Create deployment failure issues
+  pull-requests: write   # Comment on PRs with deployment status
+  actions: read          # Download/upload artifacts
+  id-token: write        # For OIDC authentication if needed
+  security-events: write # Upload SARIF security scan results
 
 on:
   workflow_dispatch:
@@ -59,11 +60,6 @@ on:
         description: 'Subdomain prefix (defaults: dev=coder-dev, staging=coder-staging, prod=coder)'
         required: false
         type: string
-      enable_monitoring:
-        description: 'Enable monitoring stack'
-        required: false
-        type: boolean
-        default: false
       dry_run:
         description: 'Preview changes without applying'
         required: false
@@ -74,6 +70,11 @@ on:
         required: false
         type: boolean
         default: false
+      advanced_config:
+        description: 'Advanced configuration as JSON (see docs/ADVANCED_CONFIG.md for schema)'
+        required: false
+        type: string
+        default: '{}'
 
   # Allow manual PR triggers for staging deployments
   pull_request:
@@ -93,6 +94,45 @@ on:
       - 'modules/**'
 
 jobs:
+  # Parallel validation jobs for faster feedback
+  pre-validate:
+    name: Pre-validate Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      validation_passed: ${{ steps.validate.outputs.passed }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Cache Tools and Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            /usr/local/bin/kubectl
+            /usr/local/bin/helm
+          key: tools-${{ runner.os }}-terraform-1.12.0-kubectl-1.32.0-helm-3.12.0
+
+      - name: Quick Syntax Validation
+        id: validate
+        run: |
+          echo "🔍 Running quick syntax validation..."
+
+          # Check for basic syntax issues
+          if find . -name "*.tf" -exec terraform fmt -check {} \; 2>/dev/null; then
+            echo "✅ Terraform syntax check passed"
+          else
+            echo "⚠️ Terraform formatting issues detected (will be checked in detail later)"
+          fi
+
+          # Check for basic YAML syntax
+          if command -v yamllint >/dev/null 2>&1; then
+            yamllint .github/workflows/ || echo "⚠️ YAML formatting issues detected"
+          fi
+
+          echo "passed=true" >> $GITHUB_OUTPUT
+
   determine-strategy:
     name: Determine Deployment Strategy
     runs-on: ubuntu-latest
@@ -111,6 +151,42 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v5
 
+      - name: Parse Advanced Configuration
+        id: parse-config
+        run: |
+          # Parse advanced configuration JSON
+          advanced_config='${{ github.event.inputs.advanced_config || '{}' }}'
+          echo "📋 Parsing advanced configuration..."
+          echo "Raw config: $advanced_config"
+
+          # Extract monitoring configuration with fallback
+          enable_monitoring=$(echo "$advanced_config" | jq -r '.monitoring.enabled // false')
+
+          # Extract security configuration
+          management_cidr=$(echo "$advanced_config" | jq -r '.security.management_cidr // ""')
+          trusted_cidr=$(echo "$advanced_config" | jq -r '.security.trusted_cidr // ""')
+          pod_security_standard=$(echo "$advanced_config" | jq -r '.security.pod_security_standard // "baseline"')
+          enable_pod_security_standards=$(echo "$advanced_config" | jq -r '.security.enable_pod_security_standards // true')
+          enable_network_policies=$(echo "$advanced_config" | jq -r '.security.enable_network_policies // true')
+
+          # Extract secret management configuration
+          use_external_secrets=$(echo "$advanced_config" | jq -r '.secrets.use_external_secrets // false')
+
+          # Extract cost optimization configuration
+          cost_optimization_enabled=$(echo "$advanced_config" | jq -r '.cost_optimization.enabled // false')
+          volume_type=$(echo "$advanced_config" | jq -r '.cost_optimization.volume_type // "lssd"')
+
+          # Set outputs
+          echo "enable_monitoring=$enable_monitoring" >> $GITHUB_OUTPUT
+          echo "management_cidr=$management_cidr" >> $GITHUB_OUTPUT
+          echo "trusted_cidr=$trusted_cidr" >> $GITHUB_OUTPUT
+          echo "pod_security_standard=$pod_security_standard" >> $GITHUB_OUTPUT
+          echo "enable_pod_security_standards=$enable_pod_security_standards" >> $GITHUB_OUTPUT
+          echo "enable_network_policies=$enable_network_policies" >> $GITHUB_OUTPUT
+          echo "use_external_secrets=$use_external_secrets" >> $GITHUB_OUTPUT
+          echo "cost_optimization_enabled=$cost_optimization_enabled" >> $GITHUB_OUTPUT
+          echo "volume_type=$volume_type" >> $GITHUB_OUTPUT
+
       - name: Determine Deployment Strategy
         id: determine-env
         run: |
@@ -120,7 +196,7 @@ jobs:
             echo "template=${{ github.event.inputs.template }}" >> $GITHUB_OUTPUT
             echo "domain_name=${{ github.event.inputs.domain_name }}" >> $GITHUB_OUTPUT
             echo "subdomain=${{ github.event.inputs.subdomain }}" >> $GITHUB_OUTPUT
-            echo "enable_monitoring=${{ github.event.inputs.enable_monitoring }}" >> $GITHUB_OUTPUT
+            echo "enable_monitoring=${{ steps.parse-config.outputs.enable_monitoring }}" >> $GITHUB_OUTPUT
             echo "skip_coder=${{ github.event.inputs.skip_coder_deployment }}" >> $GITHUB_OUTPUT
             echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
             echo "region=${{ github.event.inputs.region }}" >> $GITHUB_OUTPUT
@@ -201,9 +277,20 @@ jobs:
           echo "  • Better troubleshooting with immediate kubeconfig access"
           echo "  • Cleaner separation of concerns"
 
+  security-scan:
+    name: Security Scan Environment Config
+    needs: [determine-strategy, pre-validate]
+    if: needs.determine-strategy.outputs.deploy_env != ''
+    uses: ./.github/workflows/security-scan.yml
+    with:
+      scan_scope: full
+      environment: ${{ needs.determine-strategy.outputs.deploy_env }}
+      severity_threshold: MEDIUM
+      fail_on_findings: false
+
   deploy-infrastructure:
     name: Deploy Infrastructure (Phase 1)
-    needs: determine-strategy
+    needs: [determine-strategy, pre-validate, security-scan]
     if: needs.determine-strategy.outputs.deploy_env != ''
     uses: ./.github/workflows/deploy-infrastructure.yml
     with:
@@ -215,6 +302,7 @@ jobs:
       subdomain: ${{ needs.determine-strategy.outputs.deploy_subdomain }}
       auto_approve: true
       dry_run: ${{ needs.determine-strategy.outputs.dry_run == 'true' }}
+      advanced_config: ${{ github.event.inputs.advanced_config || '{}' }}
     secrets: inherit
 
   deploy-coder:

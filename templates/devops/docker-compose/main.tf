@@ -1767,9 +1767,9 @@ resource "kubernetes_deployment" "main" {
             run_as_user                = 1000
             run_as_non_root            = true
             allow_privilege_escalation = false
+            read_only_root_filesystem  = true
             capabilities {
               drop = ["ALL"]
-              add  = ["SYS_ADMIN"] # Required for Docker-in-Docker
             }
           }
 
@@ -1800,7 +1800,12 @@ resource "kubernetes_deployment" "main" {
 
           env {
             name  = "DOCKER_HOST"
-            value = "unix:///var/run/docker.sock"
+            value = "tcp://localhost:2376"
+          }
+
+          env {
+            name  = "DOCKER_TLS_CERTDIR"
+            value = ""
           }
 
           resources {
@@ -1820,10 +1825,42 @@ resource "kubernetes_deployment" "main" {
             read_only  = false
           }
 
+
           volume_mount {
-            mount_path = "/var/run/docker.sock"
-            name       = "docker-sock"
+            mount_path = "/var/lib/docker"
+            name       = "docker-storage"
             read_only  = false
+          }
+
+          volume_mount {
+            mount_path = "/tmp"
+            name       = "tmp-volume"
+            read_only  = false
+          }
+        }
+
+        # Docker-in-Docker sidecar container for secure Docker access
+        container {
+          name              = "docker-daemon"
+          image             = "docker@sha256:af96c680a7e1f853ebdd50c1e95469820e921b7e4bf089ac81b5103cb2987456"
+          image_pull_policy = "Always"
+
+          security_context {
+            privileged                = true # Required for DinD, but isolated to sidecar
+            read_only_root_filesystem = true
+          }
+
+          args = ["--host=tcp://0.0.0.0:2376", "--tls=false"]
+
+          resources {
+            requests = {
+              "cpu"    = "100m"
+              "memory" = "512Mi"
+            }
+            limits = {
+              "cpu"    = "500m"
+              "memory" = "1Gi"
+            }
           }
 
           volume_mount {
@@ -1847,13 +1884,6 @@ resource "kubernetes_deployment" "main" {
           }
         }
 
-        volume {
-          name = "docker-sock"
-          host_path {
-            path = "/var/run/docker.sock"
-            type = "Socket"
-          }
-        }
 
         volume {
           name = "docker-storage"

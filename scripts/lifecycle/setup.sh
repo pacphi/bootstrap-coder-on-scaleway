@@ -5,6 +5,11 @@
 
 set -euo pipefail
 
+# Source input validation library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../utils/input-validation.sh
+source "${SCRIPT_DIR}/../utils/input-validation.sh"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1107,6 +1112,28 @@ main() {
     if [[ -z "$ENVIRONMENT" ]]; then
         log ERROR "Environment is required. Use --env=ENV"
         print_usage
+        exit 1
+    fi
+
+    # Validate all script arguments using the input validation library
+    if ! validate_script_args "setup.sh" "$@"; then
+        log ERROR "Script argument validation failed"
+        exit 1
+    fi
+
+    # Validate specific argument types
+    if ! validate_environment "$ENVIRONMENT"; then
+        log ERROR "Invalid environment: $ENVIRONMENT"
+        exit 1
+    fi
+
+    if [[ -n "$DOMAIN_NAME" ]] && ! validate_hostname "$DOMAIN_NAME"; then
+        log ERROR "Invalid domain name: $DOMAIN_NAME"
+        exit 1
+    fi
+
+    if [[ -n "$SUBDOMAIN" ]] && ! validate_hostname "$SUBDOMAIN"; then
+        log ERROR "Invalid subdomain: $SUBDOMAIN"
         exit 1
     fi
 

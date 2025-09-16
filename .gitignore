@@ -364,3 +364,9 @@ template-test-*/
 # Script execution artifacts
 script-outputs/
 execution-logs/
+
+# Claude Code
+.claude/
+
+# Project feature planning
+.features/

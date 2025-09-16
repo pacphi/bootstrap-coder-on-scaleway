@@ -1,5 +1,7 @@
 name: Validate Templates
 
+# Performance optimized template validation with caching and parallel execution
+
 # Set minimal required permissions for security
 permissions:
   contents: read          # Access repository code
@@ -233,10 +235,27 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v5
 
+      - name: Cache Terraform Providers and Modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            **/.terraform
+            **/.terraform.lock.hcl
+          key: terraform-templates-${{ runner.os }}-${{ matrix.template.category }}-${{ hashFiles('**/.terraform.lock.hcl', '**/versions.tf') }}
+          restore-keys: |
+            terraform-templates-${{ runner.os }}-${{ matrix.template.category }}-
+            terraform-templates-${{ runner.os }}-
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.12.0"
+        env:
+          TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+
+      - name: Create Terraform Plugin Cache Directory
+        run: mkdir -p ~/.terraform.d/plugin-cache
 
       - name: Validate Template
         run: |
@@ -327,20 +346,70 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v5
 
-      - name: Run Checkov Security Scan
+      - name: Cache Checkov
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/checkov
+          key: checkov-${{ runner.os }}-3.0.0
+
+      - name: Run Checkov Security Scan on Templates
         uses: bridgecrewio/checkov-action@master
         with:
           directory: templates/
           framework: terraform
-          output_format: sarif
-          output_file_path: checkov-results.sarif
+          output_format: sarif,cli
+          output_file_path: templates-security.sarif
           soft_fail: true
+          config_file: .checkov.yml
+          quiet: false
+          download_external_modules: true
+          compact: true
 
-      - name: Upload Security Scan Results
+      - name: Upload Template Security SARIF Results
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: checkov-results.sarif
+          sarif_file: templates-security.sarif
+          category: template-security
+
+      - name: Process Security Results
+        if: always()
+        id: security-summary
+        run: |
+          total_findings=0
+          critical_count=0
+          high_count=0
+
+          if [[ -f "templates-security.sarif" ]]; then
+            if command -v jq >/dev/null 2>&1; then
+              total_findings=$(jq '[.runs[]?.results[]? // empty] | length' templates-security.sarif 2>/dev/null || echo "0")
+              critical_count=$(jq '[.runs[]?.results[]? | select(.level == "error") // empty] | length' templates-security.sarif 2>/dev/null || echo "0")
+              high_count=$(jq '[.runs[]?.results[]? | select(.level == "warning") // empty] | length' templates-security.sarif 2>/dev/null || echo "0")
+            fi
+          fi
+
+          echo "total_findings=$total_findings" >> $GITHUB_OUTPUT
+          echo "critical_count=$critical_count" >> $GITHUB_OUTPUT
+          echo "high_count=$high_count" >> $GITHUB_OUTPUT
+
+          # Set security status
+          if [[ $critical_count -gt 0 ]]; then
+            echo "security_status=critical" >> $GITHUB_OUTPUT
+          elif [[ $high_count -gt 0 ]]; then
+            echo "security_status=high" >> $GITHUB_OUTPUT
+          elif [[ $total_findings -gt 0 ]]; then
+            echo "security_status=medium" >> $GITHUB_OUTPUT
+          else
+            echo "security_status=clean" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Security Scan Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: template-security-results-$(date +%Y%m%d)
+          path: templates-security.sarif
+          retention-days: 30
 
   setup-backend:
     name: Setup Terraform Backend
