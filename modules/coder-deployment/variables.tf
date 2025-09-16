@@ -110,6 +110,11 @@ variable "security_context" {
       drop = list(string)
     })
     read_only_root_filesystem = bool
+    seccomp_profile = optional(object({
+      type = string
+    }), {
+      type = "RuntimeDefault"
+    })
   })
   default = {
     allow_privilege_escalation = false
@@ -119,6 +124,9 @@ variable "security_context" {
       drop = ["ALL"]
     }
     read_only_root_filesystem = true
+    seccomp_profile = {
+      type = "RuntimeDefault"
+    }
   }
 }
 

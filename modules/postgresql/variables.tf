@@ -115,3 +115,9 @@ variable "volume_size" {
   type        = number
   default     = null
 }
+
+variable "vpc_cidr" {
+  description = "VPC CIDR range for database access control"
+  type        = string
+  default     = "10.0.0.0/8"
+}

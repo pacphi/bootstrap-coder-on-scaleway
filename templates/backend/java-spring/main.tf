@@ -148,7 +148,7 @@ resource "coder_agent" "main" {
     echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | sudo tee /etc/apt/sources.list.d/adoptium.list
 
     sudo apt-get update
-    sudo apt-get install -y temurin-${data.coder_parameter.java_version.value}-jdk
+    sudo apt-get install -y liberica-${data.coder_parameter.java_version.value}-jdk
 
     # Install Maven
     sudo apt-get install -y maven

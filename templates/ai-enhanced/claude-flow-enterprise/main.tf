@@ -231,7 +231,7 @@ resource "coder_agent" "main" {
         wget -qO - https://packages.adoptium.net/artifactory/api/gpg/public/repositories/deb | sudo gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg
         echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | sudo tee /etc/apt/sources.list.d/adoptium.list
         sudo apt-get update
-        sudo apt-get install -y temurin-21-jdk
+        sudo apt-get install -y liberica-21-jdk
 
         # Install Maven and Gradle
         sudo apt-get install -y maven

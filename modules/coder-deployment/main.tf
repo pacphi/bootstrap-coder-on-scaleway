@@ -343,6 +343,10 @@ resource "kubernetes_deployment" "coder" {
             capabilities {
               drop = var.security_context.capabilities.drop
             }
+
+            seccomp_profile {
+              type = var.security_context.seccomp_profile.type
+            }
           }
 
           liveness_probe {

@@ -89,3 +89,34 @@ variable "security_group_rules" {
   }))
   default = []
 }
+
+# Network Access Control
+variable "management_cidr" {
+  description = "CIDR range for management access (SSH, monitoring)"
+  type        = string
+  default     = "0.0.0.0/0"  # Default to unrestricted for backward compatibility
+}
+
+variable "trusted_cidr" {
+  description = "CIDR range for trusted access (Kubernetes API, admin interfaces)"
+  type        = string
+  default     = "0.0.0.0/0"  # Default to unrestricted for backward compatibility
+}
+
+variable "vpc_cidr" {
+  description = "VPC CIDR range for internal communication"
+  type        = string
+  default     = "10.0.0.0/8"
+}
+
+variable "allow_public_api" {
+  description = "Allow public access to Kubernetes API (not recommended for production)"
+  type        = bool
+  default     = true
+}
+
+variable "allow_public_ssh" {
+  description = "Allow public SSH access (not recommended for production)"
+  type        = bool
+  default     = true
+}

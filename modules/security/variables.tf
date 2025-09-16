@@ -38,6 +38,12 @@ variable "enable_rbac" {
   default     = true
 }
 
+variable "enable_legacy_rbac" {
+  description = "Enable legacy (overly permissive) RBAC for backward compatibility - NOT recommended for production"
+  type        = bool
+  default     = false
+}
+
 variable "additional_namespaces" {
   description = "Additional namespaces to secure"
   type        = list(string)

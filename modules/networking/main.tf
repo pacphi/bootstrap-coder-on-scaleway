@@ -28,10 +28,10 @@ resource "scaleway_instance_security_group" "kubernetes" {
   inbound_rule {
     action   = "accept"
     protocol = "ANY"
-    ip_range = "10.0.0.0/8"
+    ip_range = var.vpc_cidr
   }
 
-  # Allow HTTPS from anywhere (for Coder web interface)
+  # Allow HTTPS from anywhere (for Coder web interface - public by design)
   inbound_rule {
     action   = "accept"
     protocol = "TCP"
@@ -47,28 +47,34 @@ resource "scaleway_instance_security_group" "kubernetes" {
     ip_range = "0.0.0.0/0"
   }
 
-  # Allow SSH from anywhere (for debugging)
-  inbound_rule {
-    action   = "accept"
-    protocol = "TCP"
-    port     = 22
-    ip_range = "0.0.0.0/0"
+  # Allow SSH access from management CIDR only
+  dynamic "inbound_rule" {
+    for_each = var.allow_public_ssh ? ["0.0.0.0/0"] : [var.management_cidr]
+    content {
+      action   = "accept"
+      protocol = "TCP"
+      port     = 22
+      ip_range = inbound_rule.value
+    }
   }
 
-  # Allow Kubernetes API server
-  inbound_rule {
-    action   = "accept"
-    protocol = "TCP"
-    port     = 6443
-    ip_range = "0.0.0.0/0"
+  # Allow Kubernetes API server access (restricted or public based on configuration)
+  dynamic "inbound_rule" {
+    for_each = var.allow_public_api ? ["0.0.0.0/0"] : [var.trusted_cidr]
+    content {
+      action   = "accept"
+      protocol = "TCP"
+      port     = 6443
+      ip_range = inbound_rule.value
+    }
   }
 
-  # Allow NodePort services (30000-32767)
+  # Allow NodePort services (restricted to trusted CIDR for better security)
   inbound_rule {
     action     = "accept"
     protocol   = "TCP"
     port_range = "30000-32767"
-    ip_range   = "0.0.0.0/0"
+    ip_range   = var.trusted_cidr
   }
 
   # Custom security group rules

@@ -64,13 +64,13 @@ resource "scaleway_rdb_database" "coder_database" {
   depends_on = [scaleway_rdb_user.coder_user]
 }
 
-# ACL Rules for private network access
+# ACL Rules for VPC-only access (restricted)
 resource "scaleway_rdb_acl" "postgresql_acl" {
   instance_id = scaleway_rdb_instance.postgresql.id
 
   acl_rules {
-    ip          = "0.0.0.0/0"
-    description = "Allow all connections from private network"
+    ip          = var.vpc_cidr
+    description = "Allow connections from VPC network only"
   }
 }
 
