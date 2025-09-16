@@ -365,10 +365,21 @@ jobs:
               body: body
             });
 
+  security-scan:
+    name: Security Scan Infrastructure
+    needs: [validate, setup-backend]
+    if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true'
+    uses: ./.github/workflows/security-scan.yml
+    with:
+      scan_scope: infrastructure
+      environment: ${{ needs.validate.outputs.deploy_env }}
+      severity_threshold: MEDIUM
+      fail_on_findings: false
+
   plan:
     name: Plan Infrastructure Changes
     runs-on: ubuntu-latest
-    needs: [validate, setup-backend, estimate-costs]
+    needs: [validate, setup-backend, estimate-costs, security-scan]
     if: needs.validate.outputs.deploy_env != '' && needs.setup-backend.outputs.backend_configured == 'true'
     permissions:
       contents: read        # Read repository code

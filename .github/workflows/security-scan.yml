@@ -1,0 +1,607 @@
+name: Security Scanning
+
+# Comprehensive security scanning with Checkov, SARIF upload, and vulnerability management
+
+permissions:
+  contents: read          # Read repository code for scanning
+  security-events: write  # Upload SARIF security scan results
+  issues: write          # Create security issues for findings
+  pull-requests: write   # Comment on PRs with security results
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_scope:
+        description: 'Scope of security scan'
+        required: false
+        type: choice
+        options:
+          - full
+          - infrastructure
+          - templates
+          - workflows
+        default: 'full'
+      severity_threshold:
+        description: 'Minimum severity to report'
+        required: false
+        type: choice
+        options:
+          - CRITICAL
+          - HIGH
+          - MEDIUM
+          - LOW
+          - INFO
+        default: 'MEDIUM'
+      fail_on_findings:
+        description: 'Fail workflow on security findings'
+        required: false
+        type: boolean
+        default: false
+
+  workflow_call:
+    inputs:
+      scan_scope:
+        description: 'Scope of security scan'
+        required: false
+        type: string
+        default: 'full'
+      severity_threshold:
+        description: 'Minimum severity to report'
+        required: false
+        type: string
+        default: 'MEDIUM'
+      fail_on_findings:
+        description: 'Fail workflow on security findings'
+        required: false
+        type: boolean
+        default: false
+      environment:
+        description: 'Environment context for scan'
+        required: false
+        type: string
+
+  pull_request:
+    paths:
+      - '**/*.tf'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - 'scripts/**'
+      - 'modules/**'
+      - 'environments/**'
+      - 'templates/**'
+
+  push:
+    branches: [main, develop]
+    paths:
+      - '**/*.tf'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - 'scripts/**'
+      - 'modules/**'
+      - 'environments/**'
+      - 'templates/**'
+
+  schedule:
+    # Run comprehensive security scan daily at 3 AM UTC
+    - cron: '0 3 * * *'
+
+env:
+  # Checkov configuration
+  CHECKOV_VERSION: "3.0.0"
+  SARIF_OUTPUT_DIR: "security-results"
+
+jobs:
+  prepare-scan:
+    name: Prepare Security Scan
+    runs-on: ubuntu-latest
+    outputs:
+      scan_scope: ${{ steps.determine-scope.outputs.scope }}
+      severity_threshold: ${{ steps.determine-scope.outputs.severity }}
+      fail_on_findings: ${{ steps.determine-scope.outputs.fail_on_findings }}
+      scan_id: ${{ steps.generate-id.outputs.scan_id }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Determine Scan Scope
+        id: determine-scope
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "scope=${{ github.event.inputs.scan_scope }}" >> $GITHUB_OUTPUT
+            echo "severity=${{ github.event.inputs.severity_threshold }}" >> $GITHUB_OUTPUT
+            echo "fail_on_findings=${{ github.event.inputs.fail_on_findings }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "scope=full" >> $GITHUB_OUTPUT
+            echo "severity=HIGH" >> $GITHUB_OUTPUT
+            echo "fail_on_findings=false" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "scope=full" >> $GITHUB_OUTPUT
+            echo "severity=MEDIUM" >> $GITHUB_OUTPUT
+            echo "fail_on_findings=false" >> $GITHUB_OUTPUT
+          else
+            echo "scope=full" >> $GITHUB_OUTPUT
+            echo "severity=HIGH" >> $GITHUB_OUTPUT
+            echo "fail_on_findings=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Scan ID
+        id: generate-id
+        run: |
+          scan_id="security-scan-$(date +%Y%m%d-%H%M%S)-${{ github.run_id }}"
+          echo "scan_id=$scan_id" >> $GITHUB_OUTPUT
+
+      - name: Create Results Directory
+        run: mkdir -p ${{ env.SARIF_OUTPUT_DIR }}
+
+  infrastructure-scan:
+    name: Scan Infrastructure Code
+    runs-on: ubuntu-latest
+    needs: prepare-scan
+    if: needs.prepare-scan.outputs.scan_scope == 'full' || needs.prepare-scan.outputs.scan_scope == 'infrastructure'
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Cache Checkov
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/checkov
+          key: checkov-${{ runner.os }}-${{ env.CHECKOV_VERSION }}
+
+      - name: Run Checkov on Infrastructure
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: |
+            modules/
+            environments/
+          framework: terraform
+          output_format: sarif,cli
+          output_file_path: ${{ env.SARIF_OUTPUT_DIR }}/infrastructure-checkov.sarif
+          soft_fail: true
+          quiet: false
+          compact: true
+          download_external_modules: true
+          log_level: INFO
+          config_file: .checkov.yml
+
+      - name: Upload Infrastructure SARIF Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ env.SARIF_OUTPUT_DIR }}/infrastructure-checkov.sarif
+          category: infrastructure-security
+
+      - name: Upload Infrastructure Scan Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-security-results-${{ needs.prepare-scan.outputs.scan_id }}
+          path: ${{ env.SARIF_OUTPUT_DIR }}/infrastructure-checkov.sarif
+          retention-days: 30
+
+  template-scan:
+    name: Scan Template Code
+    runs-on: ubuntu-latest
+    needs: prepare-scan
+    if: needs.prepare-scan.outputs.scan_scope == 'full' || needs.prepare-scan.outputs.scan_scope == 'templates'
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Cache Checkov
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/checkov
+          key: checkov-${{ runner.os }}-${{ env.CHECKOV_VERSION }}
+
+      - name: Run Checkov on Templates
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: templates/
+          framework: terraform
+          output_format: sarif,cli
+          output_file_path: ${{ env.SARIF_OUTPUT_DIR }}/templates-checkov.sarif
+          soft_fail: true
+          quiet: false
+          compact: true
+          download_external_modules: true
+          log_level: INFO
+          config_file: .checkov.yml
+
+      - name: Upload Template SARIF Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ env.SARIF_OUTPUT_DIR }}/templates-checkov.sarif
+          category: template-security
+
+      - name: Upload Template Scan Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: template-security-results-${{ needs.prepare-scan.outputs.scan_id }}
+          path: ${{ env.SARIF_OUTPUT_DIR }}/templates-checkov.sarif
+          retention-days: 30
+
+  workflow-scan:
+    name: Scan Workflow Files
+    runs-on: ubuntu-latest
+    needs: prepare-scan
+    if: needs.prepare-scan.outputs.scan_scope == 'full' || needs.prepare-scan.outputs.scan_scope == 'workflows'
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Cache Checkov
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/checkov
+          key: checkov-${{ runner.os }}-${{ env.CHECKOV_VERSION }}
+
+      - name: Run Checkov on Workflows
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .github/workflows/
+          framework: github_actions
+          output_format: sarif,cli
+          output_file_path: ${{ env.SARIF_OUTPUT_DIR }}/workflows-checkov.sarif
+          soft_fail: true
+          quiet: false
+          compact: true
+          log_level: INFO
+          config_file: .checkov.yml
+
+      - name: Upload Workflow SARIF Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ env.SARIF_OUTPUT_DIR }}/workflows-checkov.sarif
+          category: workflow-security
+
+      - name: Upload Workflow Scan Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-security-results-${{ needs.prepare-scan.outputs.scan_id }}
+          path: ${{ env.SARIF_OUTPUT_DIR }}/workflows-checkov.sarif
+          retention-days: 30
+
+  secrets-scan:
+    name: Scan for Secrets and Sensitive Data
+    runs-on: ubuntu-latest
+    needs: prepare-scan
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Run TruffleHog Secret Scanning
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified --format=sarif --output=${{ env.SARIF_OUTPUT_DIR }}/secrets-trufflehog.sarif
+
+      - name: Upload Secrets SARIF Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ env.SARIF_OUTPUT_DIR }}/secrets-trufflehog.sarif
+          category: secrets-detection
+        continue-on-error: true
+
+      - name: Upload Secrets Scan Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrets-security-results-${{ needs.prepare-scan.outputs.scan_id }}
+          path: ${{ env.SARIF_OUTPUT_DIR }}/secrets-trufflehog.sarif
+          retention-days: 30
+        continue-on-error: true
+
+  analyze-results:
+    name: Analyze Security Results
+    runs-on: ubuntu-latest
+    needs: [prepare-scan, infrastructure-scan, template-scan, workflow-scan, secrets-scan]
+    if: always()
+    permissions:
+      contents: read
+      security-events: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Download All Security Results
+        uses: actions/download-artifact@v5
+        with:
+          pattern: '*-security-results-${{ needs.prepare-scan.outputs.scan_id }}'
+          path: ${{ env.SARIF_OUTPUT_DIR }}
+          merge-multiple: true
+
+      - name: Install SARIF Analysis Tools
+        run: |
+          pip install sarif-om
+          npm install -g @microsoft/sarif-multitool
+
+      - name: Analyze SARIF Results
+        id: analyze
+        run: |
+          total_findings=0
+          critical_count=0
+          high_count=0
+          medium_count=0
+          low_count=0
+
+          # Analyze each SARIF file
+          for sarif_file in ${{ env.SARIF_OUTPUT_DIR }}/*.sarif; do
+            if [[ -f "$sarif_file" ]]; then
+              echo "Analyzing: $(basename "$sarif_file")"
+
+              # Count findings by severity using jq
+              if command -v jq >/dev/null 2>&1; then
+                file_findings=$(jq '[.runs[]?.results[]? // empty] | length' "$sarif_file" 2>/dev/null || echo "0")
+                total_findings=$((total_findings + file_findings))
+
+                # Count by severity levels
+                critical=$(jq '[.runs[]?.results[]? | select(.level == "error" or .properties?.severity == "CRITICAL") // empty] | length' "$sarif_file" 2>/dev/null || echo "0")
+                high=$(jq '[.runs[]?.results[]? | select(.level == "warning" or .properties?.severity == "HIGH") // empty] | length' "$sarif_file" 2>/dev/null || echo "0")
+                medium=$(jq '[.runs[]?.results[]? | select(.level == "note" or .properties?.severity == "MEDIUM") // empty] | length' "$sarif_file" 2>/dev/null || echo "0")
+                low=$(jq '[.runs[]?.results[]? | select(.level == "info" or .properties?.severity == "LOW") // empty] | length' "$sarif_file" 2>/dev/null || echo "0")
+
+                critical_count=$((critical_count + critical))
+                high_count=$((high_count + high))
+                medium_count=$((medium_count + medium))
+                low_count=$((low_count + low))
+
+                echo "  Findings: $file_findings (Critical: $critical, High: $high, Medium: $medium, Low: $low)"
+              fi
+            fi
+          done
+
+          echo "total_findings=$total_findings" >> $GITHUB_OUTPUT
+          echo "critical_count=$critical_count" >> $GITHUB_OUTPUT
+          echo "high_count=$high_count" >> $GITHUB_OUTPUT
+          echo "medium_count=$medium_count" >> $GITHUB_OUTPUT
+          echo "low_count=$low_count" >> $GITHUB_OUTPUT
+
+          # Determine if workflow should fail
+          should_fail="false"
+          if [[ "${{ needs.prepare-scan.outputs.fail_on_findings }}" == "true" ]]; then
+            threshold="${{ needs.prepare-scan.outputs.severity_threshold }}"
+            case "$threshold" in
+              "CRITICAL") [[ $critical_count -gt 0 ]] && should_fail="true" ;;
+              "HIGH") [[ $((critical_count + high_count)) -gt 0 ]] && should_fail="true" ;;
+              "MEDIUM") [[ $((critical_count + high_count + medium_count)) -gt 0 ]] && should_fail="true" ;;
+              "LOW") [[ $total_findings -gt 0 ]] && should_fail="true" ;;
+            esac
+          fi
+          echo "should_fail=$should_fail" >> $GITHUB_OUTPUT
+
+      - name: Generate Security Report
+        run: |
+          cat > security-report.md << 'EOF'
+          # Security Scan Report
+
+          **Scan ID:** ${{ needs.prepare-scan.outputs.scan_id }}
+          **Date:** $(date -Iseconds)
+          **Scope:** ${{ needs.prepare-scan.outputs.scan_scope }}
+          **Severity Threshold:** ${{ needs.prepare-scan.outputs.severity_threshold }}
+          **Repository:** ${{ github.repository }}
+          **Commit:** ${{ github.sha }}
+
+          ## Summary
+
+          | Severity | Count |
+          |----------|-------|
+          | 🔴 Critical | ${{ steps.analyze.outputs.critical_count }} |
+          | 🟠 High | ${{ steps.analyze.outputs.high_count }} |
+          | 🟡 Medium | ${{ steps.analyze.outputs.medium_count }} |
+          | 🔵 Low | ${{ steps.analyze.outputs.low_count }} |
+          | **Total** | **${{ steps.analyze.outputs.total_findings }}** |
+
+          ## Scan Coverage
+
+          - ✅ Infrastructure modules and environments
+          - ✅ Workspace templates
+          - ✅ GitHub Actions workflows
+          - ✅ Secret scanning with TruffleHog
+
+          ## Results by Category
+
+          | Category | Status | Findings |
+          |----------|---------|----------|
+          | Infrastructure | ${{ needs.infrastructure-scan.result == 'success' && '✅ Completed' || '❌ Failed' }} | SARIF uploaded |
+          | Templates | ${{ needs.template-scan.result == 'success' && '✅ Completed' || '❌ Failed' }} | SARIF uploaded |
+          | Workflows | ${{ needs.workflow-scan.result == 'success' && '✅ Completed' || '❌ Failed' }} | SARIF uploaded |
+          | Secrets | ${{ needs.secrets-scan.result == 'success' && '✅ Completed' || '⚠️ Partial' }} | SARIF uploaded |
+
+          ## Recommendations
+
+          $( if [[ ${{ steps.analyze.outputs.critical_count }} -gt 0 ]]; then
+            echo "- 🔴 **CRITICAL**: Address ${{ steps.analyze.outputs.critical_count }} critical security findings immediately"
+          fi
+
+          if [[ ${{ steps.analyze.outputs.high_count }} -gt 0 ]]; then
+            echo "- 🟠 **HIGH**: Review and fix ${{ steps.analyze.outputs.high_count }} high-severity issues"
+          fi
+
+          if [[ ${{ steps.analyze.outputs.medium_count }} -gt 0 ]]; then
+            echo "- 🟡 **MEDIUM**: Consider addressing ${{ steps.analyze.outputs.medium_count }} medium-severity findings"
+          fi
+
+          if [[ ${{ steps.analyze.outputs.total_findings }} -eq 0 ]]; then
+            echo "- ✅ **EXCELLENT**: No security findings detected in this scan"
+          fi )
+
+          ## Next Steps
+
+          1. Review detailed findings in the Security tab
+          2. Address findings starting with highest severity
+          3. Update code and re-run security scan
+          4. Consider implementing additional security controls
+
+          **Full Results:** [Security Dashboard](${{ github.server_url }}/${{ github.repository }}/security)
+          **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report-${{ needs.prepare-scan.outputs.scan_id }}
+          path: security-report.md
+          retention-days: 90
+
+      - name: Comment Security Results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('security-report.md', 'utf8');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+      - name: Create Security Issue for Critical Findings
+        if: steps.analyze.outputs.critical_count > 0
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = `🔴 CRITICAL Security Findings Detected - ${{ needs.prepare-scan.outputs.scan_id }}`;
+            const body = `## Critical Security Alert
+
+            **${{ steps.analyze.outputs.critical_count }} critical security findings** have been detected in the security scan.
+
+            **Scan Details:**
+            - **Scan ID:** ${{ needs.prepare-scan.outputs.scan_id }}
+            - **Repository:** ${{ github.repository }}
+            - **Commit:** ${{ github.sha }}
+            - **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ## Summary of Findings
+
+            | Severity | Count |
+            |----------|-------|
+            | 🔴 Critical | ${{ steps.analyze.outputs.critical_count }} |
+            | 🟠 High | ${{ steps.analyze.outputs.high_count }} |
+            | 🟡 Medium | ${{ steps.analyze.outputs.medium_count }} |
+            | 🔵 Low | ${{ steps.analyze.outputs.low_count }} |
+
+            ## Immediate Actions Required
+
+            1. **Review Security Dashboard:** [Security Tab](${{ github.server_url }}/${{ github.repository }}/security)
+            2. **Address Critical Findings:** Focus on critical severity issues first
+            3. **Implement Fixes:** Update code to resolve security vulnerabilities
+            4. **Re-scan:** Run security scan again after fixes
+            5. **Update Security Policies:** Consider additional security controls
+
+            ## Impact
+
+            Critical findings may indicate:
+            - Potential security vulnerabilities
+            - Exposed secrets or credentials
+            - Insecure configurations
+            - Compliance violations
+
+            **Priority:** 🔴 HIGH - Immediate attention required`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['security', 'critical', 'vulnerability']
+            });
+
+      - name: Fail Workflow on Security Findings
+        if: steps.analyze.outputs.should_fail == 'true'
+        run: |
+          echo "::error::Security scan failed due to findings above threshold"
+          echo "Threshold: ${{ needs.prepare-scan.outputs.severity_threshold }}"
+          echo "Total findings: ${{ steps.analyze.outputs.total_findings }}"
+          echo "Critical: ${{ steps.analyze.outputs.critical_count }}"
+          echo "High: ${{ steps.analyze.outputs.high_count }}"
+          echo "Medium: ${{ steps.analyze.outputs.medium_count }}"
+          echo "Low: ${{ steps.analyze.outputs.low_count }}"
+          exit 1
+
+  notify:
+    name: Notify Security Results
+    runs-on: ubuntu-latest
+    needs: [prepare-scan, infrastructure-scan, template-scan, workflow-scan, secrets-scan, analyze-results]
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
+
+    steps:
+      - name: Notify Slack (if configured)
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+            total_findings="${{ needs.analyze-results.outputs.total_findings || '0' }}"
+            critical_count="${{ needs.analyze-results.outputs.critical_count || '0' }}"
+            high_count="${{ needs.analyze-results.outputs.high_count || '0' }}"
+
+            if [[ $critical_count -gt 0 ]]; then
+              color="danger"
+              emoji="🔴"
+              text="CRITICAL security findings detected"
+            elif [[ $high_count -gt 0 ]]; then
+              color="warning"
+              emoji="🟠"
+              text="High-severity security findings detected"
+            elif [[ $total_findings -gt 0 ]]; then
+              color="warning"
+              emoji="🟡"
+              text="Security findings detected"
+            else
+              color="good"
+              emoji="✅"
+              text="No security findings detected"
+            fi
+
+            payload="{
+              \"attachments\": [{
+                \"color\": \"$color\",
+                \"text\": \"$emoji $text\",
+                \"fields\": [
+                  {\"title\": \"Total Findings\", \"value\": \"$total_findings\", \"short\": true},
+                  {\"title\": \"Critical\", \"value\": \"$critical_count\", \"short\": true},
+                  {\"title\": \"High\", \"value\": \"$high_count\", \"short\": true},
+                  {\"title\": \"Scan ID\", \"value\": \"${{ needs.prepare-scan.outputs.scan_id }}\", \"short\": true},
+                  {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true},
+                  {\"title\": \"Scope\", \"value\": \"${{ needs.prepare-scan.outputs.scan_scope }}\", \"short\": true}
+                ]
+              }]
+            }"
+
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$payload" "$SLACK_WEBHOOK_URL"
+          else
+            echo "Slack webhook not configured, skipping notification"
+          fi

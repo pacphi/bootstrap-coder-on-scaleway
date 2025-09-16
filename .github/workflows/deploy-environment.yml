@@ -276,9 +276,20 @@ jobs:
           echo "  • Better troubleshooting with immediate kubeconfig access"
           echo "  • Cleaner separation of concerns"
 
+  security-scan:
+    name: Security Scan Environment Config
+    needs: [determine-strategy, pre-validate]
+    if: needs.determine-strategy.outputs.deploy_env != ''
+    uses: ./.github/workflows/security-scan.yml
+    with:
+      scan_scope: full
+      environment: ${{ needs.determine-strategy.outputs.deploy_env }}
+      severity_threshold: MEDIUM
+      fail_on_findings: false
+
   deploy-infrastructure:
     name: Deploy Infrastructure (Phase 1)
-    needs: [determine-strategy, pre-validate]
+    needs: [determine-strategy, pre-validate, security-scan]
     if: needs.determine-strategy.outputs.deploy_env != ''
     uses: ./.github/workflows/deploy-infrastructure.yml
     with:
