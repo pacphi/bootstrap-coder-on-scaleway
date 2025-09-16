@@ -17,9 +17,32 @@ variable "coder_image" {
 }
 
 variable "database_url" {
-  description = "PostgreSQL database connection URL"
+  description = "PostgreSQL database connection URL (only used when use_external_secrets = false)"
   type        = string
   sensitive   = true
+  default     = ""
+}
+
+variable "use_external_secrets" {
+  description = "Use External Secrets Operator for secret management instead of direct Kubernetes secrets"
+  type        = bool
+  default     = false
+}
+
+variable "external_secrets_config" {
+  description = "Configuration for External Secrets integration"
+  type = object({
+    database_secret_name = string
+    admin_secret_name    = string
+    github_secret_name   = optional(string, "")
+    google_secret_name   = optional(string, "")
+  })
+  default = {
+    database_secret_name = ""
+    admin_secret_name    = ""
+    github_secret_name   = ""
+    google_secret_name   = ""
+  }
 }
 
 variable "access_url" {

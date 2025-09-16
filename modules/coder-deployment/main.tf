@@ -24,8 +24,10 @@ resource "random_password" "admin_password" {
   numeric = true
 }
 
-# Create secret for database connection
+# Legacy: Create secret for database connection (when not using External Secrets)
 resource "kubernetes_secret" "database_url" {
+  count = var.use_external_secrets ? 0 : 1
+
   metadata {
     name      = "coder-database"
     namespace = var.namespace
@@ -38,8 +40,10 @@ resource "kubernetes_secret" "database_url" {
   type = "Opaque"
 }
 
-# Create secret for admin credentials
+# Legacy: Create secret for admin credentials (when not using External Secrets)
 resource "kubernetes_secret" "admin_credentials" {
+  count = var.use_external_secrets ? 0 : 1
+
   metadata {
     name      = "coder-admin"
     namespace = var.namespace
@@ -53,9 +57,9 @@ resource "kubernetes_secret" "admin_credentials" {
   type = "Opaque"
 }
 
-# OAuth secrets (conditional)
+# Legacy: OAuth secrets (conditional, when not using External Secrets)
 resource "kubernetes_secret" "oauth_github" {
-  count = var.oauth_config != null && var.oauth_config.github != null ? 1 : 0
+  count = !var.use_external_secrets && var.oauth_config != null && var.oauth_config.github != null ? 1 : 0
 
   metadata {
     name      = "coder-oauth-github"
@@ -71,7 +75,7 @@ resource "kubernetes_secret" "oauth_github" {
 }
 
 resource "kubernetes_secret" "oauth_google" {
-  count = var.oauth_config != null && var.oauth_config.google != null ? 1 : 0
+  count = !var.use_external_secrets && var.oauth_config != null && var.oauth_config.google != null ? 1 : 0
 
   metadata {
     name      = "coder-oauth-google"
@@ -235,8 +239,8 @@ resource "kubernetes_deployment" "coder" {
             name = "CODER_PG_CONNECTION_URL"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret.database_url.metadata[0].name
-                key  = "url"
+                name = var.use_external_secrets ? "database-credentials" : kubernetes_secret.database_url[0].metadata[0].name
+                key  = var.use_external_secrets ? "DATABASE_URL" : "url"
               }
             }
           }
@@ -245,8 +249,8 @@ resource "kubernetes_deployment" "coder" {
             name = "CODER_FIRST_USER_USERNAME"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret.admin_credentials.metadata[0].name
-                key  = "username"
+                name = var.use_external_secrets ? "admin-credentials" : kubernetes_secret.admin_credentials[0].metadata[0].name
+                key  = var.use_external_secrets ? "CODER_FIRST_USER_USERNAME" : "username"
               }
             }
           }
@@ -255,8 +259,8 @@ resource "kubernetes_deployment" "coder" {
             name = "CODER_FIRST_USER_PASSWORD"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret.admin_credentials.metadata[0].name
-                key  = "password"
+                name = var.use_external_secrets ? "admin-credentials" : kubernetes_secret.admin_credentials[0].metadata[0].name
+                key  = var.use_external_secrets ? "CODER_FIRST_USER_PASSWORD" : "password"
               }
             }
           }
@@ -266,28 +270,29 @@ resource "kubernetes_deployment" "coder" {
             value = "true"
           }
 
-          # OAuth environment variables
+          # OAuth environment variables - GitHub
           dynamic "env" {
-            for_each = var.oauth_config != null && var.oauth_config.github != null ? [1] : []
+            for_each = var.use_external_secrets && var.external_secrets_config.github_secret_name != "" ? [1] : (var.oauth_config != null && var.oauth_config.github != null ? [1] : [])
             content {
               name = "CODER_OAUTH2_GITHUB_CLIENT_SECRET"
               value_from {
                 secret_key_ref {
-                  name = kubernetes_secret.oauth_github[0].metadata[0].name
-                  key  = "client_secret"
+                  name = var.use_external_secrets ? "oauth-github-credentials" : kubernetes_secret.oauth_github[0].metadata[0].name
+                  key  = var.use_external_secrets ? "CODER_OAUTH2_GITHUB_CLIENT_SECRET" : "client_secret"
                 }
               }
             }
           }
 
+          # OAuth environment variables - Google
           dynamic "env" {
-            for_each = var.oauth_config != null && var.oauth_config.google != null ? [1] : []
+            for_each = var.use_external_secrets && var.external_secrets_config.google_secret_name != "" ? [1] : (var.oauth_config != null && var.oauth_config.google != null ? [1] : [])
             content {
               name = "CODER_OAUTH2_GOOGLE_CLIENT_SECRET"
               value_from {
                 secret_key_ref {
-                  name = kubernetes_secret.oauth_google[0].metadata[0].name
-                  key  = "client_secret"
+                  name = var.use_external_secrets ? "oauth-google-credentials" : kubernetes_secret.oauth_google[0].metadata[0].name
+                  key  = var.use_external_secrets ? "CODER_OAUTH2_GOOGLE_CLIENT_SECRET" : "client_secret"
                 }
               }
             }
@@ -394,12 +399,14 @@ resource "kubernetes_deployment" "coder" {
     }
   }
 
-  depends_on = [
-    kubernetes_secret.database_url,
-    kubernetes_secret.admin_credentials,
+  depends_on = concat([
     kubernetes_config_map.coder_config,
     kubernetes_persistent_volume_claim.coder_data
-  ]
+  ],
+  var.use_external_secrets ? [] : [
+    kubernetes_secret.database_url[0],
+    kubernetes_secret.admin_credentials[0]
+  ])
 }
 
 # Service for Coder
