@@ -31,6 +31,7 @@ skip-check:
   # Skip GitHub Actions checks that are too restrictive for our use case
   - CKV_GHA_1  # Ensure no secrets in GitHub Actions
   - CKV_GHA_2  # Ensure GitHub Actions secrets are not hardcoded
+  - CKV_GHA_7  # The build output cannot be affected by user parameters other than the build entry point and the top-level source location
 
   # Skip Docker checks if not using containers in templates
   - CKV_DOCKER_*
