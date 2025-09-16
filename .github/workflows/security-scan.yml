@@ -156,9 +156,7 @@ jobs:
       - name: Run Checkov on Infrastructure
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: |
-            modules/
-            environments/
+          directory: modules/,environments/
           framework: terraform
           output_format: sarif,cli
           output_file_path: ${{ env.SARIF_OUTPUT_DIR }}/infrastructure-checkov.sarif
@@ -297,7 +295,7 @@ jobs:
           path: ./
           base: main
           head: HEAD
-          extra_args: --debug --only-verified --format=sarif --output=${{ env.SARIF_OUTPUT_DIR }}/secrets-trufflehog.sarif
+          extra_args: --debug --only-verified --output-format=sarif --output=${{ env.SARIF_OUTPUT_DIR }}/secrets-trufflehog.sarif
 
       - name: Upload Secrets SARIF Results
         if: always()
