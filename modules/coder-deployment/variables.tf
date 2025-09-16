@@ -135,7 +135,7 @@ variable "security_context" {
     read_only_root_filesystem = bool
     seccomp_profile = optional(object({
       type = string
-    }), {
+      }), {
       type = "RuntimeDefault"
     })
   })

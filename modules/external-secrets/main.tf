@@ -17,11 +17,11 @@ resource "kubernetes_namespace" "external_secrets" {
     name = "external-secrets-system"
 
     labels = {
-      "name" = "external-secrets-system"
+      "name"                               = "external-secrets-system"
       "pod-security.kubernetes.io/enforce" = "restricted"
       "pod-security.kubernetes.io/audit"   = "restricted"
       "pod-security.kubernetes.io/warn"    = "restricted"
-      "managed-by" = "terraform"
+      "managed-by"                         = "terraform"
     }
   }
 }
@@ -36,7 +36,7 @@ resource "helm_release" "external_secrets" {
 
   values = [
     yamlencode({
-      installCRDs = true
+      installCRDs  = true
       replicaCount = var.replica_count
 
       resources = {
@@ -51,10 +51,10 @@ resource "helm_release" "external_secrets" {
       }
 
       securityContext = {
-        runAsNonRoot = true
-        runAsUser    = 65534
-        runAsGroup   = 65534
-        fsGroup      = 65534
+        runAsNonRoot             = true
+        runAsUser                = 65534
+        runAsGroup               = 65534
+        fsGroup                  = 65534
         allowPrivilegeEscalation = false
         readOnlyRootFilesystem   = true
         seccompProfile = {
@@ -86,14 +86,14 @@ resource "helm_release" "external_secrets" {
 
       # Pod disruption budget
       podDisruptionBudget = {
-        enabled = var.replica_count > 1
+        enabled      = var.replica_count > 1
         minAvailable = 1
       }
 
       # Node selector and tolerations
       nodeSelector = var.node_selector
-      tolerations = var.tolerations
-      affinity = var.affinity
+      tolerations  = var.tolerations
+      affinity     = var.affinity
     })
   ]
 

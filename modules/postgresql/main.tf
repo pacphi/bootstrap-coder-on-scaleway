@@ -25,35 +25,35 @@ locals {
   # Cost-optimized configurations by environment
   cost_optimized_config = var.cost_optimization_enabled ? {
     dev = {
-      node_type       = "DB-DEV-S"
-      volume_type     = "sbv"     # Cost-optimized storage
-      volume_size     = 20        # Minimal size
-      backup_retention = 3        # Short retention
-      is_ha_cluster   = false     # No HA for dev
+      node_type        = "DB-DEV-S"
+      volume_type      = "sbv" # Cost-optimized storage
+      volume_size      = 20    # Minimal size
+      backup_retention = 3     # Short retention
+      is_ha_cluster    = false # No HA for dev
     }
     staging = {
-      node_type       = "DB-GP-S"
-      volume_type     = "bssd"    # Balanced performance/cost
-      volume_size     = 50        # Medium size
-      backup_retention = 7        # Standard retention
-      is_ha_cluster   = false     # Single instance
+      node_type        = "DB-GP-S"
+      volume_type      = "bssd" # Balanced performance/cost
+      volume_size      = 50     # Medium size
+      backup_retention = 7      # Standard retention
+      is_ha_cluster    = false  # Single instance
     }
     prod = {
-      node_type       = var.node_type  # Use provided or default
-      volume_type     = var.volume_type # Use provided for prod
-      volume_size     = var.volume_size != null ? var.volume_size : 100
+      node_type        = var.node_type   # Use provided or default
+      volume_type      = var.volume_type # Use provided for prod
+      volume_size      = var.volume_size != null ? var.volume_size : 100
       backup_retention = var.backup_schedule_retention
-      is_ha_cluster   = true      # Always HA for prod
+      is_ha_cluster    = true # Always HA for prod
     }
   } : {}
 
   # Final configuration (cost-optimized or user-provided)
   final_config = var.cost_optimization_enabled ? local.cost_optimized_config[var.environment_tier] : {
-    node_type       = var.node_type
-    volume_type     = var.volume_type
-    volume_size     = var.volume_size
+    node_type        = var.node_type
+    volume_type      = var.volume_type
+    volume_size      = var.volume_size
     backup_retention = var.backup_schedule_retention
-    is_ha_cluster   = var.is_ha_cluster
+    is_ha_cluster    = var.is_ha_cluster
   }
 }
 

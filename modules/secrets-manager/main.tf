@@ -37,7 +37,7 @@ resource "scaleway_secret" "database_credentials" {
 
 resource "scaleway_secret_version" "database_password" {
   secret_id = scaleway_secret.database_credentials.id
-  data      = jsonencode({
+  data = jsonencode({
     username = var.database_username
     password = var.database_password
     host     = var.database_host
@@ -64,7 +64,7 @@ resource "scaleway_secret" "coder_admin_credentials" {
 
 resource "scaleway_secret_version" "coder_admin_password" {
   secret_id = scaleway_secret.coder_admin_credentials.id
-  data      = jsonencode({
+  data = jsonencode({
     username = "admin"
     password = random_password.coder_admin.result
     email    = var.admin_email
@@ -93,7 +93,7 @@ resource "scaleway_secret_version" "oauth_github" {
   count = var.oauth_github_client_id != "" ? 1 : 0
 
   secret_id = scaleway_secret.oauth_github[0].id
-  data      = jsonencode({
+  data = jsonencode({
     client_id     = var.oauth_github_client_id
     client_secret = var.oauth_github_client_secret
   })
@@ -121,7 +121,7 @@ resource "scaleway_secret_version" "oauth_google" {
   count = var.oauth_google_client_id != "" ? 1 : 0
 
   secret_id = scaleway_secret.oauth_google[0].id
-  data      = jsonencode({
+  data = jsonencode({
     client_id     = var.oauth_google_client_id
     client_secret = var.oauth_google_client_secret
   })

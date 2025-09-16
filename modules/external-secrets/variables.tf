@@ -54,7 +54,7 @@ variable "node_selector" {
 
 variable "tolerations" {
   description = "Tolerations for External Secrets Operator pods"
-  type        = list(object({
+  type = list(object({
     key      = optional(string)
     operator = optional(string)
     value    = optional(string)
@@ -126,8 +126,8 @@ variable "additional_secret_mappings" {
   type = map(object({
     target_secret_name = string
     refresh_interval   = string
-    labels            = map(string)
-    template_data     = map(string)
+    labels             = map(string)
+    template_data      = map(string)
     data_mappings = list(object({
       secretKey = string
       remoteRef = object({

@@ -19,7 +19,7 @@ resource "kubernetes_manifest" "database_external_secret" {
         name = kubernetes_manifest.scaleway_secret_store.manifest.metadata.name
       }
       target = {
-        name = "database-credentials"
+        name           = "database-credentials"
         creationPolicy = "Owner"
         template = {
           type = "Opaque"
@@ -105,7 +105,7 @@ resource "kubernetes_manifest" "admin_external_secret" {
         name = kubernetes_manifest.scaleway_secret_store.manifest.metadata.name
       }
       target = {
-        name = "admin-credentials"
+        name           = "admin-credentials"
         creationPolicy = "Owner"
         template = {
           type = "Opaque"
@@ -169,7 +169,7 @@ resource "kubernetes_manifest" "oauth_github_external_secret" {
         name = kubernetes_manifest.scaleway_secret_store.manifest.metadata.name
       }
       target = {
-        name = "oauth-github-credentials"
+        name           = "oauth-github-credentials"
         creationPolicy = "Owner"
         template = {
           type = "Opaque"
@@ -225,7 +225,7 @@ resource "kubernetes_manifest" "oauth_google_external_secret" {
         name = kubernetes_manifest.scaleway_secret_store.manifest.metadata.name
       }
       target = {
-        name = "oauth-google-credentials"
+        name           = "oauth-google-credentials"
         creationPolicy = "Owner"
         template = {
           type = "Opaque"
@@ -280,7 +280,7 @@ resource "kubernetes_manifest" "additional_external_secrets" {
         name = kubernetes_manifest.scaleway_secret_store.manifest.metadata.name
       }
       target = {
-        name = each.value.target_secret_name
+        name           = each.value.target_secret_name
         creationPolicy = "Owner"
         template = {
           type = "Opaque"

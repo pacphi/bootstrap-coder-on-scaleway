@@ -21,8 +21,8 @@ resource "scaleway_iam_api_key" "external_secrets" {
 
 # IAM Group for secret readers
 resource "scaleway_iam_group" "secret_readers" {
-  name           = "secret-readers-${var.environment}"
-  description    = "Group with read access to secrets in ${var.environment}"
+  name            = "secret-readers-${var.environment}"
+  description     = "Group with read access to secrets in ${var.environment}"
   organization_id = var.organization_id
 
   tags = {
@@ -34,8 +34,8 @@ resource "scaleway_iam_group" "secret_readers" {
 
 # IAM Policy for secret read access
 resource "scaleway_iam_policy" "secret_read" {
-  name           = "secret-read-${var.environment}"
-  description    = "Allow read access to secrets in ${var.environment}"
+  name            = "secret-read-${var.environment}"
+  description     = "Allow read access to secrets in ${var.environment}"
   organization_id = var.organization_id
 
   rule {

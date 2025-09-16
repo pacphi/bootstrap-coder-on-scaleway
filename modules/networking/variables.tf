@@ -94,13 +94,13 @@ variable "security_group_rules" {
 variable "management_cidr" {
   description = "CIDR range for management access (SSH, monitoring)"
   type        = string
-  default     = "0.0.0.0/0"  # Default to unrestricted for backward compatibility
+  default     = "0.0.0.0/0" # Default to unrestricted for backward compatibility
 }
 
 variable "trusted_cidr" {
   description = "CIDR range for trusted access (Kubernetes API, admin interfaces)"
   type        = string
-  default     = "0.0.0.0/0"  # Default to unrestricted for backward compatibility
+  default     = "0.0.0.0/0" # Default to unrestricted for backward compatibility
 }
 
 variable "vpc_cidr" {

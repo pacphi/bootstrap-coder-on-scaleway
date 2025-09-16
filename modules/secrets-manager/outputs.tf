@@ -52,10 +52,10 @@ output "application_secret_names" {
 output "secrets_summary" {
   description = "Summary of created secrets"
   value = {
-    database_secret    = scaleway_secret.database_credentials.name
-    admin_secret      = scaleway_secret.coder_admin_credentials.name
-    oauth_github      = var.oauth_github_client_id != "" ? scaleway_secret.oauth_github[0].name : "not_configured"
-    oauth_google      = var.oauth_google_client_id != "" ? scaleway_secret.oauth_google[0].name : "not_configured"
-    additional_count  = length(var.additional_secrets)
+    database_secret  = scaleway_secret.database_credentials.name
+    admin_secret     = scaleway_secret.coder_admin_credentials.name
+    oauth_github     = var.oauth_github_client_id != "" ? scaleway_secret.oauth_github[0].name : "not_configured"
+    oauth_google     = var.oauth_google_client_id != "" ? scaleway_secret.oauth_google[0].name : "not_configured"
+    additional_count = length(var.additional_secrets)
   }
 }

@@ -402,10 +402,10 @@ resource "kubernetes_deployment" "coder" {
   depends_on = concat([
     kubernetes_config_map.coder_config,
     kubernetes_persistent_volume_claim.coder_data
-  ],
-  var.use_external_secrets ? [] : [
-    kubernetes_secret.database_url[0],
-    kubernetes_secret.admin_credentials[0]
+    ],
+    var.use_external_secrets ? [] : [
+      kubernetes_secret.database_url[0],
+      kubernetes_secret.admin_credentials[0]
   ])
 }
 
