@@ -100,13 +100,30 @@ variable "tags" {
 }
 
 variable "volume_type" {
-  description = "Type of volume for database storage"
+  description = "Type of volume for database storage (lssd=Local SSD, bssd=Block SSD, sbv=SBV)"
   type        = string
   default     = "lssd"
 
   validation {
-    condition     = contains(["lssd", "bssd"], var.volume_type)
-    error_message = "Volume type must be either 'lssd' or 'bssd'."
+    condition     = contains(["lssd", "bssd", "sbv"], var.volume_type)
+    error_message = "Volume type must be one of: 'lssd' (Local SSD - highest performance), 'bssd' (Block SSD - balanced), 'sbv' (SBV - cost-optimized)."
+  }
+}
+
+variable "cost_optimization_enabled" {
+  description = "Enable cost optimization features (storage tiering, auto-scaling)"
+  type        = bool
+  default     = false
+}
+
+variable "environment_tier" {
+  description = "Environment tier for cost optimization (dev, staging, prod)"
+  type        = string
+  default     = "dev"
+
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment_tier)
+    error_message = "Environment tier must be one of: dev, staging, prod."
   }
 }
 

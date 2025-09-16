@@ -72,3 +72,23 @@ output "volume_info" {
     size_gb = scaleway_rdb_instance.postgresql.volume_size_in_gb
   }
 }
+
+# Cost optimization outputs
+output "cost_optimization_summary" {
+  description = "Summary of cost optimization applied"
+  value = var.cost_optimization_enabled ? {
+    enabled           = true
+    environment_tier  = var.environment_tier
+    node_type        = local.final_config.node_type
+    volume_type      = local.final_config.volume_type
+    volume_size_gb   = local.final_config.volume_size
+    is_ha_cluster    = local.final_config.is_ha_cluster
+    backup_retention = local.final_config.backup_retention
+    estimated_monthly_cost = local.final_config.node_type == "DB-DEV-S" ? "€12-15" : (
+      local.final_config.node_type == "DB-GP-S" ? "€25-35" : "€60-120"
+    )
+  } : {
+    enabled = false
+    message = "Cost optimization disabled - using provided configuration"
+  }
+}

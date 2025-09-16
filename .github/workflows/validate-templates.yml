@@ -1,5 +1,7 @@
 name: Validate Templates
 
+# Performance optimized template validation with caching and parallel execution
+
 # Set minimal required permissions for security
 permissions:
   contents: read          # Access repository code
@@ -233,10 +235,27 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v5
 
+      - name: Cache Terraform Providers and Modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            **/.terraform
+            **/.terraform.lock.hcl
+          key: terraform-templates-${{ runner.os }}-${{ matrix.template.category }}-${{ hashFiles('**/.terraform.lock.hcl', '**/versions.tf') }}
+          restore-keys: |
+            terraform-templates-${{ runner.os }}-${{ matrix.template.category }}-
+            terraform-templates-${{ runner.os }}-
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.12.0"
+        env:
+          TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+
+      - name: Create Terraform Plugin Cache Directory
+        run: mkdir -p ~/.terraform.d/plugin-cache
 
       - name: Validate Template
         run: |
