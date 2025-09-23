@@ -573,101 +573,45 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const title = `Complete Environment Deployment Failed: ${{ needs.determine-strategy.outputs.deploy_env }} environment`;
-            const body = `## Complete Environment Deployment Failure Report
+            // Import the issue management helper
+            const { handleDeploymentFailureIssue } = require('./.github/scripts/issue-manager.js');
 
-            **Environment:** ${{ needs.determine-strategy.outputs.deploy_env }}
-            **Deployment Type:** Two-Phase (Infrastructure + Coder)
-            **Failure Point:** Phase 1 (Infrastructure)
-            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            **Triggered by:** ${{ github.actor }}
-            **Commit:** ${{ github.sha }}
-
-            The complete environment deployment has failed during the infrastructure phase.
-
-            ## Failure Analysis
-            - **Phase 1 (Infrastructure):** ❌ Failed
-            - **Phase 2 (Coder Application):** ⏭️ Not attempted (dependency failed)
-
-            ## Components Affected
-            - Kubernetes cluster deployment
-            - Database provisioning
-            - Networking and load balancer setup
-            - Security policy configuration
-
-            ## Next Steps
-            1. Review infrastructure deployment logs
-            2. Check Scaleway console for partially created resources
-            3. Verify Scaleway credentials and quotas
-            4. Check for resource conflicts or naming issues
-            5. Clean up any orphaned resources
-            6. Re-run complete deployment after fixing issues
-
-            ## Recovery Options
-            - **Full Retry:** Re-run this complete deployment workflow
-            - **Manual Phases:** Run infrastructure and Coder deployments separately
-            - **Cleanup First:** Use teardown workflow before retrying
-
-            **Labels:** deployment-failure, infrastructure-failure, ${{ needs.determine-strategy.outputs.deploy_env }}`;
-
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['deployment-failure', 'infrastructure-failure', '${{ needs.determine-strategy.outputs.deploy_env }}']
+            // Handle the deployment failure issue (create or update)
+            const issue = await handleDeploymentFailureIssue(github, context, {
+              environment: '${{ needs.determine-strategy.outputs.deploy_env }}',
+              deploymentType: 'Two-Phase (Infrastructure + Coder)',
+              failurePoint: 'Phase 1 (Infrastructure)',
+              workflowRun: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              commit: '${{ github.sha }}',
+              triggeredBy: '${{ github.actor }}',
+              status: {
+                'Phase 1 (Infrastructure)': 'failed',
+                'Phase 2 (Coder Application)': 'not attempted (dependency failed)'
+              }
             });
+
+            console.log(`Infrastructure failure issue handled: #${issue.number} - ${issue.title}`);
 
       - name: Create GitHub Issue on Partial Failure
         if: needs.deploy-infrastructure.result == 'success' && needs.deploy-coder.result == 'failure'
         uses: actions/github-script@v8
         with:
           script: |
-            const title = `Coder Application Deployment Failed: ${{ needs.determine-strategy.outputs.deploy_env }} environment`;
-            const body = `## Partial Environment Deployment Failure Report
+            // Import the issue management helper
+            const { handleDeploymentFailureIssue } = require('./.github/scripts/issue-manager.js');
 
-            **Environment:** ${{ needs.determine-strategy.outputs.deploy_env }}
-            **Deployment Type:** Two-Phase (Infrastructure + Coder)
-            **Failure Point:** Phase 2 (Coder Application)
-            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            **Triggered by:** ${{ github.actor }}
-            **Commit:** ${{ github.sha }}
-
-            The infrastructure deployed successfully, but Coder application deployment failed.
-
-            ## Deployment Status
-            - **Phase 1 (Infrastructure):** ✅ Successful
-            - **Phase 2 (Coder Application):** ❌ Failed
-
-            ## Available Resources
-            - ✅ Kubernetes cluster is accessible
-            - ✅ Database is running and accessible
-            - ✅ Networking and load balancer configured
-            - ✅ Security policies applied
-            - ✅ Kubeconfig available for troubleshooting
-
-            ## Troubleshooting Steps
-            1. **Access Cluster:** Use kubeconfig from infrastructure deployment
-            2. **Check Resources:**
-               - \`kubectl get pods -n coder\`
-               - \`kubectl get pvc -n coder\`
-               - \`kubectl describe deployment coder -n coder\`
-            3. **Review Logs:** Check Coder deployment workflow logs
-            4. **Storage Issues:** Verify storage classes and PVC creation
-            5. **Resource Limits:** Ensure cluster has sufficient resources
-
-            ## Recovery Options
-            - **Retry Coder Only:** Run 'Deploy Coder Application' workflow
-            - **Manual Investigation:** Use kubeconfig to troubleshoot
-            - **Complete Retry:** Re-run this complete deployment workflow
-            - **Infrastructure Intact:** No need to redeploy infrastructure
-
-            **Labels:** coder-failure, partial-deployment, ${{ needs.determine-strategy.outputs.deploy_env }}`;
-
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['coder-failure', 'partial-deployment', '${{ needs.determine-strategy.outputs.deploy_env }}']
+            // Handle the Coder deployment failure issue (create or update)
+            const issue = await handleDeploymentFailureIssue(github, context, {
+              environment: '${{ needs.determine-strategy.outputs.deploy_env }}',
+              deploymentType: 'Two-Phase (Infrastructure + Coder)',
+              failurePoint: 'Phase 2 (Coder Application)',
+              workflowRun: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              commit: '${{ github.sha }}',
+              triggeredBy: '${{ github.actor }}',
+              status: {
+                'Phase 1 (Infrastructure)': 'success',
+                'Phase 2 (Coder Application)': 'failed'
+              }
             });
+
+            console.log(`Coder deployment failure issue handled: #${issue.number} - ${issue.title}`);

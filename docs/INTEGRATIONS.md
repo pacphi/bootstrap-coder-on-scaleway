@@ -15,13 +15,16 @@ The hooks framework supports five main integration categories:
 ## How Integrations Work
 
 ### Optional Activation
+
 - Integrations are **disabled by default**
 - Activate by setting required environment variables
 - Missing integrations log warnings but **don't fail deployments**
 - Each integration can be enabled/disabled independently
 
 ### Integration Points
+
 Integrations execute during these lifecycle events:
+
 - **Pre-Setup**: Before environment deployment starts
 - **Post-Setup**: After environment deployment completes
 - **Pre-Teardown**: Before environment destruction begins
@@ -40,11 +43,13 @@ Get real-time notifications about deployment events in your Slack channels.
    - Copy the webhook URL
 
 2. **Configure Environment Variable**
+
    ```bash
    export SLACK_WEBHOOK="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
    ```
 
 3. **Optional: Set Channel-Specific Webhooks**
+
    ```bash
    # Different webhooks for different environments
    export SLACK_WEBHOOK_DEV="https://hooks.slack.com/services/DEV/WEBHOOK/URL"
@@ -55,21 +60,25 @@ Get real-time notifications about deployment events in your Slack channels.
 ### Message Types
 
 **Pre-Setup Messages:**
+
 - 🚀 Deployment starting notifications
 - ⚠️ Maintenance window warnings
 - 📋 Resource requirement checks
 
 **Post-Setup Messages:**
+
 - ✅ Successful deployment confirmations
 - 📊 Deployment summary with URLs and access info
 - ⚠️ Health check warnings
 
 **Pre-Teardown Messages:**
+
 - 🛑 Teardown initiation warnings
 - 👥 Active user notifications
 - 💾 Backup status confirmations
 
 **Post-Teardown Messages:**
+
 - 🗑️ Environment cleanup confirmations
 - 💰 Cost savings summaries
 - 📋 Audit completion reports
@@ -141,6 +150,7 @@ Automatically create and update JIRA tickets for environment lifecycle events.
    - Copy the token for configuration
 
 2. **Configure Environment Variables**
+
    ```bash
    export JIRA_API_URL="https://your-company.atlassian.net/rest/api/3"
    export JIRA_API_TOKEN="your-api-token"
@@ -149,6 +159,7 @@ Automatically create and update JIRA tickets for environment lifecycle events.
    ```
 
 3. **Optional: Environment-Specific Projects**
+
    ```bash
    export JIRA_PROJECT_DEV="DEV"
    export JIRA_PROJECT_STAGING="STAGE"
@@ -158,12 +169,14 @@ Automatically create and update JIRA tickets for environment lifecycle events.
 ### Ticket Types
 
 **Setup Events:**
+
 - **Issue Type**: Task
 - **Summary**: "Deploy Coder Environment: [ENV]"
 - **Description**: Deployment details, template, timeline
 - **Labels**: coder-deployment, environment-[env]
 
 **Teardown Events:**
+
 - **Issue Type**: Task
 - **Summary**: "Teardown Coder Environment: [ENV]"
 - **Description**: Teardown reason, backup status, cost savings
@@ -244,6 +257,7 @@ Register environments with external monitoring and observability platforms.
 ### Setup
 
 1. **Configure Monitoring System**
+
    ```bash
    export MONITORING_API_URL="https://monitoring.company.com/api/v1"
    export MONITORING_API_TOKEN="your-monitoring-token"
@@ -251,6 +265,7 @@ Register environments with external monitoring and observability platforms.
    ```
 
 2. **Optional: Multiple Monitoring Systems**
+
    ```bash
    # Primary monitoring (required)
    export MONITORING_PRIMARY_URL="https://primary-monitoring.com/api"
@@ -268,12 +283,14 @@ Register environments with external monitoring and observability platforms.
 ### Monitoring Events
 
 **Environment Registration:**
+
 - Environment creation/destruction events
 - Resource allocation and scaling events
 - Health check status updates
 - Cost and usage metrics
 
 **Alert Configuration:**
+
 - Environment-specific alerting rules
 - Resource threshold monitoring
 - Availability and performance alerts
@@ -363,6 +380,7 @@ Integrate with compliance and audit systems for automated checks and reporting.
 ### Setup
 
 1. **Configure Compliance System**
+
    ```bash
    export COMPLIANCE_API_URL="https://compliance.company.com/api"
    export COMPLIANCE_API_TOKEN="compliance-token"
@@ -370,6 +388,7 @@ Integrate with compliance and audit systems for automated checks and reporting.
    ```
 
 2. **Environment-Specific Policies**
+
    ```bash
    export COMPLIANCE_POLICY_DEV="development-baseline"
    export COMPLIANCE_POLICY_STAGING="staging-enhanced"
@@ -379,12 +398,14 @@ Integrate with compliance and audit systems for automated checks and reporting.
 ### Compliance Checks
 
 **Pre-Deployment:**
+
 - Security policy validation
 - Resource allocation compliance
 - Network policy requirements
 - Data protection compliance
 
 **Post-Deployment:**
+
 - Security configuration audit
 - Access control validation
 - Encryption verification
@@ -469,6 +490,7 @@ Send notifications directly to users and administrators about environment events
 ### Setup
 
 1. **Configure Email Settings**
+
    ```bash
    export SMTP_HOST="smtp.company.com"
    export SMTP_PORT="587"
@@ -478,6 +500,7 @@ Send notifications directly to users and administrators about environment events
    ```
 
 2. **Configure User Lists**
+
    ```bash
    # Environment-specific user lists
    export DEV_USERS="dev-team@company.com,qa-team@company.com"
@@ -488,21 +511,25 @@ Send notifications directly to users and administrators about environment events
 ### Notification Types
 
 **Pre-Setup:**
+
 - Deployment initiation notices
 - Maintenance window alerts
 - Resource impact notifications
 
 **Post-Setup:**
+
 - Environment ready notifications
 - Access information delivery
 - Getting started guides
 
 **Pre-Teardown:**
+
 - Shutdown warnings with timelines
 - Data backup reminders
 - Alternative environment suggestions
 
 **Post-Teardown:**
+
 - Environment removal confirmations
 - Data archival status
 - Cost savings reports
@@ -610,11 +637,13 @@ EOF
 ### Required for Each Integration
 
 **Slack:**
+
 ```bash
 export SLACK_WEBHOOK="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 ```
 
 **JIRA:**
+
 ```bash
 export JIRA_API_URL="https://your-company.atlassian.net/rest/api/3"
 export JIRA_API_TOKEN="your-jira-token"
@@ -622,18 +651,21 @@ export JIRA_PROJECT_KEY="OPS"
 ```
 
 **Monitoring:**
+
 ```bash
 export MONITORING_API_URL="https://monitoring.company.com/api/v1"
 export MONITORING_API_TOKEN="your-monitoring-token"
 ```
 
 **Compliance:**
+
 ```bash
 export COMPLIANCE_API_URL="https://compliance.company.com/api"
 export COMPLIANCE_API_TOKEN="your-compliance-token"
 ```
 
 **User Notifications:**
+
 ```bash
 export ADMIN_EMAIL="admin@company.com"
 export SMTP_HOST="smtp.company.com"
@@ -711,16 +743,19 @@ export MONITORING_API_TOKEN="your-monitoring-token"
 ### Common Issues
 
 **Integration Not Activating:**
+
 - Verify environment variables are set correctly
 - Check variable names match exactly (case-sensitive)
 - Ensure no trailing spaces in URLs or tokens
 
 **API Connectivity Issues:**
+
 - Test API endpoints manually with curl
 - Verify network connectivity and firewall rules
 - Check API token permissions and expiration
 
 **Message Formatting Problems:**
+
 - Validate JSON syntax in API calls
 - Check character encoding for special characters
 - Verify API version compatibility
@@ -743,11 +778,13 @@ DEBUG=1 ./scripts/hooks/post-setup.sh --env=dev
 ### Log Locations
 
 **Integration Logs:**
+
 - Setup logs: `logs/setup/*-setup.log`
 - Teardown logs: `logs/teardown/*-teardown.log`
 - Integration debug: `logs/integrations/integration-debug.log`
 
 **Manual Testing:**
+
 ```bash
 # Test API connectivity
 curl -v "$MONITORING_API_URL/health" \
@@ -762,18 +799,21 @@ curl -X POST -H 'Content-type: application/json' \
 ## Security Considerations
 
 ### Credential Management
+
 - Store sensitive tokens in secure credential management systems
 - Use environment-specific credentials
 - Rotate tokens regularly
 - Never commit credentials to version control
 
 ### Network Security
+
 - Use HTTPS for all API communications
 - Implement proper certificate validation
 - Configure network firewalls appropriately
 - Use IP allowlisting where possible
 
 ### Access Control
+
 - Use least-privilege API tokens
 - Implement proper authentication for webhooks
 - Monitor integration access logs
@@ -782,24 +822,28 @@ curl -X POST -H 'Content-type: application/json' \
 ## Best Practices
 
 ### Configuration Management
+
 1. Use `.env` files for local development
 2. Use secure secret management for production
 3. Document all required variables
 4. Implement configuration validation
 
 ### Error Handling
+
 1. Implement graceful degradation for failed integrations
 2. Use retry logic with exponential backoff
 3. Log integration failures appropriately
 4. Don't fail deployments on integration issues
 
 ### Testing
+
 1. Test integrations in development first
 2. Implement integration health checks
 3. Monitor integration performance
 4. Set up alerting for integration failures
 
 ### Monitoring
+
 1. Track integration success/failure rates
 2. Monitor integration response times
 3. Set up alerts for integration outages
@@ -808,6 +852,7 @@ curl -X POST -H 'Content-type: application/json' \
 ---
 
 **Next Steps:**
+
 1. Choose integrations relevant to your organization
 2. Configure required environment variables
 3. Test integrations in development environment

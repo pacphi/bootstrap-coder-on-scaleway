@@ -5,6 +5,7 @@
 This guide provides comprehensive information about domain-based vs IP-only deployments in the Coder on Scaleway infrastructure, including Let's Encrypt certificate automation and access patterns.
 
 ## Table of Contents
+
 - [Overview](#overview)
 - [Current Implementation](#current-implementation)
 - [IP-Only Access (Default)](#ip-only-access-default)
@@ -46,7 +47,7 @@ The SSL/TLS implementation involves three key modules:
 
 ### Key Configuration Flow
 
-```
+```text
 User Request → Load Balancer → HTTPS Frontend → Kubernetes Ingress → Coder Service
                      ↓
               SSL Certificate
@@ -75,6 +76,7 @@ module "networking" {
 ### User Experience
 
 1. **Initial Access**:
+
    ```bash
    # Get the load balancer IP from Terraform outputs
    terraform output coder_url
@@ -188,7 +190,8 @@ module "networking" {
 ### DNS Configuration Requirements
 
 1. **A Record**: Point domain to load balancer IP
-   ```
+
+   ```text
    Type: A
    Name: coder-dev (or @)
    Value: <load-balancer-ip>
@@ -196,7 +199,8 @@ module "networking" {
    ```
 
 2. **Wildcard CNAME**: For workspace subdomains
-   ```
+
+   ```text
    Type: CNAME
    Name: *.coder-dev
    Value: coder-dev.example.com
@@ -208,6 +212,7 @@ module "networking" {
 ### Enabling Domain-Based Access
 
 1. **Update Environment Configuration**:
+
    ```hcl
    # environments/dev/main.tf
    module "networking" {
@@ -225,6 +230,7 @@ module "networking" {
    ```
 
 2. **Apply Changes**:
+
    ```bash
    cd environments/dev
    terraform plan
@@ -232,6 +238,7 @@ module "networking" {
    ```
 
 3. **Configure DNS**:
+
    ```bash
    # Get the load balancer IP
    terraform output load_balancer_ip
@@ -242,6 +249,7 @@ module "networking" {
    ```
 
 4. **Verify Certificate**:
+
    ```bash
    # Check certificate status
    curl -I https://coder-dev.example.com
@@ -311,13 +319,16 @@ subdomain = "coder"  # or "" for root domain
 **Symptoms**: Domain configured but still getting certificate warnings
 
 **Solutions**:
+
 1. Check DNS propagation:
+
    ```bash
    nslookup coder-dev.example.com
    dig coder-dev.example.com
    ```
 
 2. Verify load balancer configuration:
+
    ```bash
    terraform show | grep -A10 "scaleway_lb_certificate"
    ```
@@ -329,13 +340,16 @@ subdomain = "coder"  # or "" for root domain
 **Symptoms**: Main domain works but workspace subdomains fail
 
 **Solutions**:
+
 1. Ensure wildcard DNS record exists
 2. Check ingress configuration:
+
    ```bash
    kubectl describe ingress -n coder
    ```
 
 3. Verify Coder wildcard access URL:
+
    ```bash
    kubectl get configmap -n coder coder -o yaml | grep WILDCARD
    ```
@@ -345,6 +359,7 @@ subdomain = "coder"  # or "" for root domain
 **Symptoms**: Some resources load over HTTP
 
 **Solutions**:
+
 1. Ensure all Coder environment variables use HTTPS URLs
 2. Check workspace templates for hardcoded HTTP URLs
 3. Verify ingress SSL redirect annotations
@@ -352,15 +367,18 @@ subdomain = "coder"  # or "" for root domain
 ### Monitoring and Validation
 
 1. **Certificate Expiration Check**:
+
    ```bash
    echo | openssl s_client -servername coder-dev.example.com -connect coder-dev.example.com:443 2>/dev/null | openssl x509 -noout -dates
    ```
 
 2. **SSL Labs Test**:
+
    - Visit: https://www.ssllabs.com/ssltest/
    - Enter your domain for comprehensive SSL analysis
 
 3. **Health Check Endpoints**:
+
    ```bash
    # Check main site
    curl -I https://coder-dev.example.com/healthz

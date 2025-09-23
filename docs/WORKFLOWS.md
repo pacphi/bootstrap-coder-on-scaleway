@@ -59,12 +59,14 @@ graph TB
 **Purpose**: Orchestrates complete environment deployment with both infrastructure and Coder application phases.
 
 **Key Features**:
+
 - Automatic phase orchestration
 - Flexible trigger options (manual, PR, push)
 - Comprehensive deployment summary
 - Failure notifications and issue creation
 
 **Triggers**:
+
 ```yaml
 # Manual dispatch with full configuration options
 workflow_dispatch:
@@ -93,6 +95,7 @@ push:
 **Purpose**: Deploys infrastructure components and uploads kubeconfig for immediate access.
 
 **Components Deployed**:
+
 - Kubernetes cluster (Scaleway Kapsule)
 - Managed PostgreSQL database
 - VPC networking and security groups
@@ -100,6 +103,7 @@ push:
 - **Kubeconfig artifact upload**
 
 **Key Outputs**:
+
 - Cluster endpoint and configuration
 - Database connection details
 - Network configuration
@@ -112,11 +116,13 @@ push:
 **Purpose**: Deploys Coder platform using infrastructure from Phase 1.
 
 **Prerequisites**:
+
 - Infrastructure deployment completed (Phase 1)
 - Kubeconfig available (from artifacts or manual provision)
 - Storage classes validated
 
 **Components Deployed**:
+
 - Coder server application
 - OAuth integration
 - Workspace templates (if specified)
@@ -138,6 +144,7 @@ on:
 ```
 
 **Job Flow**:
+
 1. **Strategy Determination**: Analyzes trigger and sets deployment parameters
 2. **Infrastructure Phase**: Calls `deploy-infrastructure.yml`
 3. **Coder Phase**: Calls `deploy-coder.yml` (if not skipped)
@@ -179,12 +186,14 @@ on:
 ```
 
 **Unique Features**:
+
 - **Immediate Kubeconfig Upload**: Available as GitHub artifact
 - **State Management**: Automatic backend setup if needed
 - **Cost Validation**: Budget checks before deployment
 - **Resource Validation**: Quota and limit verification
 
 **Critical Step - Kubeconfig Upload**:
+
 ```yaml
 - name: Upload Kubeconfig Artifact
   uses: actions/upload-artifact@v4
@@ -206,12 +215,14 @@ on:
 ```
 
 **Prerequisites Validation**:
+
 - Infrastructure state verification
 - Kubeconfig accessibility
 - **Storage class validation** (prevents PVC failures)
 - Resource availability checks
 
 **Key Validation Step**:
+
 ```yaml
 - name: Pre-deployment Cluster Validation
   run: |
@@ -238,12 +249,14 @@ on:
 ```
 
 **Two-Phase Teardown Process**:
+
 1. **Phase 2 Teardown**: Remove Coder application first
 2. **Phase 1 Teardown**: Remove infrastructure last
 3. **Backup Creation**: Optional pre-teardown backup
 4. **State Cleanup**: Clean remote state files
 
 **Safety Features**:
+
 - **Confirmation Required**: Must provide exact confirmation string
 - **Backup Options**: Automatic backup before destruction
 - **Selective Teardown**: Choose specific phases to remove
@@ -262,6 +275,7 @@ on:
 ```
 
 **Validation Scopes**:
+
 - **Syntax**: Template configuration validation
 - **Dependencies**: Template dependency checks
 - **Deployment**: Full deployment testing
@@ -279,6 +293,7 @@ on:
 ```
 
 **Operations**:
+
 - **Create**: Set up Terraform state backend
 - **Delete**: Remove backend infrastructure
 - **List**: Show existing backends
@@ -362,11 +377,13 @@ jobs:
 #### 1. Infrastructure Deployment Failure (Phase 1)
 
 **Symptoms**:
+
 - No kubeconfig artifact created
 - Scaleway resource creation errors
 - Terraform state corruption
 
 **Troubleshooting**:
+
 ```bash
 # Check Scaleway console for partial resources
 # Review deployment logs in GitHub Actions
@@ -381,11 +398,13 @@ gh workflow run deploy-environment.yml \
 #### 2. Coder Deployment Failure (Phase 2)
 
 **Symptoms**:
+
 - Infrastructure deployed successfully
 - Coder pods failing to start
 - PVC creation errors
 
 **Troubleshooting**:
+
 ```bash
 # Download kubeconfig artifact from infrastructure deployment
 export KUBECONFIG=./kubeconfig-dev
@@ -408,11 +427,13 @@ gh workflow run deploy-coder.yml \
 #### 3. Remote State Issues
 
 **Symptoms**:
+
 - State lock errors
 - Backend not found errors
 - Permission denied on state operations
 
 **Troubleshooting**:
+
 ```bash
 # Verify backend bucket exists
 gh workflow run manage-backend-bucket.yml \
@@ -433,6 +454,7 @@ gh workflow run manage-backend-bucket.yml \
 #### Enabling Debug Logging
 
 Add these secrets to enable detailed logging:
+
 - `ACTIONS_STEP_DEBUG=true`
 - `ACTIONS_RUNNER_DEBUG=true`
 
@@ -484,12 +506,14 @@ permissions:
 ### Secret Management
 
 **Required Secrets**:
+
 - `SCW_ACCESS_KEY`: Scaleway API access key
 - `SCW_SECRET_KEY`: Scaleway API secret key
 - `SCW_DEFAULT_PROJECT_ID`: Scaleway project ID
 - `SCW_DEFAULT_ORGANIZATION_ID`: Scaleway organization ID
 
 **Optional Integration Secrets**:
+
 - `SLACK_WEBHOOK_URL`: Slack notifications
 - `NOTIFICATION_EMAIL`: Email alerts
 
@@ -498,23 +522,28 @@ permissions:
 The project uses a **feature flag** to control automatic staging deployments:
 
 **Secret Name**: `ENABLE_AUTO_STAGING_DEPLOY`
+
 - **Purpose**: Controls whether staging environment is automatically deployed on push/PR
 - **Values**: Set to `"true"` to enable, any other value or unset to disable
 - **Default**: Disabled (deployments are skipped if secret is not set)
 
 **Configuration**:
+
 1. Go to Settings → Secrets and variables → Actions
 2. Add new repository secret: `ENABLE_AUTO_STAGING_DEPLOY`
 3. Set value to `true` to enable automatic staging deployments
 
 **Behavior**:
+
 - When enabled: Push to main branch triggers staging deployment
 - When disabled: Push events log skip message, manual deployment still works
 - Pull requests with `deploy-staging` label also respect this setting
 - Manual workflow_dispatch always works regardless of this setting
 
 **Workflow Logs**:
+
 The workflows will clearly log the deployment decision:
+
 - `🚀 Auto staging deployment ENABLED - proceeding with deployment`
 - `⏸️ Auto staging deployment DISABLED - skipping deployment`
 - `💡 Set ENABLE_AUTO_STAGING_DEPLOY secret to 'true' to enable automatic deployments`
@@ -522,6 +551,7 @@ The workflows will clearly log the deployment decision:
 ### Environment Protection
 
 Production environments should use **GitHub Environment Protection**:
+
 - Required reviewers for deployment approval
 - Deployment restrictions (specific branches)
 - Environment-specific secrets

@@ -518,51 +518,20 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const title = `🔴 CRITICAL Security Findings Detected - ${{ needs.prepare-scan.outputs.scan_id }}`;
-            const body = `## Critical Security Alert
+            // Import the issue management helper
+            const { handleSecurityScanIssue } = require('./.github/scripts/issue-manager.js');
 
-            **${{ steps.analyze.outputs.critical_count }} critical security findings** have been detected in the security scan.
-
-            **Scan Details:**
-            - **Scan ID:** ${{ needs.prepare-scan.outputs.scan_id }}
-            - **Repository:** ${{ github.repository }}
-            - **Commit:** ${{ github.sha }}
-            - **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            ## Summary of Findings
-
-            | Severity | Count |
-            |----------|-------|
-            | 🔴 Critical | ${{ steps.analyze.outputs.critical_count }} |
-            | 🟠 High | ${{ steps.analyze.outputs.high_count }} |
-            | 🟡 Medium | ${{ steps.analyze.outputs.medium_count }} |
-            | 🔵 Low | ${{ steps.analyze.outputs.low_count }} |
-
-            ## Immediate Actions Required
-
-            1. **Review Security Dashboard:** [Security Tab](${{ github.server_url }}/${{ github.repository }}/security)
-            2. **Address Critical Findings:** Focus on critical severity issues first
-            3. **Implement Fixes:** Update code to resolve security vulnerabilities
-            4. **Re-scan:** Run security scan again after fixes
-            5. **Update Security Policies:** Consider additional security controls
-
-            ## Impact
-
-            Critical findings may indicate:
-            - Potential security vulnerabilities
-            - Exposed secrets or credentials
-            - Insecure configurations
-            - Compliance violations
-
-            **Priority:** 🔴 HIGH - Immediate attention required`;
-
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['security', 'critical', 'vulnerability']
+            // Handle the security scan issue (create or update)
+            const issue = await handleSecurityScanIssue(github, context, {
+              scanId: '${{ needs.prepare-scan.outputs.scan_id }}',
+              criticalCount: parseInt('${{ steps.analyze.outputs.critical_count }}'),
+              highCount: parseInt('${{ steps.analyze.outputs.high_count }}'),
+              totalFindings: parseInt('${{ steps.analyze.outputs.total_findings }}'),
+              workflowRun: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              commit: '${{ github.sha }}'
             });
+
+            console.log(`Security issue handled: #${issue.number} - ${issue.title}`);
 
       - name: Fail Workflow on Security Findings
         if: steps.analyze.outputs.should_fail == 'true'

@@ -11,6 +11,7 @@
 ## Feature Implementation Status
 
 ### Legend
+
 - ✅ **Full Support** - Feature fully implemented and tested
 - 🔄 **Partial Support** - Feature partially implemented or requires manual steps
 - ❌ **Not Available** - Feature not implemented
@@ -234,7 +235,9 @@
 ## Summary by Use Case
 
 ### Best for Local Development
+
 **Shell Scripts** - Most comprehensive feature set for local operations, including:
+
 - Full lifecycle management
 - Advanced cost analysis
 - Security auditing and remediation
@@ -242,14 +245,18 @@
 - Backup and recovery
 
 ### Best for Infrastructure as Code
+
 **Terraform/CLI** - Core infrastructure management with:
+
 - Direct state control
 - Declarative configuration
 - Version control friendly
 - Manual optimization possible
 
 ### Best for Team Collaboration
+
 **GitHub Actions** - Enterprise-ready automation with:
+
 - PR-based workflows
 - Automated validation
 - Native GitHub integration

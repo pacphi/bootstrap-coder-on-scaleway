@@ -56,6 +56,7 @@ chmod +x scripts/**/*.sh
 ## 🎯 Choosing Your Deployment Method
 
 Before starting, review our [Feature Comparison Guide](FEATURES.md) to understand the capabilities of each deployment approach:
+
 - **Shell Scripts** - Best for local development and comprehensive features
 - **Terraform/CLI** - Best for infrastructure as code and manual control
 - **GitHub Actions** - Best for team collaboration and CI/CD
@@ -82,6 +83,7 @@ Deploy your first development environment:
 The deployment system automatically handles both infrastructure and application deployment:
 
 #### **What Gets Deployed Automatically**
+
 - ✅ **Kubernetes Cluster** - Fully configured with auto-scaling
 - ✅ **PostgreSQL Database** - Managed database with backups
 - ✅ **Coder Application** - Ready-to-use development platform
@@ -91,18 +93,21 @@ The deployment system automatically handles both infrastructure and application 
 #### **Template Deployment Behavior**
 
 **With Template Specified** (`--template=template-name`):
+
 ```bash
 ./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai
 # Result: Coder + Python Django CrewAI template ready for workspace creation
 ```
 
 **Without Template** (template left blank or omitted):
+
 ```bash
 ./scripts/lifecycle/setup.sh --env=dev
 # Result: Coder deployed and ready, templates can be added later
 ```
 
 #### **Adding Templates Later**
+
 If you deployed without a template, you can add them anytime:
 
 ```bash
@@ -124,6 +129,7 @@ coder templates create my-template --directory=./templates/frontend/react-typesc
 ### Troubleshooting Failed Deployments
 
 #### **Phase 1 (Infrastructure) Failure**
+
 ```bash
 # Infrastructure deployment failed - no cluster access available
 # Check Scaleway console and deployment logs
@@ -132,6 +138,7 @@ coder templates create my-template --directory=./templates/frontend/react-typesc
 ```
 
 #### **Phase 2 (Coder) Failure - Infrastructure Still Available**
+
 ```bash
 # Infrastructure deployed successfully but Coder failed
 # You have full cluster access via kubeconfig for troubleshooting
@@ -163,6 +170,7 @@ terraform init && terraform apply
 **Use Case**: Quick testing, personal development, learning
 
 **Configuration**:
+
 - **Cost**: €53.70/month
 - **Resources**: 2×GP1-XS nodes (1 vCPU, 2GB RAM each)
 - **Database**: DB-DEV-S (1 vCPU, 2GB RAM)
@@ -195,6 +203,7 @@ gh workflow run deploy-environment.yml \
 **Use Case**: Pre-production testing, team collaboration, CI/CD validation
 
 **Configuration**:
+
 - **Cost**: €97.85/month
 - **Resources**: 3×GP1-S nodes (2 vCPU, 4GB RAM each)
 - **Database**: DB-GP-S with backups (2 vCPU, 4GB RAM)
@@ -226,6 +235,7 @@ gh workflow run deploy-environment.yml \
 **Use Case**: Live development environments, enterprise teams, high availability
 
 **Configuration**:
+
 - **Cost**: €374.50/month
 - **Resources**: 5×GP1-M nodes (4 vCPU, 8GB RAM each)
 - **Database**: DB-GP-M with HA clustering (4 vCPU, 16GB RAM)
@@ -277,6 +287,7 @@ gh workflow run deploy-infrastructure.yml \
 **Best for**: Enterprise microservices, REST APIs, complex business logic
 
 **Features**:
+
 - Spring Boot 3.2 with Spring AI integration
 - Maven and Gradle support
 - PostgreSQL and Redis connectivity
@@ -298,6 +309,7 @@ gh workflow run deploy-environment.yml \
   -f enable_monitoring=true
 
 # Workspace includes:
+
 # - OpenJDK 21 + Spring Boot 3.2
 # - Maven 3.9 + Gradle 8.5
 # - IntelliJ IDEA Community Edition
@@ -311,6 +323,7 @@ gh workflow run deploy-environment.yml \
 **Best for**: AI-powered web applications, multi-agent systems, data processing
 
 **Features**:
+
 - Django 4.2 with Django REST Framework
 - CrewAI framework for multi-agent orchestration
 - Poetry for dependency management
@@ -339,6 +352,7 @@ gh workflow run deploy-environment.yml \
 **Best for**: High-performance APIs, microservices, cloud-native applications
 
 **Features**:
+
 - Go 1.21 with Fiber v3 framework
 - GORM for database operations
 - Air for live reloading
@@ -369,6 +383,7 @@ gh workflow run deploy-environment.yml \
 **Best for**: Modern SPAs, PWAs, component libraries
 
 **Features**:
+
 - React 18 with TypeScript 5
 - Vite build system
 - Tailwind CSS + Headless UI
@@ -396,6 +411,7 @@ gh workflow run deploy-environment.yml \
 **Best for**: Enterprise applications, complex forms, large teams
 
 **Features**:
+
 - Angular 17 with standalone components
 - Angular CLI and DevKit
 - NgRx for state management
@@ -425,6 +441,7 @@ gh workflow run deploy-environment.yml \
 **Best for**: AI-assisted development, rapid prototyping, learning
 
 **Features**:
+
 - 87 advanced MCP tools
 - Swarm mode for quick tasks
 - Multiple development stacks
@@ -453,6 +470,7 @@ gh workflow run deploy-environment.yml \
 **Best for**: Large teams, complex projects, enterprise AI workflows
 
 **Features**:
+
 - All base features plus:
 - Hive-mind mode for complex projects
 - Advanced memory system

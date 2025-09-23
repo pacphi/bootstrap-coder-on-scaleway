@@ -76,6 +76,7 @@ When manually triggering the "Deploy Complete Coder Environment" workflow, use t
 ```
 
 **Production Environment (Security-Hardened)**:
+
 ```json
 {
   "security": {
@@ -95,6 +96,7 @@ When manually triggering the "Deploy Complete Coder Environment" workflow, use t
 ```
 
 **External Secrets Only**:
+
 ```json
 {
   "secrets": {
@@ -142,10 +144,12 @@ Network security, RBAC, Pod Security Standards
 ```
 
 **Security Levels**:
+
 - **`baseline`**: Basic security with some restrictions
 - **`restricted`**: Strict security with comprehensive restrictions (recommended for production)
 
 **CIDR Configuration**:
+
 - **`management_cidr`**: IP ranges allowed for SSH and monitoring access
 - **`trusted_cidr`**: IP ranges allowed for Kubernetes API and admin interfaces
 - **`vpc_cidr`**: Internal VPC communication range
@@ -169,6 +173,7 @@ External Secrets Operator integration
 ```
 
 **Secret Types**:
+
 - **Database**: PostgreSQL connection credentials
 - **Admin**: Coder admin user credentials
 - **OAuth**: GitHub/Google OAuth application credentials (optional)
@@ -188,11 +193,13 @@ Environment-tiered cost optimization
 ```
 
 **Volume Types**:
+
 - **`lssd`**: High-performance SSD (fastest, most expensive)
 - **`bssd`**: Balanced SSD (good performance, moderate cost)
 - **`sbv`**: Cost-optimized storage (slowest, cheapest)
 
 **Environment Tiers**:
+
 - **`dev`**: Minimal resources, cost-optimized defaults
 - **`staging`**: Production-like but reduced resources
 - **`prod`**: Full resources, performance optimized
@@ -378,6 +385,7 @@ The workflow automatically validates the provided JSON configuration:
 ### Validation Errors
 
 The workflow will fail with clear error messages if:
+
 - JSON syntax is invalid
 - Required fields are missing when features are enabled
 - Values don't match validation constraints
@@ -395,11 +403,13 @@ The workflow will fail with clear error messages if:
 If you were using individual workflow inputs before:
 
 **Old Approach** (no longer works due to 10-input limit):
-```
+
+```yaml
 enable_monitoring: true
 ```
 
 **New Approach**:
+
 ```json
 {
   "monitoring": {

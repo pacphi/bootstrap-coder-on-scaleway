@@ -14,12 +14,14 @@ The Bootstrap Coder on Scaleway system supports two deployment modes:
 ### IP-Based Access (No Domain)
 
 **✅ Use for:**
+
 - Development and testing environments
 - Proof of concepts and demos
 - Internal tools where certificate warnings are acceptable
 - Quick setup without DNS configuration
 
 **❌ Limitations:**
+
 - Browser security warnings for self-signed certificates
 - Not suitable for production use
 - May be blocked by enterprise proxies
@@ -35,6 +37,7 @@ The Bootstrap Coder on Scaleway system supports two deployment modes:
 - Professional, branded deployments
 
 **✅ Benefits:**
+
 - Valid Let's Encrypt SSL certificates
 - No browser security warnings
 - Professional appearance
@@ -45,6 +48,7 @@ The Bootstrap Coder on Scaleway system supports two deployment modes:
 ### 1. Script-Based Deployment
 
 #### Basic Domain Configuration
+
 ```bash
 # Development with custom domain
 ./scripts/lifecycle/setup.sh \
@@ -62,12 +66,15 @@ The Bootstrap Coder on Scaleway system supports two deployment modes:
 ```
 
 #### Default Subdomains
+
 If `--subdomain` is not specified, defaults are:
+
 - **dev**: `coder-dev`
 - **staging**: `coder-staging`
 - **prod**: `coder`
 
 #### Examples with Results
+
 ```bash
 # Example 1: Development with default subdomain
 ./scripts/lifecycle/setup.sh --env=dev --domain=example.com
@@ -85,6 +92,7 @@ If `--subdomain` is not specified, defaults are:
 ### 2. GitHub Actions Workflow
 
 #### Manual Deployment with Domain
+
 1. Navigate to **Actions** → **Deploy Coder Environment**
 2. Click **"Run workflow"**
 3. Configure:
@@ -96,12 +104,14 @@ If `--subdomain` is not specified, defaults are:
 4. Click **"Run workflow"**
 
 The workflow will:
+
 - Deploy the infrastructure with domain configuration
 - Display DNS setup instructions in the workflow output
 - Show the exact DNS records needed
 
 #### Workflow Output Example
-```
+
+```text
 ## 🌐 DNS Configuration Required
 
 **Domain:** coder.company.com
@@ -131,12 +141,14 @@ After DNS propagation (5-15 minutes):
 For a domain deployment, you need two DNS records:
 
 #### 1. A Record (Main Domain)
+
 - **Name**: Your full domain (e.g., `coder.company.com`)
 - **Type**: `A`
 - **Value**: Load balancer IP address
 - **TTL**: `300` (5 minutes)
 
 #### 2. CNAME Record (Wildcard for Workspaces)
+
 - **Name**: Wildcard subdomain (e.g., `*.coder.company.com`)
 - **Type**: `CNAME`
 - **Value**: Main domain (e.g., `coder.company.com`)
@@ -155,6 +167,7 @@ terraform output load_balancer_ip
 ### DNS Configuration by Registrar
 
 #### Cloudflare
+
 1. Go to **DNS** → **Records**
 2. Click **"Add record"**
 3. **A Record**:
@@ -169,6 +182,7 @@ terraform output load_balancer_ip
    - TTL: `Auto`
 
 #### Namecheap
+
 1. Go to **Domain List** → **Manage** → **Advanced DNS**
 2. **A Record**:
    - Type: `A Record`
@@ -230,6 +244,7 @@ echo | openssl s_client -servername coder.company.com -connect coder.company.com
 If certificates aren't issued:
 
 1. **Verify DNS Resolution**:
+
    ```bash
    nslookup coder.company.com
    # Should return the load balancer IP
@@ -240,6 +255,7 @@ If certificates aren't issued:
    - Use online tools like whatsmydns.net to verify global propagation
 
 3. **Validate Domain Configuration**:
+
    ```bash
    cd environments/prod
    terraform show | grep -A5 "scaleway_lb_certificate"
@@ -286,10 +302,12 @@ open https://coder.company.com
 ### Workspace Access
 
 #### IP-Based
+
 - **Main Coder**: `https://51.159.123.456`
 - **Workspaces**: `https://workspace-name.51.159.123.456.nip.io`
 
 #### Domain-Based
+
 - **Main Coder**: `https://coder.company.com`
 - **Workspaces**: `https://workspace-name.coder.company.com`
 
@@ -298,6 +316,7 @@ open https://coder.company.com
 ### Converting Existing Deployment
 
 1. **Update Environment Configuration**:
+
    ```bash
    cd environments/prod
 
@@ -311,6 +330,7 @@ open https://coder.company.com
 2. **Configure DNS** (as described above)
 
 3. **Verify Migration**:
+
    ```bash
    # Old URL should still work during transition
    curl -I https://51.159.123.456
@@ -336,6 +356,7 @@ open https://coder.company.com
 The system includes built-in domain validation:
 
 ### Format Validation
+
 ```bash
 # Valid domain formats:
 example.com
@@ -351,6 +372,7 @@ invalid..com       # Double dots not allowed
 ```
 
 ### Subdomain Validation
+
 ```bash
 # Valid subdomain formats:
 coder
@@ -430,6 +452,7 @@ invalid_name      # Underscores not allowed
 ### Common Issues
 
 #### Domain Not Resolving
+
 ```bash
 # Check DNS configuration
 nslookup coder.company.com
@@ -441,6 +464,7 @@ nslookup coder.company.com
 ```
 
 #### Certificate Not Issued
+
 ```bash
 # Check load balancer certificate status
 terraform show | grep -A10 "scaleway_lb_certificate"
@@ -452,6 +476,7 @@ terraform show | grep -A10 "scaleway_lb_certificate"
 ```
 
 #### Mixed Content Warnings
+
 ```bash
 # Ensure all URLs in environment use HTTPS
 terraform output -json | jq '.coder_url.value'

@@ -666,31 +666,27 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const title = `Template Validation Failure: Critical Issues Detected`;
-            const body = `## Template Validation Failure
+            // Import the issue management helper
+            const { handleTemplateValidationIssue } = require('./.github/scripts/issue-manager.js');
 
-            Critical issues have been detected in template validation.
+            // Determine failed stages
+            const failedStages = [];
+            if ('${{ needs.validate-syntax.result }}' === 'failure') {
+              failedStages.push('Syntax Validation');
+            }
+            if ('${{ needs.test-deployment.result }}' === 'failure') {
+              failedStages.push('Deployment Testing');
+            }
 
-            **Validation Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            **Templates Affected:** ${{ needs.discover-templates.outputs.template_count }}
-            **Filter:** ${{ github.event.inputs.template_filter || '*' }}
+            // Prepare validation data
+            const templateFilter = '${{ github.event.inputs.template_filter }}' || '*';
 
-            ## Failed Stages
-            ${ '${{ needs.validate-syntax.result }}' === 'failure' ? '- ❌ Syntax Validation' : '' }
-            ${ '${{ needs.test-deployment.result }}' === 'failure' ? '- ❌ Deployment Testing' : '' }
-
-            ## Immediate Actions Required
-            1. Review workflow logs for detailed error messages
-            2. Fix syntax errors and deployment issues
-            3. Re-run validation after fixes
-            4. Consider disabling problematic templates temporarily
-
-            **Priority:** High - Template reliability issue`;
-
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['template-validation', 'bug', 'high-priority']
+            // Handle the template validation issue (create or update)
+            const issue = await handleTemplateValidationIssue(github, context, {
+              workflowRun: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              templatesAffected: '${{ needs.discover-templates.outputs.template_count }}',
+              filter: templateFilter,
+              failedStages: failedStages
             });
+
+            console.log(`Issue handled: #${issue.number} - ${issue.title}`);

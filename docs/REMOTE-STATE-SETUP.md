@@ -46,7 +46,7 @@ The implementation adds enterprise-grade remote state management capabilities wi
 
 ### Two-Phase State Storage Structure
 
-```
+```text
 Scaleway Object Storage Buckets (Two-Phase Architecture):
 ├── terraform-state-coder-dev/
 │   ├── infra/terraform.tfstate      # Phase 1: Infrastructure state
@@ -64,7 +64,8 @@ Scaleway Object Storage Buckets (Two-Phase Architecture):
 The system automatically detects environment structure:
 
 **Legacy Structure** (Single-phase, backward compatible):
-```
+
+```text
 environments/dev/
 ├── main.tf
 ├── providers.tf
@@ -72,7 +73,8 @@ environments/dev/
 ```
 
 **Two-Phase Structure** (New architecture):
-```
+
+```text
 environments/dev/
 ├── infra/
 │   ├── main.tf
@@ -214,6 +216,7 @@ For local development or troubleshooting (supports both legacy and two-phase str
 For environments with existing local state (supports both structures):
 
 #### Legacy Single-Phase Migration
+
 ```bash
 # Preview migration (recommended first step)
 ./scripts/utils/migrate-state.sh --env=dev --dry-run
@@ -223,6 +226,7 @@ For environments with existing local state (supports both structures):
 ```
 
 #### Two-Phase Environment Migration
+
 ```bash
 # Migrate infrastructure phase
 ./scripts/utils/migrate-state.sh --env=dev --phase=infra --dry-run
@@ -240,6 +244,7 @@ For environments with existing local state (supports both structures):
 ### 5. Verify Remote State
 
 #### Legacy Single-Phase Verification
+
 ```bash
 # Check state connectivity
 ./scripts/utils/state-manager.sh show --env=dev
@@ -249,6 +254,7 @@ For environments with existing local state (supports both structures):
 ```
 
 #### Two-Phase Environment Verification
+
 ```bash
 # Check infrastructure phase state
 ./scripts/utils/state-manager.sh show --env=dev --phase=infra
@@ -269,6 +275,7 @@ For environments with existing local state (supports both structures):
 ### Daily Operations
 
 #### Legacy Single-Phase Operations
+
 ```bash
 # Check state summary
 ./scripts/utils/state-manager.sh show --env=prod
@@ -281,6 +288,7 @@ For environments with existing local state (supports both structures):
 ```
 
 #### Two-Phase Environment Operations
+
 ```bash
 # Check both phases summary
 ./scripts/utils/state-manager.sh show --env=prod --two-phase
@@ -304,6 +312,7 @@ For environments with existing local state (supports both structures):
 ### Backup Management
 
 #### Legacy Single-Phase Backups
+
 ```bash
 # Create manual backup
 ./scripts/utils/state-manager.sh backup --env=staging
@@ -316,6 +325,7 @@ ls backups/state-backups/
 ```
 
 #### Two-Phase Environment Backups
+
 ```bash
 # Create backup of both phases
 ./scripts/utils/state-manager.sh backup --env=staging --two-phase
@@ -380,6 +390,7 @@ ls backups/state-backups/staging-coder/
 ⚠️ **Important**: Scaleway Object Storage does not support DynamoDB-style state locking.
 
 **Mitigation Strategies:**
+
 - Use GitHub Actions for centralized deployments
 - Coordinate team access through CI/CD pipelines
 - Implement process-based coordination for manual operations
@@ -389,10 +400,12 @@ ls backups/state-backups/staging-coder/
 ### Storage Costs
 
 Based on Scaleway Object Storage pricing:
+
 - Storage: €0.01 per GB/month
 - Requests: €0.01 per 1,000 requests
 
 **Estimated Monthly Costs:**
+
 - State files (< 1MB each): ~€0.01
 - API requests (typical usage): ~€0.05
 - **Total per environment: < €0.10/month**
@@ -400,6 +413,7 @@ Based on Scaleway Object Storage pricing:
 ### Benefits vs. Costs
 
 The minimal cost (< €0.30/month for all environments) provides:
+
 - Team collaboration capabilities
 - State versioning and history
 - Centralized deployment coordination
@@ -412,6 +426,7 @@ The minimal cost (< €0.30/month for all environments) provides:
 **Backend Initialization Failures**
 
 #### Legacy Single-Phase Environments
+
 ```bash
 # Check credentials
 scw config info
@@ -424,6 +439,7 @@ cd environments/dev && terraform init -reconfigure
 ```
 
 #### Two-Phase Environments
+
 ```bash
 # Check credentials
 scw config info
@@ -442,6 +458,7 @@ cd environments/dev/coder && terraform plan -refresh-only
 ```
 
 **Authentication Errors with S3 Backend**
+
 ```bash
 # Error: "no valid credential sources for S3 Backend found"
 # Solution: Set AWS environment variables
@@ -455,6 +472,7 @@ env | grep AWS_
 **State Migration Issues**
 
 #### Legacy Environment Migration
+
 ```bash
 # Check migration prerequisites
 ./scripts/utils/migrate-state.sh --env=dev --dry-run
@@ -464,6 +482,7 @@ cat backups/state-migration/migration-*.log
 ```
 
 #### Two-Phase Environment Migration
+
 ```bash
 # Check prerequisites for both phases
 ./scripts/utils/migrate-state.sh --env=dev --two-phase --dry-run
@@ -480,6 +499,7 @@ cat backups/state-migration/migration-coder-*.log
 **State Access Problems**
 
 #### Legacy Environments
+
 ```bash
 # Test state connectivity
 ./scripts/utils/state-manager.sh show --env=dev
@@ -489,6 +509,7 @@ cd environments/dev && terraform init -backend=false && terraform validate
 ```
 
 #### Two-Phase Environments
+
 ```bash
 # Test state connectivity for both phases
 ./scripts/utils/state-manager.sh show --env=dev --two-phase
@@ -510,6 +531,7 @@ cd environments/dev/coder && terraform refresh
 **Rollback to Local State**
 
 #### Legacy Environments
+
 ```bash
 # Copy from migration backup
 cd environments/dev
@@ -523,6 +545,7 @@ terraform init
 ```
 
 #### Two-Phase Environments
+
 ```bash
 # Rollback infrastructure phase
 cd environments/dev/infra
@@ -543,6 +566,7 @@ terraform init
 **State Corruption Recovery**
 
 #### Legacy Environments
+
 ```bash
 # Restore from backup
 ./scripts/utils/state-manager.sh restore --env=dev --backup=<backup-name>
@@ -552,6 +576,7 @@ terraform init
 ```
 
 #### Two-Phase Environments
+
 ```bash
 # Restore specific phase from backup
 ./scripts/utils/state-manager.sh restore --env=dev --phase=infra --backup=<infra-backup-name>
@@ -579,6 +604,7 @@ terraform init
 ### Migration Process
 
 #### Legacy Single-Phase Migration
+
 - [ ] Run `setup-backend.sh` to create Object Storage infrastructure
 - [ ] Perform dry-run migration to preview changes
 - [ ] Execute actual migration during maintenance window
@@ -586,6 +612,7 @@ terraform init
 - [ ] Test normal terraform operations
 
 #### Two-Phase Environment Migration
+
 - [ ] Run `setup-backend.sh` to create Object Storage infrastructure with two-phase support
 - [ ] **Phase 1 (Infrastructure)**:
   - [ ] Perform dry-run migration: `migrate-state.sh --env=dev --phase=infra --dry-run`
@@ -676,6 +703,7 @@ terraform init
 ### Migration Path
 
 The system supports both architectures:
+
 - **Legacy Environments**: Continue working with single state files
 - **New Environments**: Automatically use two-phase architecture
 - **Gradual Migration**: Convert legacy environments to two-phase as needed
