@@ -4,7 +4,6 @@ on:
   pull_request:
     branches: [ main ]
   push:
-    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -58,7 +57,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.8.0"
+          terraform_version: "1.13.3"
 
       - name: Find Terraform directories
         id: find-tf-dirs

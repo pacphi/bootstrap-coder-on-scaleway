@@ -93,7 +93,7 @@ Two-Phase Architecture:
   - coder/: Application backend (terraform-state-coder-<env>, key: coder/terraform.tfstate)
 
 Prerequisites:
-  - Terraform >= 1.12.0
+  - Terraform >= 1.13.3
   - Valid Scaleway credentials
 EOF
 }

@@ -20,7 +20,7 @@ Before deploying your first Coder environment, ensure you have the following too
 
 ```bash
 # Check required versions
-terraform version    # >= 1.12.0
+terraform version    # >= 1.13.3
 kubectl version      # >= 1.32.0
 helm version         # >= 3.12.0
 ```
@@ -288,7 +288,7 @@ gh workflow run deploy-infrastructure.yml \
 
 **Features**:
 
-- Spring Boot 3.2 with Spring AI integration
+- Spring Boot 3.5.6 with Spring AI integration
 - Maven and Gradle support
 - PostgreSQL and Redis connectivity
 - Docker containerization
@@ -310,7 +310,7 @@ gh workflow run deploy-environment.yml \
 
 # Workspace includes:
 
-# - OpenJDK 21 + Spring Boot 3.2
+# - OpenJDK 25 LTS + Spring Boot 3.5.6
 # - Maven 3.9 + Gradle 8.5
 # - IntelliJ IDEA Community Edition
 # - PostgreSQL client tools
@@ -324,7 +324,7 @@ gh workflow run deploy-environment.yml \
 
 **Features**:
 
-- Django 4.2 with Django REST Framework
+- Django 5.2.6 LTS with Django REST Framework
 - CrewAI framework for multi-agent orchestration
 - Poetry for dependency management
 - Jupyter notebook integration
@@ -399,7 +399,7 @@ gh workflow run deploy-environment.yml \
   --enable-pwa
 
 # Workspace configuration:
-# - Node.js 20 LTS
+# - Node.js 22 LTS
 # - pnpm package manager
 # - VS Code with React extensions
 # - Storybook dev server
@@ -530,7 +530,7 @@ gh workflow run deploy-environment.yml \
   --target-platforms=android,ios
 
 # Development environment:
-# - Node.js 20 + React Native 0.74
+# - Node.js 22 LTS + React Native 0.74
 # - Android SDK and Virtual Device
 # - Expo CLI for rapid development
 # - Metro bundler with hot reloading
@@ -1450,18 +1450,18 @@ EOF
 ```bash
 # Symptom
 ./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai
-ERROR: Terraform not found or version < 1.12.0
+ERROR: Terraform not found or version < 1.13.3
 
 # Solution
 # 1. Check versions
-terraform version    # Should be >= 1.12.0
+terraform version    # Should be >= 1.13.3
 kubectl version      # Should be >= 1.32.0
 helm version         # Should be >= 3.12.0
 
 # 2. Install missing tools
 # Terraform
-wget https://releases.hashicorp.com/terraform/1.12.2/terraform_1.12.2_linux_amd64.zip
-unzip terraform_1.12.2_linux_amd64.zip
+wget https://releases.hashicorp.com/terraform/1.13.3/terraform_1.13.3_linux_amd64.zip
+unzip terraform_1.13.3_linux_amd64.zip
 sudo mv terraform /usr/local/bin/
 
 # kubectl

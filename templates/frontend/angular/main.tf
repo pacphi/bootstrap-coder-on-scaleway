@@ -89,13 +89,9 @@ data "coder_parameter" "node_version" {
   name         = "node_version"
   display_name = "Node.js Version"
   description  = "Node.js version to install"
-  default      = "20"
+  default      = "22"
   icon         = "/icon/nodejs.svg"
   mutable      = false
-  option {
-    name  = "Node.js 18 LTS"
-    value = "18"
-  }
   option {
     name  = "Node.js 20 LTS"
     value = "20"
@@ -103,6 +99,10 @@ data "coder_parameter" "node_version" {
   option {
     name  = "Node.js 21"
     value = "21"
+  }
+  option {
+    name  = "Node.js 22 LTS"
+    value = "22"
   }
 }
 
@@ -1235,7 +1235,7 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = "ubuntu@sha256:2e863c44b718727c860746568e1d54afd13b2fa71b160f5cd9058fc436217b30"
+          image             = "ubuntu:24.04"
           image_pull_policy = "Always"
           command           = ["/bin/bash", "-c", coder_agent.main.init_script]
 

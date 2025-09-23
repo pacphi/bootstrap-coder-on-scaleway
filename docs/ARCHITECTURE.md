@@ -355,7 +355,7 @@ sequenceDiagram
 
     Template->>K8s: Create workspace pod
     K8s->>Workspace: Initialize container with:
-    Note over Workspace: - Python 3.11 + Django 4.2<br/>- CrewAI framework<br/>- PostgreSQL client<br/>- VS Code + extensions<br/>- Claude Code CLI
+    Note over Workspace: - Python 3.13 + Django 5.2 LTS<br/>- CrewAI framework<br/>- PostgreSQL client<br/>- VS Code + extensions<br/>- Claude Code CLI
 
     Workspace->>ClaudeFlow: Initialize AI environment
     ClaudeFlow->>Workspace: Load 87 MCP tools
