@@ -1,5 +1,8 @@
 # Bootstrap Coder on Scaleway
 
+[![Version](https://img.shields.io/github/v/release/pacphi/bootstrap-coder-on-scaleway?include_prereleases)](https://github.com/pacphi/bootstrap-coder-on-scaleway/releases)
+[![Resource Validation](https://github.com/pacphi/bootstrap-coder-on-scaleway/actions/workflows/validate-resources.yml/badge.svg)](https://github.com/pacphi/bootstrap-coder-on-scaleway/actions/workflows/validate-resources.yml)
+
 Production-ready automation for deploying enterprise-grade Coder development environments on Scaleway Kubernetes, featuring 20+ workspace templates, comprehensive CI/CD workflows, and AI-enhanced development with Claude Code Flow integration.
 
 ## 📖 Documentation

@@ -1,0 +1,126 @@
+name: ❓ Question
+description: Ask a question about the project
+title: "[Question]: "
+labels: ["question"]
+assignees:
+  - pacphi
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about Bootstrap Coder on Scaleway? We're here to help!
+
+  - type: checkboxes
+    id: pre-flight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please check these first
+      options:
+        - label: I have read the documentation and couldn't find the answer
+          required: true
+        - label: I have searched existing issues and discussions
+          required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What is your question about?
+      options:
+        - Getting Started/Setup
+        - Terraform Configuration
+        - Multi-Environment Deployment
+        - Kubernetes/Coder Configuration
+        - Workspace Templates
+        - Cost Management/Optimization
+        - Troubleshooting
+        - Security/Best Practices
+        - CI/CD Workflows
+        - Scripts/Automation
+        - Database Management
+        - Networking/Ingress
+        - Performance Optimization
+        - Customization/Extensions
+        - Architecture/Design
+        - Scaleway Platform
+        - Contributing
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: Please be as specific as possible...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant context that might help us answer your question
+      placeholder: |
+        - What are you trying to accomplish?
+        - What have you tried so far?
+        - Which environment are you working with? (dev/staging/prod)
+        - Any relevant configuration or setup details
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment (if relevant)
+      description: Please provide environment details if they might be relevant
+      value: |
+        - OS: [e.g., macOS 14.0, Ubuntu 22.04, Windows 11]
+        - Terraform version: [run `terraform version`]
+        - kubectl version: [run `kubectl version --client`]
+        - Environment: [dev/staging/prod]
+        - Scaleway region: [e.g., fr-par-1, fr-par-2, nl-ams-1]
+        - Deployment method: [Scripts/GitHub Actions/Manual]
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Urgency
+      description: How urgent is getting an answer to this question?
+      options:
+        - Low - Whenever convenient
+        - Medium - Would like an answer soon
+        - High - Blocking my current work
+        - Critical - Production issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: config-details
+    attributes:
+      label: Configuration Details (if relevant)
+      description: Share relevant configuration details (remove any secrets)
+      render: hcl
+      placeholder: |
+        # Relevant configuration snippets
+        # Terraform variables
+        # Environment-specific settings
+
+  - type: checkboxes
+    id: documentation
+    attributes:
+      label: Documentation
+      description: Would the answer to this question be helpful as documentation?
+      options:
+        - label: This question and its answer would be valuable in the documentation
+        - label: I'd be willing to help write documentation for this topic
+
+  - type: textarea
+    id: research
+    attributes:
+      label: Research Done
+      description: What research have you already done?
+      placeholder: |
+        - Documentation sections reviewed
+        - Search terms tried
+        - Similar issues found
+        - Community resources checked

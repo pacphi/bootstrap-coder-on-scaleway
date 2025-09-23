@@ -1,0 +1,196 @@
+name: ✨ Feature Request
+description: Suggest an idea for this project
+title: "[Feature]: "
+labels: ["enhancement", "feature-request"]
+assignees:
+  - pacphi
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your interest in improving Bootstrap Coder on Scaleway! Please provide as much detail as possible about your feature request.
+
+  - type: checkboxes
+    id: pre-flight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please confirm you've completed these steps
+      options:
+        - label: I have searched existing issues to ensure this feature hasn't been requested
+          required: true
+        - label: I have reviewed the documentation and this feature doesn't already exist
+          required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: What type of feature is this?
+      options:
+        - Infrastructure/Terraform
+        - Kubernetes/Coder
+        - Workspace Templates
+        - Cost Optimization
+        - Multi-Environment Support
+        - Security/Authentication
+        - Monitoring/Observability
+        - CI/CD Workflows
+        - Scripts/Automation
+        - Documentation
+        - Database Management
+        - Networking
+        - Developer Experience
+        - Integration
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What's the motivation?
+      placeholder: |
+        Is your feature request related to a problem? Please describe.
+        Example: "I'm always frustrated when deploying to multiple environments..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like
+      placeholder: |
+        A clear and concise description of what you want to happen.
+        Include any specific implementation details if you have them.
+        Consider multi-environment implications, cost impact, and security.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or features you've considered
+      placeholder: |
+        What other approaches could solve this problem?
+        Why is your proposed solution better?
+        Have you considered existing Scaleway/Kubernetes features?
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Describe specific use cases where this feature would be beneficial
+      placeholder: |
+        1. As a DevOps engineer, I want to...
+        2. When managing multiple environments, I need to...
+        3. During cost optimization, it would help to...
+        4. For security compliance, we require...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Low - Nice to have
+        - Medium - Would improve my workflow
+        - High - Significantly impacts my productivity
+        - Critical - Blocking my ability to use the project
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What would need to be implemented for this feature to be considered complete?
+      placeholder: |
+        - [ ] Feature supports dev/staging/prod environments
+        - [ ] Terraform configuration is updated
+        - [ ] Cost impact is documented and minimized
+        - [ ] Documentation is updated
+        - [ ] Tests are added
+        - [ ] CI/CD workflows are updated
+
+  - type: dropdown
+    id: environments
+    attributes:
+      label: Environment Scope
+      description: Which environments should this feature support?
+      options:
+        - All environments (dev/staging/prod)
+        - Production only
+        - Development/staging only
+        - Environment-agnostic
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: implementation
+    attributes:
+      label: Implementation
+      description: Are you willing to help implement this feature?
+      options:
+        - label: I'm willing to submit a pull request for this feature
+        - label: I can help with testing once implemented
+        - label: I can help with documentation
+        - label: I can help with Terraform configuration
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context, mockups, examples, or references
+      placeholder: |
+        - Screenshots or mockups
+        - Examples from other projects
+        - Links to relevant Scaleway/Kubernetes documentation
+        - Terraform configuration examples
+        - Security considerations
+
+  - type: dropdown
+    id: affects-cost
+    attributes:
+      label: Cost Impact
+      description: Could this feature affect Scaleway costs?
+      options:
+        - No impact on costs
+        - Might reduce costs
+        - Might increase costs
+        - Uncertain about cost impact
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scaleway-resources
+    attributes:
+      label: Scaleway Resources
+      description: Which Scaleway resources might this feature affect?
+      options:
+        - Kubernetes (Kapsule)
+        - Database (PostgreSQL)
+        - Load Balancer
+        - Object Storage
+        - Networking/VPC
+        - Compute instances
+        - Multiple resources
+        - No specific resources
+    validations:
+      required: true
+
+  - type: textarea
+    id: security-considerations
+    attributes:
+      label: Security Considerations
+      description: Are there any security implications for this feature?
+      placeholder: |
+        - Authentication/authorization requirements
+        - Network security implications
+        - Data encryption needs
+        - Compliance requirements
+        - Pod security standards impact

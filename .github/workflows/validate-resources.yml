@@ -1,0 +1,244 @@
+name: Resource Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-scripts:
+    name: Validate Shell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Find shell scripts
+        id: find-scripts
+        run: |
+          scripts=$(find . -name "*.sh" -type f | grep -v node_modules | head -20)
+          echo "Found shell scripts:"
+          echo "$scripts"
+          echo "script_count=$(echo "$scripts" | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Run shellcheck on scripts
+        run: |
+          echo "Running shellcheck on shell scripts..."
+          error_count=0
+
+          find . -name "*.sh" -type f | grep -v node_modules | while read -r script; do
+            echo "Checking: $script"
+            if ! shellcheck "$script"; then
+              echo "❌ Shellcheck failed for $script"
+              error_count=$((error_count + 1))
+            else
+              echo "✅ Shellcheck passed for $script"
+            fi
+          done
+
+          echo "Shellcheck validation completed"
+
+  validate-terraform:
+    name: Validate Terraform Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.0"
+
+      - name: Find Terraform directories
+        id: find-tf-dirs
+        run: |
+          tf_dirs=$(find . -name "*.tf" -type f -exec dirname {} \; | sort -u | grep -v node_modules || true)
+          echo "Found Terraform directories:"
+          echo "$tf_dirs"
+          echo "tf_dir_count=$(echo "$tf_dirs" | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Terraform format check
+        run: |
+          echo "Checking Terraform formatting..."
+          if find . -name "*.tf" -type f | grep -v node_modules | xargs terraform fmt -check=true -diff=true; then
+            echo "✅ All Terraform files are properly formatted"
+          else
+            echo "❌ Some Terraform files need formatting"
+            exit 1
+          fi
+
+      - name: Terraform validation
+        run: |
+          echo "Validating Terraform configurations..."
+
+          # Find all directories containing .tf files
+          tf_dirs=$(find . -name "*.tf" -type f -exec dirname {} \; | sort -u | grep -v node_modules || true)
+
+          for dir in $tf_dirs; do
+            echo "Validating Terraform in: $dir"
+            cd "$dir"
+
+            # Initialize without backend (validation only)
+            if terraform init -backend=false; then
+              echo "✅ Terraform init successful in $dir"
+            else
+              echo "❌ Terraform init failed in $dir"
+              exit 1
+            fi
+
+            # Validate syntax
+            if terraform validate; then
+              echo "✅ Terraform validation successful in $dir"
+            else
+              echo "❌ Terraform validation failed in $dir"
+              exit 1
+            fi
+
+            cd - > /dev/null
+          done
+
+          echo "All Terraform configurations are valid"
+
+  validate-markdown:
+    name: Validate Markdown Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install markdownlint-cli
+        run: npm install -g markdownlint-cli
+
+      - name: Create markdownlint config
+        run: |
+          cat > .markdownlint.json << 'EOF'
+          {
+            "MD013": { "line_length": 120 },
+            "MD033": false,
+            "MD041": false
+          }
+          EOF
+
+      - name: Find markdown files
+        id: find-md
+        run: |
+          md_files=$(find . -name "*.md" -type f | grep -v node_modules | head -20)
+          echo "Found markdown files:"
+          echo "$md_files"
+          echo "md_count=$(echo "$md_files" | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Run markdownlint
+        run: |
+          echo "Running markdownlint on markdown files..."
+          if find . -name "*.md" -type f | grep -v node_modules | xargs markdownlint; then
+            echo "✅ All markdown files passed linting"
+          else
+            echo "❌ Some markdown files failed linting"
+            exit 1
+          fi
+
+  validate-yaml:
+    name: Validate YAML Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install yamllint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yamllint
+
+      - name: Create yamllint config
+        run: |
+          cat > .yamllint.yml << 'EOF'
+          extends: default
+          rules:
+            line-length:
+              max: 120
+            comments:
+              min-spaces-from-content: 1
+            document-start: disable
+            truthy: disable
+          EOF
+
+      - name: Find YAML files
+        id: find-yaml
+        run: |
+          yaml_files=$(find . \( -name "*.yml" -o -name "*.yaml" \) -type f | grep -v node_modules | head -20)
+          echo "Found YAML files:"
+          echo "$yaml_files"
+          echo "yaml_count=$(echo "$yaml_files" | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Run yamllint
+        run: |
+          echo "Running yamllint on YAML files..."
+          if find . \( -name "*.yml" -o -name "*.yaml" \) -type f | grep -v node_modules | xargs yamllint; then
+            echo "✅ All YAML files passed linting"
+          else
+            echo "❌ Some YAML files failed linting"
+            exit 1
+          fi
+
+  validation-summary:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    needs: [validate-scripts, validate-terraform, validate-markdown, validate-yaml]
+    if: always()
+    steps:
+      - name: Check validation results
+        run: |
+          echo "=== Resource Validation Summary ==="
+
+          if [[ "${{ needs.validate-scripts.result }}" == "success" ]]; then
+            echo "✅ Shell script validation: PASSED"
+          else
+            echo "❌ Shell script validation: FAILED"
+          fi
+
+          if [[ "${{ needs.validate-terraform.result }}" == "success" ]]; then
+            echo "✅ Terraform validation: PASSED"
+          else
+            echo "❌ Terraform validation: FAILED"
+          fi
+
+          if [[ "${{ needs.validate-markdown.result }}" == "success" ]]; then
+            echo "✅ Markdown validation: PASSED"
+          else
+            echo "❌ Markdown validation: FAILED"
+          fi
+
+          if [[ "${{ needs.validate-yaml.result }}" == "success" ]]; then
+            echo "✅ YAML validation: PASSED"
+          else
+            echo "❌ YAML validation: FAILED"
+          fi
+
+          # Check if any validation failed
+          if [[ "${{ needs.validate-scripts.result }}" != "success" || \
+                "${{ needs.validate-terraform.result }}" != "success" || \
+                "${{ needs.validate-markdown.result }}" != "success" || \
+                "${{ needs.validate-yaml.result }}" != "success" ]]; then
+            echo ""
+            echo "❌ Resource validation failed. Please fix the issues above."
+            exit 1
+          else
+            echo ""
+            echo "🎉 All resource validations passed successfully!"
+          fi

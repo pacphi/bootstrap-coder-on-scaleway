@@ -1,0 +1,419 @@
+name: Release Automation
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  validate-tag:
+    name: Validate Release Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Validate and parse version
+        id: version
+        run: |
+          tag_name="${{ github.ref_name }}"
+          echo "Processing tag: $tag_name"
+
+          # Validate semantic version format
+          if [[ ! $tag_name =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+            echo "❌ Invalid tag format. Expected: v1.0.0 or v1.0.0-alpha.1"
+            exit 1
+          fi
+
+          # Extract version without 'v' prefix
+          version=${tag_name#v}
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+          # Check if this is a prerelease
+          if [[ $version =~ -[a-zA-Z] ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "This is a prerelease: $version"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "This is a stable release: $version"
+          fi
+
+  generate-changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    needs: validate-tag
+    outputs:
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Get full history for changelog generation
+
+      - name: Get previous tag
+        id: previous-tag
+        run: |
+          # Get the second most recent tag
+          previous_tag=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | sed -n '2p')
+          if [[ -z "$previous_tag" ]]; then
+            echo "No previous tag found, using initial commit"
+            previous_tag=$(git rev-list --max-parents=0 HEAD)
+          fi
+          echo "previous_tag=$previous_tag" >> $GITHUB_OUTPUT
+          echo "Previous tag: $previous_tag"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          current_tag="${{ github.ref_name }}"
+          previous_tag="${{ steps.previous-tag.outputs.previous_tag }}"
+          version="${{ needs.validate-tag.outputs.version }}"
+
+          echo "Generating changelog from $previous_tag to $current_tag"
+
+          # Create changelog content
+          changelog_file=$(mktemp)
+
+          echo "# Release $version" > $changelog_file
+          echo "" >> $changelog_file
+
+          # Get commits since last tag
+          commits=$(git log --pretty=format:"* %s (%h)" $previous_tag..$current_tag --no-merges 2>/dev/null || git log --pretty=format:"* %s (%h)" --no-merges)
+
+          # Categorize commits
+          features=""
+          fixes=""
+          docs=""
+          infra=""
+          scripts=""
+          others=""
+
+          while IFS= read -r commit; do
+            if [[ $commit == *"feat"*":"* ]] || [[ $commit == *"feat("*")"*":"* ]]; then
+              features+="$commit"$'\n'
+            elif [[ $commit == *"fix"*":"* ]] || [[ $commit == *"fix("*")"*":"* ]] || [[ $commit == *"(fix)"* ]]; then
+              fixes+="$commit"$'\n'
+            elif [[ $commit == *"infra"*":"* ]] || [[ $commit == *"terraform"*":"* ]] || [[ $commit == *"k8s"*":"* ]]; then
+              infra+="$commit"$'\n'
+            elif [[ $commit == *"script"*":"* ]] || [[ $commit == *"ci"*":"* ]] || [[ $commit == *"workflow"*":"* ]]; then
+              scripts+="$commit"$'\n'
+            elif [[ $commit == *"doc"*":"* ]] || [[ $commit == *"docs"*":"* ]] || [[ $commit == *"doc("*")"*":"* ]] || [[ $commit == *"docs("*")"*":"* ]]; then
+              docs+="$commit"$'\n'
+            else
+              others+="$commit"$'\n'
+            fi
+          done <<< "$commits"
+
+          # Add categorized changes
+          if [[ -n "$features" ]]; then
+            echo "## ✨ Features" >> $changelog_file
+            echo "" >> $changelog_file
+            echo "$features" >> $changelog_file
+          fi
+
+          if [[ -n "$fixes" ]]; then
+            echo "## 🐛 Bug Fixes" >> $changelog_file
+            echo "" >> $changelog_file
+            echo "$fixes" >> $changelog_file
+          fi
+
+          if [[ -n "$infra" ]]; then
+            echo "## 🏗️ Infrastructure" >> $changelog_file
+            echo "" >> $changelog_file
+            echo "$infra" >> $changelog_file
+          fi
+
+          if [[ -n "$scripts" ]]; then
+            echo "## 🔧 Scripts & CI/CD" >> $changelog_file
+            echo "" >> $changelog_file
+            echo "$scripts" >> $changelog_file
+          fi
+
+          if [[ -n "$docs" ]]; then
+            echo "## 📚 Documentation" >> $changelog_file
+            echo "" >> $changelog_file
+            echo "$docs" >> $changelog_file
+          fi
+
+          if [[ -n "$others" ]]; then
+            echo "## 🔧 Other Changes" >> $changelog_file
+            echo "" >> $changelog_file
+            echo "$others" >> $changelog_file
+          fi
+
+          # Add deployment instructions
+          echo "" >> $changelog_file
+          echo "## 🚀 Deployment" >> $changelog_file
+          echo "" >> $changelog_file
+          echo "To deploy this version:" >> $changelog_file
+          echo "" >> $changelog_file
+          echo '```bash' >> $changelog_file
+          echo "git clone https://github.com/${{ github.repository }}.git" >> $changelog_file
+          echo "cd $(basename ${{ github.repository }})" >> $changelog_file
+          echo "git checkout $current_tag" >> $changelog_file
+          echo "" >> $changelog_file
+          echo "# Quick deployment" >> $changelog_file
+          echo "./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai" >> $changelog_file
+          echo "" >> $changelog_file
+          echo "# Or step-by-step" >> $changelog_file
+          echo "./scripts/lifecycle/setup.sh --env=dev --no-coder  # Infrastructure only" >> $changelog_file
+          echo "./scripts/lifecycle/setup.sh --env=dev --coder-only  # Coder only" >> $changelog_file
+          echo '```' >> $changelog_file
+          echo "" >> $changelog_file
+
+          # Add what's changed link
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${previous_tag}...${current_tag}" >> $changelog_file
+
+          # Store changelog for release notes
+          {
+            echo "changelog<<EOF"
+            cat $changelog_file
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+          echo "✅ Changelog generated successfully"
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate-tag, generate-changelog]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Create release assets
+        run: |
+          mkdir -p release-assets
+
+          # Create installation script
+          version="${{ needs.validate-tag.outputs.version }}"
+          is_prerelease="${{ needs.validate-tag.outputs.is_prerelease }}"
+
+          cat > release-assets/install.sh << EOF
+          #!/bin/bash
+          # Quick installation script for Bootstrap Coder on Scaleway
+
+          set -e
+
+          VERSION="$version"
+          TAG="v\${VERSION}"
+          IS_PRERELEASE="$is_prerelease"
+
+          if [[ "\$IS_PRERELEASE" == "true" ]]; then
+            echo "🚧 Installing Bootstrap Coder on Scaleway \$VERSION (Pre-release)"
+            echo "⚠️  This is a pre-release version. Use with caution in production."
+          else
+            echo "🚀 Installing Bootstrap Coder on Scaleway \$VERSION (Stable)"
+          fi
+
+          # Check prerequisites
+          if ! command -v terraform &> /dev/null; then
+            echo "❌ Terraform is required but not installed"
+            echo "Install from: https://www.terraform.io/downloads"
+            exit 1
+          fi
+
+          if ! command -v kubectl &> /dev/null; then
+            echo "❌ kubectl is required but not installed"
+            echo "Install from: https://kubernetes.io/docs/tasks/tools/"
+            exit 1
+          fi
+
+          if ! command -v helm &> /dev/null; then
+            echo "❌ Helm is required but not installed"
+            echo "Install from: https://helm.sh/docs/intro/install/"
+            exit 1
+          fi
+
+          # Clone the repository
+          git clone https://github.com/${{ github.repository }}.git bootstrap-coder-on-scaleway
+          cd bootstrap-coder-on-scaleway
+          git checkout \$TAG
+
+          echo "✅ Downloaded Bootstrap Coder on Scaleway \$VERSION"
+
+          if [[ "\$IS_PRERELEASE" == "true" ]]; then
+            echo "📋 Pre-release Notes:"
+            echo "  • This version may have experimental features"
+            echo "  • Test thoroughly before production use"
+            echo "  • Report issues at: https://github.com/${{ github.repository }}/issues"
+          fi
+
+          echo ""
+          echo "📋 Prerequisites:"
+          echo "  • Scaleway account with API keys configured"
+          echo "  • SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID environment variables"
+          echo ""
+          echo "🚀 Next steps:"
+          echo "  cd bootstrap-coder-on-scaleway"
+          echo "  # Set your Scaleway credentials"
+          echo "  export SCW_ACCESS_KEY=\"your-access-key\""
+          echo "  export SCW_SECRET_KEY=\"your-secret-key\""
+          echo "  export SCW_DEFAULT_PROJECT_ID=\"your-project-id\""
+          echo "  # Deploy development environment"
+          echo "  ./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai"
+          EOF
+
+          chmod +x release-assets/install.sh
+
+          # Create quick reference
+          cat > release-assets/QUICK_REFERENCE.md << 'EOF'
+          # Quick Reference
+
+          ## Environment Setup
+          ```bash
+          # Development (€155.09/month)
+          ./scripts/lifecycle/setup.sh --env=dev --template=python-django-crewai
+
+          # Staging (€694.35/month)
+          ./scripts/lifecycle/setup.sh --env=staging --template=java-spring
+
+          # Production (€1,992.34/month)
+          ./scripts/lifecycle/setup.sh --env=prod --enable-monitoring --enable-ha
+          ```
+
+          ## Management
+          ```bash
+          # Cost analysis
+          ./scripts/utils/cost-calculator.sh --env=all
+
+          # Environment teardown
+          ./scripts/lifecycle/teardown.sh --env=dev --confirm
+
+          # State management
+          ./scripts/utils/state-manager.sh show --env=dev
+          ```
+
+          ## Troubleshooting
+          ```bash
+          # Health check
+          ./scripts/validate.sh --env=dev --quick
+
+          # Test suite
+          ./scripts/test-runner.sh --suite=all
+          ```
+
+          ## Documentation
+          - [Quick Start](docs/QUICK-START.md)
+          - [Architecture](docs/ARCHITECTURE.md)
+          - [Templates](docs/TEMPLATES.md)
+          - [Troubleshooting](docs/TROUBLESHOOTING.md)
+          EOF
+
+          # Create example environment configuration
+          cat > release-assets/example.env << 'EOF'
+          # Scaleway Configuration
+          SCW_ACCESS_KEY=your-access-key
+          SCW_SECRET_KEY=your-secret-key
+          SCW_DEFAULT_PROJECT_ID=your-project-id
+
+          # Optional: For Terraform S3 backend
+          AWS_ACCESS_KEY_ID=$SCW_ACCESS_KEY
+          AWS_SECRET_ACCESS_KEY=$SCW_SECRET_KEY
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ needs.validate-tag.outputs.is_prerelease == 'true' && format('Pre-release {0}', needs.validate-tag.outputs.version) || format('Release {0}', needs.validate-tag.outputs.version) }}
+          body: ${{ needs.generate-changelog.outputs.changelog }}
+          draft: false
+          prerelease: ${{ needs.validate-tag.outputs.is_prerelease }}
+          files: "release-assets/*"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update latest release pointer
+        if: needs.validate-tag.outputs.is_prerelease == 'false'
+        run: |
+          echo "✅ Created stable release ${{ needs.validate-tag.outputs.version }}"
+          echo "This release is now marked as the latest stable version."
+
+  notify-release:
+    name: Notify Release
+    runs-on: ubuntu-latest
+    needs: [validate-tag, create-release]
+    if: always() && needs.create-release.result == 'success'
+    steps:
+      - name: Create success notification
+        run: |
+          version="${{ needs.validate-tag.outputs.version }}"
+          is_prerelease="${{ needs.validate-tag.outputs.is_prerelease }}"
+
+          if [[ "$is_prerelease" == "true" ]]; then
+            echo "🚀 Successfully created prerelease v$version"
+          else
+            echo "🎉 Successfully created stable release v$version"
+          fi
+
+          echo "Release available at: https://github.com/${{ github.repository }}/releases/tag/v$version"
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const version = `${{ needs.validate-tag.outputs.version }}`;
+            const title = `Release Failed - v${version}`;
+            const body = `
+            🚨 **Release Process Failed**
+
+            The release process for v${version} has failed.
+
+            **Details:**
+            - Tag: ${{ github.ref_name }}
+            - Run ID: ${{ github.run_id }}
+            - Failure occurred in: ${{ github.job }}
+
+            Please check the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+            This issue was automatically created by the release workflow.
+            `;
+
+            // Check if a release failure issue already exists for this version
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'release-failure'
+            });
+
+            const existingIssue = issues.data.find(issue =>
+              issue.title.includes(`v${version}`) && issue.title.includes('Release Failed')
+            );
+
+            if (!existingIssue) {
+              console.log(`Creating new release failure issue for v${version}`);
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['bug', 'release-failure', 'high-priority']
+              });
+            } else {
+              console.log(`Release failure issue already exists for v${version}: #${existingIssue.number}`);
+              // Add a comment to the existing issue with new failure details
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `
+                🔄 **Additional Release Failure**
+
+                Another release attempt for v${version} has failed.
+
+                **Details:**
+                - Run ID: ${{ github.run_id }}
+                - Time: ${new Date().toISOString()}
+                - Workflow: [View Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+                `
+              });
+            }
