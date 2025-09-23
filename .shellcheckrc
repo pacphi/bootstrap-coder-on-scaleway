@@ -1,0 +1,20 @@
+# Shellcheck configuration for bootstrap-coder-on-scaleway
+# This file configures shellcheck to use consistent rules across the project
+
+# Disable specific checks that are not relevant for this project
+disable=SC1091  # Not following sourced files (external scripts)
+disable=SC2034  # Unused variables (often used in templates)
+disable=SC2046  # Quote this to prevent word splitting (acceptable in some contexts)
+disable=SC2086  # Double quote to prevent globbing (acceptable for controlled variables)
+disable=SC2207  # Prefer mapfile or read -a (not always practical)
+
+# Set shell dialect (bash is primary shell used in this project)
+shell=bash
+
+# Enable additional optional checks
+enable=deprecate-which
+enable=quote-safe-variables
+enable=require-variable-braces
+
+# Set severity level (error will cause exit code 1)
+severity=warning

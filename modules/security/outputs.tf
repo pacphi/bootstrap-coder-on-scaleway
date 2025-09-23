@@ -15,7 +15,7 @@ output "coder_service_account_name" {
 
 output "coder_cluster_role_name" {
   description = "Name of the Coder cluster role"
-  value       = var.enable_rbac ? kubernetes_cluster_role.coder[0].metadata[0].name : null
+  value       = var.enable_legacy_rbac ? kubernetes_cluster_role.coder_legacy[0].metadata[0].name : null
 }
 
 output "resource_quotas" {

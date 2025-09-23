@@ -32,20 +32,28 @@ jobs:
 
       - name: Run shellcheck on scripts
         run: |
+          set -e
           echo "Running shellcheck on shell scripts..."
-          error_count=0
+          failed_scripts=()
 
-          find . -name "*.sh" -type f | grep -v node_modules | while read -r script; do
+          while IFS= read -r -d '' script; do
             echo "Checking: $script"
             if ! shellcheck "$script"; then
               echo "❌ Shellcheck failed for $script"
-              error_count=$((error_count + 1))
+              failed_scripts+=("$script")
             else
               echo "✅ Shellcheck passed for $script"
             fi
-          done
+          done < <(find . -name "*.sh" -type f ! -path "*/node_modules/*" -print0)
 
-          echo "Shellcheck validation completed"
+          if [ ${#failed_scripts[@]} -gt 0 ]; then
+            echo ""
+            echo "❌ Shellcheck failed for ${#failed_scripts[@]} script(s):"
+            printf '  - %s\n' "${failed_scripts[@]}"
+            exit 1
+          fi
+
+          echo "✅ Shellcheck validation completed successfully"
 
   validate-terraform:
     name: Validate Terraform Files
@@ -124,15 +132,14 @@ jobs:
       - name: Install markdownlint-cli
         run: npm install -g markdownlint-cli
 
-      - name: Create markdownlint config
+      - name: Verify markdownlint config exists
         run: |
-          cat > .markdownlint.json << 'EOF'
-          {
-            "MD013": { "line_length": 120 },
-            "MD033": false,
-            "MD041": false
-          }
-          EOF
+          if [ ! -f .markdownlint.json ]; then
+            echo "❌ .markdownlint.json configuration file not found"
+            echo "Please ensure the markdownlint configuration is committed to the repository"
+            exit 1
+          fi
+          echo "✅ Using existing .markdownlint.json configuration"
 
       - name: Find markdown files
         id: find-md
@@ -164,18 +171,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y yamllint
 
-      - name: Create yamllint config
+      - name: Verify yamllint config exists
         run: |
-          cat > .yamllint.yml << 'EOF'
-          extends: default
-          rules:
-            line-length:
-              max: 120
-            comments:
-              min-spaces-from-content: 1
-            document-start: disable
-            truthy: disable
-          EOF
+          if [ ! -f .yamllint.yml ]; then
+            echo "❌ .yamllint.yml configuration file not found"
+            echo "Please ensure the yamllint configuration is committed to the repository"
+            exit 1
+          fi
+          echo "✅ Using existing .yamllint.yml configuration"
 
       - name: Find YAML files
         id: find-yaml
