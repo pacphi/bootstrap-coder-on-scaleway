@@ -16,6 +16,32 @@ Templates are workspace blueprints that define the development environment (lang
 
 The project includes **21 workspace templates** organized into **6 categories**, providing development environments for modern web development, AI-enhanced workflows, data science, mobile development, and DevOps practices.
 
+### Template Categories
+
+#### **Backend** (7 templates)
+
+Java Spring, Python Django+CrewAI, Go Fiber, Ruby Rails, PHP Symfony, Rust Actix Web, .NET Core
+
+#### **Frontend** (4 templates)
+
+React+TypeScript, Angular, Vue+Nuxt, Svelte Kit
+
+#### **AI-Enhanced** (2 templates)
+
+Claude Code Flow Base/Enterprise with 87 MCP tools, swarm/hive-mind modes
+
+#### **DevOps** (3 templates)
+
+Docker Compose, Kubernetes+Helm, Terraform+Ansible
+
+#### **Data/ML** (2 templates)
+
+Jupyter+Python, R Studio
+
+#### **Mobile** (3 templates)
+
+Flutter, React Native, Ionic
+
 ## Quick Reference
 
 | Category | Template Name | Description | Cost Impact |
@@ -111,7 +137,6 @@ Advanced development environments with AI integration and enhanced capabilities.
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: High (CPU cores, RAM based on template type)
 
-
 ### 🖥️ Backend Templates (7)
 
 Server-side development environments with database integration and API frameworks.
@@ -165,7 +190,6 @@ Server-side development environments with database integration and API framework
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Low (CPU cores, RAM based on template type)
 
-
 ### 📊 Data/ML Templates (2)
 
 Data science and machine learning development environments with specialized tools.
@@ -183,7 +207,6 @@ Data science and machine learning development environments with specialized tool
 - **Description**: R Studio for statistical computing and data analysis
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-
 
 ### ⚙️ DevOps Templates (3)
 
@@ -209,7 +232,6 @@ Infrastructure and deployment tool environments for DevOps workflows.
 - **Description**: Infrastructure as Code with Terraform and Ansible
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-
 
 ### 🌐 Frontend Templates (4)
 
@@ -243,7 +265,6 @@ Modern frontend development environments with popular JavaScript frameworks.
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
 
-
 ### 📱 Mobile Templates (3)
 
 Cross-platform mobile development environments with modern frameworks.
@@ -268,7 +289,6 @@ Cross-platform mobile development environments with modern frameworks.
 - **Description**: React Native mobile development
 - **Features**: [Auto-detected from template configuration]
 - **Resource Requirements**: Medium (CPU cores, RAM based on template type)
-
 
 ## Cost Considerations
 

@@ -99,7 +99,7 @@ graph LR
 
 ### Environment Structure
 
-```
+```text
 environments/
 ├── dev/
 │   ├── infra/          # Phase 1: Infrastructure components

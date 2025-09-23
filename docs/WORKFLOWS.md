@@ -13,6 +13,56 @@ This document provides comprehensive documentation for all GitHub Actions workfl
 
 ## Overview
 
+### Quick Start Guide
+
+For immediate deployment using GitHub Actions workflows:
+
+#### Two-Phase Deployment Workflows
+
+**Complete Environment Deployment** (Recommended):
+```bash
+# Deploy both infrastructure and Coder application
+gh workflow run deploy-environment.yml \
+  -f environment=staging \
+  -f template=react-typescript \
+  -f enable_monitoring=true
+```
+
+**Phase-Specific Deployments**:
+```bash
+# Deploy infrastructure only (Phase 1)
+gh workflow run deploy-infrastructure.yml \
+  -f environment=dev \
+  -f region=fr-par
+
+# Deploy Coder application only (Phase 2) - requires existing infrastructure
+gh workflow run deploy-coder.yml \
+  -f environment=dev \
+  -f template=python-django-crewai
+```
+
+#### Teardown Environment
+```bash
+# Complete teardown (both phases)
+gh workflow run teardown-environment.yml \
+  -f environment=dev \
+  -f confirmation="I understand this will destroy the environment" \
+  -f create_backup=true
+
+# Selective teardown options
+gh workflow run teardown-environment.yml \
+  -f environment=dev \
+  -f teardown_mode=coder_only  # Keep infrastructure, remove Coder only
+```
+
+#### Template Validation
+```bash
+# Validate all templates and infrastructure
+gh workflow run validate-templates.yml \
+  -f validation_scope=comprehensive \
+  -f test_deployments=true
+```
+
 ### Workflow Architecture
 
 The project implements a sophisticated CI/CD pipeline with multiple specialized workflows:
