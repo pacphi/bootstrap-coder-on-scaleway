@@ -1,0 +1,15 @@
+extends: default
+rules:
+  line-length:
+    max: 200
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+  comments:
+    min-spaces-from-content: 1
+  document-start: disable
+  truthy: disable
+  new-line-at-end-of-file: enable
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false

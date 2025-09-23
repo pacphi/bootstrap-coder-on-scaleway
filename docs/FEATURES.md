@@ -204,11 +204,11 @@
 
 | Feature | Shell Scripts | Terraform/CLI | GitHub Actions |
 |---------|--------------|---------------|----------------|
-| **Documentation** |
+| **Documentation** | | | |
 | Auto-generate docs | ✅ generate-template-docs.sh | ❌ | 🔄 In validation |
 | Markdown reports | ✅ | ❌ | ✅ PR comments |
 | JSON/CSV exports | ✅ Multiple tools | ❌ | 🔄 Artifacts |
-| **Logging** |
+| **Logging** | | | |
 | Structured logs | ✅ | 🔄 terraform.log | ✅ |
 | Log rotation | ✅ | ❌ | ✅ Cleanup workflow |
 | Debug mode | ✅ `--verbose` | ✅ TF_LOG=DEBUG | ✅ |
@@ -217,15 +217,15 @@
 
 | Feature | Shell Scripts | Terraform/CLI | GitHub Actions |
 |---------|--------------|---------------|----------------|
-| **CI/CD Integration** |
+| **CI/CD Integration** | | | |
 | PR validation | ❌ | ❌ | ✅ |
 | Auto-merge support | ❌ | ❌ | ✅ |
 | Branch deployments | ❌ | ❌ | ✅ |
-| **GitOps** |
+| **GitOps** | | | |
 | Declarative config | 🔄 | ✅ | ✅ |
 | State reconciliation | 🔄 | ✅ | ✅ |
 | Automated sync | ❌ | ❌ | ✅ |
-| **Multi-tenancy** |
+| **Multi-tenancy** | | | |
 | Workspace isolation | ✅ | ✅ | ✅ |
 | Resource quotas | ✅ | ✅ | ✅ |
 | Namespace separation | ✅ | ✅ | ✅ |

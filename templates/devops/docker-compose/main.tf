@@ -1847,9 +1847,9 @@ resource "kubernetes_deployment" "main" {
 
           security_context {
             # Use specific capabilities instead of privileged mode for better security
-            privileged                = false
-            read_only_root_filesystem = true
-            run_as_non_root           = false  # Docker daemon needs to run as root
+            privileged                 = false
+            read_only_root_filesystem  = true
+            run_as_non_root            = false # Docker daemon needs to run as root
             allow_privilege_escalation = true  # Required for Docker daemon operations
             capabilities {
               add = [
