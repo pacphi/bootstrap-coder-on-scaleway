@@ -52,7 +52,7 @@ for Coder environments on Scaleway.
 Options:
     --env=ENV               Environment to scale (dev|staging|prod) [required]
     --nodes=COUNT           Target number of nodes
-    --node-type=TYPE        Node instance type (GP1-XS|GP1-S|GP1-M|GP1-L|GP1-XL)
+    --node-type=TYPE        Node instance type (GP1-XS|GP1-S|GP1-M)
     --min-nodes=COUNT       Minimum nodes for auto-scaling
     --max-nodes=COUNT       Maximum nodes for auto-scaling
     --auto-approve          Skip confirmation prompts
@@ -69,11 +69,9 @@ Examples:
     $0 --env=dev --nodes=1 --scale-down --confirm
 
 Node Types and Costs (Paris region):
-    GP1-XS:  1 vCPU,  2GB RAM  -  €15.20/month
-    GP1-S:   2 vCPU,  4GB RAM  -  €22.80/month
-    GP1-M:   4 vCPU,  8GB RAM  -  €45.60/month
-    GP1-L:   8 vCPU, 16GB RAM  -  €91.20/month
-    GP1-XL: 16 vCPU, 32GB RAM  - €182.40/month
+    GP1-XS:  4 vCPU, 16GB RAM  -  €66.43/month
+    GP1-S:   8 vCPU, 32GB RAM  - €136.51/month
+    GP1-M:  16 vCPU, 64GB RAM  - €274.48/month
 
 Scaling Safety Features:
     • Workload impact analysis before scaling down
@@ -185,11 +183,9 @@ calculate_cost_impact() {
 
     # Node type costs per month (Paris region)
     declare -A node_costs
-    node_costs["GP1-XS"]=15.20
-    node_costs["GP1-S"]=22.80
-    node_costs["GP1-M"]=45.60
-    node_costs["GP1-L"]=91.20
-    node_costs["GP1-XL"]=182.40
+    node_costs["GP1-XS"]=66.43
+    node_costs["GP1-S"]=136.51
+    node_costs["GP1-M"]=274.48
 
     local current_cost=$(echo "scale=2; $current_nodes * ${node_costs[$current_type]:-0}" | bc 2>/dev/null || echo "0")
     local new_cost=$(echo "scale=2; $new_nodes * ${node_costs[$new_type]:-0}" | bc 2>/dev/null || echo "0")

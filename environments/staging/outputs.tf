@@ -54,11 +54,11 @@ output "security_info" {
 output "cost_estimation" {
   description = "Estimated monthly costs in EUR"
   value = {
-    cluster_nodes = "€68.40" # 3 × GP1-S
-    database      = "€18.45" # DB-GP-S
-    load_balancer = "€8.90"  # LB-S
-    networking    = "€2.10"  # VPC + Gateway
-    total         = "€97.85" # Monthly total
+    cluster_nodes = "€409.53" # 3 × GP1-S
+    database      = "€273.82" # DB-GP-S
+    load_balancer = "€8.90"   # LB-S
+    networking    = "€2.10"   # VPC + Gateway
+    total         = "€694.35" # Monthly total
   }
 }
 

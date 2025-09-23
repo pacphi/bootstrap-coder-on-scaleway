@@ -34,9 +34,9 @@ The system uses a **two-phase deployment architecture** that separates infrastru
 - Workspace template deployment
 
 ### Multi-Environment Strategy
-- **`environments/dev/`**: Cost-optimized (€53.70/month) - 2x GP1-XS nodes, DB-DEV-S
-- **`environments/staging/`**: Production-like testing (€97.85/month) - 3x GP1-S nodes, DB-GP-S
-- **`environments/prod/`**: High-availability enterprise (€374.50/month) - 5x GP1-M nodes, DB-GP-M HA
+- **`environments/dev/`**: Cost-optimized (€155.09/month) - 2x GP1-XS nodes, DB-DEV-S
+- **`environments/staging/`**: Production-like testing (€694.35/month) - 3x GP1-S nodes, DB-GP-S
+- **`environments/prod/`**: High-availability enterprise (€1,992.34/month) - 5x GP1-M nodes, DB-GP-M HA
 
 ### Environment Structure
 ```

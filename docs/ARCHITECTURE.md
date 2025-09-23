@@ -289,9 +289,9 @@ graph TB
 
 | Environment | Nodes | CPU/Node | RAM/Node | Database | Monthly Cost |
 |-------------|-------|----------|-----------|----------|--------------|
-| Development | 2 | 1 vCPU | 2GB | DB-DEV-S | €53.70 |
-| Staging | 3 | 2 vCPU | 4GB | DB-GP-S | €97.85 |
-| Production | 5 | 4 vCPU | 8GB | DB-GP-M HA | €374.50 |
+| Development | 2 | 4 vCPU | 16GB | DB-DEV-S | €155.09 |
+| Staging | 3 | 8 vCPU | 32GB | DB-GP-S | €694.35 |
+| Production | 5 | 16 vCPU | 64GB | DB-GP-M HA | €1,992.34 |
 
 ## Deployment Flow Architecture
 
@@ -317,7 +317,7 @@ sequenceDiagram
     Scaleway-->>Terraform: Return planned resources
     Terraform-->>SetupScript: Show deployment plan
 
-    SetupScript->>DevOps: Request approval for €374.50/month
+    SetupScript->>DevOps: Request approval for €1,992.34/month
     DevOps->>SetupScript: Approve deployment
 
     SetupScript->>Terraform: terraform apply
@@ -857,13 +857,13 @@ sequenceDiagram
     MetricsDB-->>CostCalc: Return CPU, memory, storage usage
 
     CostCalc->>CostCalc: Calculate monthly costs:
-    Note over CostCalc: Compute: 5 nodes × €28.20 = €141<br/>Database: DB-GP-M HA = €178.50<br/>Load Balancer: GP-L = €35<br/>Storage: 500GB × €0.04 = €20<br/>Total: €374.50/month
+    Note over CostCalc: Compute: 5 nodes × €274.48 = €1,372.40<br/>Database: DB-GP-M HA = €547.24<br/>Load Balancer: GP-L = €45.60<br/>Storage: 500GB × €0.04 = €20<br/>Total: €1,985.24/month
 
     CostCalc->>CostCalc: Check against budget (€500)
     CostCalc->>AlertSystem: Set alert threshold (80% = €400)
 
     CostCalc->>Admin: Display cost breakdown
-    Note over Admin: Current: €374.50/month (74.9% of budget)<br/>Projected annual: €4,494<br/>Alert threshold: €400/month
+    Note over Admin: Current: €1,985.24/month (397% of budget)<br/>Projected annual: €23,823<br/>Alert threshold: €400/month
 
     CostCalc->>AlertSystem: Schedule daily cost checks
     AlertSystem-->>Admin: Email if costs exceed €400/month

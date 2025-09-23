@@ -68,12 +68,12 @@ output "ha_status" {
 output "cost_estimation" {
   description = "Estimated monthly costs in EUR"
   value = {
-    cluster_nodes = "€228.00" # 5 × GP1-M
-    database      = "€73.80"  # DB-GP-M HA
-    load_balancer = "€45.60"  # LB-GP-M
-    networking    = "€2.10"   # VPC + Gateway
-    storage       = "€25.00"  # Additional storage
-    total         = "€374.50" # Monthly total
+    cluster_nodes = "€1,372.40" # 5 × GP1-M
+    database      = "€547.24"   # DB-GP-M HA
+    load_balancer = "€45.60"    # LB-GP-M
+    networking    = "€2.10"     # VPC + Gateway
+    storage       = "€25.00"    # Additional storage
+    total         = "€1,992.34" # Monthly total
   }
 }
 

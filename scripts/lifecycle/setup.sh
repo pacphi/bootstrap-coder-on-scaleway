@@ -341,23 +341,23 @@ estimate_costs() {
         # Fallback cost estimation
         case "$ENVIRONMENT" in
             dev)
-                log INFO "💰 Estimated monthly cost: €53.70"
-                log INFO "   - Cluster: €30.40 (2x GP1-XS)"
-                log INFO "   - Database: €12.30 (DB-DEV-S)"
+                log INFO "💰 Estimated monthly cost: €155.09"
+                log INFO "   - Cluster: €132.86 (2x GP1-XS)"
+                log INFO "   - Database: €11.23 (DB-DEV-S)"
                 log INFO "   - Load Balancer: €8.90"
                 log INFO "   - Networking: €2.10"
                 ;;
             staging)
-                log INFO "💰 Estimated monthly cost: €97.85"
-                log INFO "   - Cluster: €68.40 (3x GP1-S)"
-                log INFO "   - Database: €18.45 (DB-GP-S)"
+                log INFO "💰 Estimated monthly cost: €694.35"
+                log INFO "   - Cluster: €409.53 (3x GP1-S)"
+                log INFO "   - Database: €273.82 (DB-GP-S)"
                 log INFO "   - Load Balancer: €8.90"
                 log INFO "   - Networking: €2.10"
                 ;;
             prod)
-                log INFO "💰 Estimated monthly cost: €374.50"
-                log INFO "   - Cluster: €228.00 (5x GP1-M)"
-                log INFO "   - Database: €73.80 (DB-GP-M HA)"
+                log INFO "💰 Estimated monthly cost: €1,992.34"
+                log INFO "   - Cluster: €1,372.40 (5x GP1-M)"
+                log INFO "   - Database: €547.24 (DB-GP-M HA)"
                 log INFO "   - Load Balancer: €45.60 (LB-GP-M)"
                 log INFO "   - Networking: €2.10"
                 log INFO "   - Storage: €25.00"

@@ -29,17 +29,15 @@ START_TIME=$(date +%s)
 
 # Database instance types and costs (EUR per hour)
 declare -A DB_TYPES=(
-    ["DB-DEV-S"]="1 vCPU, 2GB RAM, €12.30/month"
-    ["DB-GP-S"]="2 vCPU, 4GB RAM, €18.45/month"
-    ["DB-GP-M"]="4 vCPU, 16GB RAM, €36.90/month"
-    ["DB-GP-L"]="8 vCPU, 32GB RAM, €73.80/month"
+    ["DB-DEV-S"]="2 vCPU, 2GB RAM, €11.23/month"
+    ["DB-GP-S"]="8 vCPU, 32GB RAM, €273.82/month"
+    ["DB-GP-M"]="16 vCPU, 64GB RAM, €547.24/month"
 )
 
 declare -A DB_COSTS=(
-    ["DB-DEV-S"]="0.0171"
-    ["DB-GP-S"]="0.0256"
-    ["DB-GP-M"]="0.0513"
-    ["DB-GP-L"]="0.1025"
+    ["DB-DEV-S"]="0.0156"
+    ["DB-GP-S"]="0.3803"
+    ["DB-GP-M"]="0.7595"
 )
 
 print_banner() {
@@ -71,10 +69,9 @@ Options:
     --help                 Show this help message
 
 Instance Types:
-    DB-DEV-S    1 vCPU, 2GB RAM      €12.30/month    (Development)
-    DB-GP-S     2 vCPU, 4GB RAM      €18.45/month    (Small workloads)
-    DB-GP-M     4 vCPU, 16GB RAM     €36.90/month    (Medium workloads)
-    DB-GP-L     8 vCPU, 32GB RAM     €73.80/month    (Large workloads)
+    DB-DEV-S    2 vCPU, 2GB RAM      €11.23/month    (Development)
+    DB-GP-S     8 vCPU, 32GB RAM     €273.82/month   (Small workloads)
+    DB-GP-M     16 vCPU, 64GB RAM    €547.24/month   (Medium workloads)
 
 Examples:
     $0 --env=prod --instance-type=DB-GP-S --confirm
@@ -320,12 +317,6 @@ provide_resize_recommendations() {
             echo "  • Max ~50-75 concurrent connections"
             echo "  • Database size < 200GB recommended"
             echo "  • Good balance of performance and cost"
-            ;;
-        "DB-GP-L")
-            echo "  • High-performance production workloads"
-            echo "  • Max ~100+ concurrent connections"
-            echo "  • Database size < 500GB recommended"
-            echo "  • Maximum available performance tier"
             ;;
     esac
 

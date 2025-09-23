@@ -27,20 +27,17 @@ ALERT_THRESHOLD=80
 CURRENCY="EUR"
 OUTPUT_FORMAT="table"
 
-# Scaleway pricing (EUR per hour, updated as of December 2023)
+# Scaleway pricing (EUR per hour)
 declare -A NODE_COSTS=(
-    ["GP1-XS"]="0.0211"    # €15.20/month
-    ["GP1-S"]="0.0317"     # €22.80/month
-    ["GP1-M"]="0.0633"     # €45.60/month
-    ["GP1-L"]="0.1267"     # €91.20/month
-    ["GP1-XL"]="0.2533"    # €182.40/month
+    ["GP1-XS"]="0.091"     # €66.43/month (4 vCPU, 16GB RAM)
+    ["GP1-S"]="0.187"      # €136.51/month (8 vCPU, 32GB RAM)
+    ["GP1-M"]="0.376"      # €274.48/month (16 vCPU, 64GB RAM)
 )
 
 declare -A DB_COSTS=(
-    ["DB-DEV-S"]="0.0171"    # €12.30/month
-    ["DB-GP-S"]="0.0256"     # €18.45/month
-    ["DB-GP-M"]="0.0513"     # €36.90/month
-    ["DB-GP-L"]="0.1025"     # €73.80/month
+    ["DB-DEV-S"]="0.0156"   # €11.23/month (2 vCPU, 2GB RAM)
+    ["DB-GP-S"]="0.3803"    # €273.82/month (8 vCPU, 32GB RAM)
+    ["DB-GP-M"]="0.7595"    # €547.24/month (16 vCPU, 64GB RAM)
 )
 
 declare -A LB_COSTS=(
