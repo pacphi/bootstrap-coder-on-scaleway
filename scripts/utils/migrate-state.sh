@@ -93,7 +93,7 @@ Two-Phase Architecture:
   - coder/: Application state (Coder platform, templates)
 
 Prerequisites:
-  - Terraform >= 1.12.0
+  - Terraform >= 1.13.3
   - Valid Scaleway credentials
   - Backend infrastructure already created
 EOF
@@ -141,8 +141,8 @@ check_prerequisites() {
     local tf_minor
     tf_minor=$(echo "$tf_version" | cut -d. -f2)
 
-    if [[ $tf_major -lt 1 ]] || [[ $tf_major -eq 1 && $tf_minor -lt 12 ]]; then
-        log_error "Terraform version $tf_version is not supported. Minimum required: 1.12.0"
+    if [[ $tf_major -lt 1 ]] || [[ $tf_major -eq 1 && $tf_minor -lt 13 ]]; then
+        log_error "Terraform version $tf_version is not supported. Minimum required: 1.13.3"
         exit 1
     fi
 

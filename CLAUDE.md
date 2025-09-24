@@ -8,7 +8,7 @@ This is a **Terraform-based Infrastructure as Code (IaC)** project that deploys 
 
 **Core Technology Stack:**
 
-- **Infrastructure**: Terraform (≥1.12.0) with Scaleway provider
+- **Infrastructure**: Terraform (≥1.13.3) with Scaleway provider
 - **Container Platform**: Kubernetes on Scaleway Kapsule with Cilium CNI
 - **Application**: Coder development platform with workspace templates
 - **Database**: Managed PostgreSQL with environment-specific configurations
@@ -155,7 +155,7 @@ terraform output  # Get Coder URLs, admin credentials
 
 > **Detailed setup instructions:** See [docs/PREREQUISITES.md](docs/PREREQUISITES.md)
 
-**Required Tools**: Terraform ≥1.12.0, kubectl ≥1.32.0, Helm ≥3.12.0, jq
+**Required Tools**: Terraform ≥1.13.3, kubectl ≥1.32.0, Helm ≥3.12.0, jq
 
 **Environment Variables:**
 

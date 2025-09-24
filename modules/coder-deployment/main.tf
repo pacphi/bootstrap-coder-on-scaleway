@@ -262,7 +262,7 @@ resource "kubernetes_deployment" "coder" {
                 name = var.use_external_secrets ? "admin-credentials" : kubernetes_secret.admin_credentials[0].metadata[0].name
                 # Note: This references a password field from Kubernetes secret - this is secure
                 # as it uses proper secret management instead of hardcoded values
-                key  = var.use_external_secrets ? "CODER_FIRST_USER_PASSWORD" : "password"
+                key = var.use_external_secrets ? "CODER_FIRST_USER_PASSWORD" : "password"
               }
             }
           }
@@ -401,14 +401,10 @@ resource "kubernetes_deployment" "coder" {
     }
   }
 
-  depends_on = concat([
+  depends_on = [
     kubernetes_config_map.coder_config,
     kubernetes_persistent_volume_claim.coder_data
-    ],
-    var.use_external_secrets ? [] : [
-      kubernetes_secret.database_url[0],
-      kubernetes_secret.admin_credentials[0]
-  ])
+  ]
 }
 
 # Service for Coder

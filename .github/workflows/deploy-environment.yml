@@ -112,7 +112,7 @@ jobs:
             ~/.terraform.d/plugin-cache
             /usr/local/bin/kubectl
             /usr/local/bin/helm
-          key: tools-${{ runner.os }}-terraform-1.12.0-kubectl-1.32.0-helm-3.12.0
+          key: tools-${{ runner.os }}-terraform-1.13.0-kubectl-1.32.0-helm-3.12.0
 
       - name: Quick Syntax Validation
         id: validate

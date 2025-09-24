@@ -250,7 +250,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.12.0"
+          terraform_version: "~1.13.0"
         env:
           TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
 
@@ -453,7 +453,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.12.0"
+          terraform_version: "~1.13.0"
           terraform_wrapper: false
 
       - name: Setup kubectl
@@ -542,7 +542,7 @@ jobs:
           | Stage | Status | Details |
           |-------|--------|---------|
           | Template Discovery | ${{ needs.discover-templates.result == 'success' && '✅ Passed' || '❌ Failed' }} | Found ${{ needs.discover-templates.outputs.template_count }} templates |
-          | Syntax Validation | ${{ needs.validate-syntax.result == 'success' && '✅ Passed' || (needs.validate-syntax.result == 'failure' && '❌ Failed' || '⏭️ Skipped') }} | Terraform syntax and format validation |
+          | Syntax Validation | ${{ needs.validate-syntax.result == 'success' && '✅ Passed' || (needs.validate-syntax.result == 'failure' && '❌ Failed' || '⏭️ Skipped') }} | Terraform syntax validation |
           | Documentation Check | ${{ needs.validate-documentation.result == 'success' && '✅ Passed' || (needs.validate-documentation.result == 'failure' && '❌ Failed' || '⏭️ Skipped') }} | README and documentation validation |
           | Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || (needs.security-scan.result == 'failure' && '❌ Failed' || '⏭️ Skipped') }} | Checkov security scanning |
           | Deployment Test | ${{ needs.test-deployment.result == 'success' && '✅ Passed' || (needs.test-deployment.result == 'failure' && '❌ Failed' || '⏭️ Skipped') }} | Live deployment testing |

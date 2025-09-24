@@ -1,0 +1,39 @@
+# Shellcheck configuration for bootstrap-coder-on-scaleway
+# This file configures shellcheck to use consistent rules across the project
+
+# Disable specific checks that are not relevant for this project
+disable=SC1091  # Not following sourced files (external scripts)
+disable=SC2001  # Use parameter expansion instead of sed (style preference)
+disable=SC2005  # Useless use of echo (acceptable in many contexts)
+disable=SC2015  # A && B || C is not if-then-else (acceptable pattern)
+disable=SC2034  # Unused variables (often used in templates)
+disable=SC2046  # Quote this to prevent word splitting (acceptable in some contexts)
+disable=SC2086  # Double quote to prevent globbing (acceptable for controlled variables)
+disable=SC2126  # Consider using grep -c instead of grep|wc -l (style preference)
+disable=SC2144  # globs don't work with -f (acceptable pattern in this project)
+disable=SC2153  # Possible misspelling of variables (false positives with dynamic vars)
+disable=SC2155  # Declare and assign separately (acceptable pattern in this project)
+disable=SC2181  # Check exit code directly (sometimes impractical)
+disable=SC2183  # This format string has more %s than arguments (template related)
+disable=SC2199  # Arrays implicitly concatenate (acceptable in some contexts)
+disable=SC2207  # Prefer mapfile or read -a (not always practical)
+disable=SC2221  # Case pattern always overrides later one (acceptable overlapping patterns)
+disable=SC2222  # Case pattern never matches due to previous pattern (acceptable design)
+disable=SC2248  # Prefer explicit -n to check for output (style preference)
+disable=SC2250  # Prefer putting braces around variable references (style preference)
+disable=SC2329  # This file has a shebang but is not executable (some scripts are sourced)
+disable=SC2012  # Use find instead of ls to better handle filenames (acceptable pattern)
+disable=SC2076  # Remove quotes from right-hand side of =~ (acceptable pattern)
+disable=SC2295  # Expansions inside ${..} need to be quoted separately (style preference)
+disable=SC2317  # Command appears to be unreachable (acceptable for template functions)
+
+# Set shell dialect (bash is primary shell used in this project)
+shell=bash
+
+# Enable additional optional checks
+enable=deprecate-which
+enable=quote-safe-variables
+enable=require-variable-braces
+
+# Set severity level (error will cause exit code 1)
+severity=warning

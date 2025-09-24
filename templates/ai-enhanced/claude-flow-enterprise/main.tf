@@ -204,9 +204,9 @@ resource "coder_agent" "main" {
     echo "🐚 Installing Oh My Zsh..."
     curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh | bash || true
 
-    # Install Node.js 20 LTS
-    echo "📦 Installing Node.js 20 LTS..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    # Install Node.js 22 LTS
+    echo "📦 Installing Node.js 22 LTS..."
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo apt-get install -y nodejs
 
     # Install pnpm and yarn
@@ -227,17 +227,18 @@ resource "coder_agent" "main" {
     # Enterprise stack specific installations
     case "${data.coder_parameter.enterprise_stack.value}" in
       "full-enterprise"|"enterprise-web")
-        echo "☕ Installing Java 21..."
-        wget -qO - https://packages.adoptium.net/artifactory/api/gpg/public/repositories/deb | sudo gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg
-        echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | sudo tee /etc/apt/sources.list.d/adoptium.list
+        echo "☕ Installing Java 25 LTS..."
+        # Add Bellsoft Liberica repository
+        wget -qO - https://download.bell-sw.com/pki/GPG-KEY-bellsoft | sudo gpg --dearmor -o /etc/apt/keyrings/bellsoft.gpg
+        echo "deb [signed-by=/etc/apt/keyrings/bellsoft.gpg] https://apt.bell-sw.com/ stable main" | sudo tee /etc/apt/sources.list.d/bellsoft.list
         sudo apt-get update
-        sudo apt-get install -y liberica-21-jdk
+        sudo apt-get install -y bellsoft-java25-full
 
         # Install Maven and Gradle
         sudo apt-get install -y maven
-        wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -P /tmp
-        sudo unzip -q /tmp/gradle-8.5-bin.zip -d /opt
-        sudo ln -sf /opt/gradle-8.5/bin/gradle /usr/local/bin/gradle
+        wget -q https://services.gradle.org/distributions/gradle-9.1-bin.zip -P /tmp
+        sudo unzip -q /tmp/gradle-9.1-bin.zip -d /opt
+        sudo ln -sf /opt/gradle-9.1/bin/gradle /usr/local/bin/gradle
 
         echo "💙 Installing .NET 8.0..."
         wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
@@ -250,12 +251,12 @@ resource "coder_agent" "main" {
 
     case "${data.coder_parameter.enterprise_stack.value}" in
       "full-enterprise"|"ai-research")
-        echo "🐍 Installing Python 3.12 and AI/ML stack..."
+        echo "🐍 Installing Python 3.13 and AI/ML stack..."
         sudo add-apt-repository ppa:deadsnakes/ppa -y
         sudo apt-get update
-        sudo apt-get install -y python3.12 python3.12-dev python3.12-venv python3-pip
-        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
-        sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
+        sudo apt-get install -y python3.13 python3.13-dev python3.13-venv python3-pip
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
+        sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1
 
         # Install Poetry
         curl -sSL https://install.python-poetry.org | python3 -
@@ -463,7 +464,7 @@ EOF
           -d description="Enterprise User Service" \
           -d packageName=com.enterprise.userservice \
           -d packaging=jar \
-          -d javaVersion=21 \
+          -d javaVersion=25 \
           -d dependencies=web,data-jpa,postgresql,actuator,security \
           -o user-service.zip
         unzip user-service.zip && rm user-service.zip
@@ -509,10 +510,10 @@ EOF
       echo "📊 Setting up enterprise monitoring..."
 
       # Install Prometheus node exporter
-      wget -q https://github.com/prometheus/node_exporter/releases/download/v1.7.0/node_exporter-1.7.0.linux-amd64.tar.gz
-      tar xzf node_exporter-1.7.0.linux-amd64.tar.gz
-      sudo mv node_exporter-1.7.0.linux-amd64/node_exporter /usr/local/bin/
-      rm -rf node_exporter-1.7.0.linux-amd64*
+      wget -q https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz
+      tar xzf node_exporter-1.8.2.linux-amd64.tar.gz
+      sudo mv node_exporter-1.8.2.linux-amd64/node_exporter /usr/local/bin/
+      rm -rf node_exporter-1.8.2.linux-amd64*
 
       # Create monitoring dashboard
       mkdir -p /home/coder/monitoring/dashboards
@@ -792,7 +793,7 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = "ubuntu@sha256:2e863c44b718727c860746568e1d54afd13b2fa71b160f5cd9058fc436217b30"
+          image             = "ubuntu:24.04"
           image_pull_policy = "Always"
           command           = ["/bin/bash", "-c", coder_agent.main.init_script]
 

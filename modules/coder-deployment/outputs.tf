@@ -49,8 +49,8 @@ output "deployment_status" {
 output "secrets" {
   description = "Names of created secrets"
   value = {
-    database     = kubernetes_secret.database_url.metadata[0].name
-    admin        = kubernetes_secret.admin_credentials.metadata[0].name
+    database     = var.use_external_secrets ? null : kubernetes_secret.database_url[0].metadata[0].name
+    admin        = var.use_external_secrets ? null : kubernetes_secret.admin_credentials[0].metadata[0].name
     oauth_github = var.oauth_config != null && var.oauth_config.github != null ? kubernetes_secret.oauth_github[0].metadata[0].name : null
     oauth_google = var.oauth_config != null && var.oauth_config.google != null ? kubernetes_secret.oauth_google[0].metadata[0].name : null
   }

@@ -1,0 +1,170 @@
+name: 🐛 Bug Report
+description: File a bug report to help us improve
+title: "[Bug]: "
+labels: ["bug", "triage"]
+assignees:
+  - pacphi
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please provide as much detail as possible.
+
+  - type: checkboxes
+    id: pre-flight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please confirm you've completed these steps before filing the bug report
+      options:
+        - label: I have read the [troubleshooting guide](../../docs/TROUBLESHOOTING.md)
+          required: true
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I am using the latest version or have tested with the latest version
+          required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - Infrastructure Deployment
+        - Terraform Configuration
+        - Kubernetes/Coder
+        - Scripts/Automation
+        - Templates
+        - CI/CD Workflows
+        - Cost Management
+        - Documentation
+        - Security/Authentication
+        - Networking
+        - Database
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe what happened vs what you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Run command './scripts/lifecycle/setup.sh --env=dev'
+        2. Deploy with 'terraform apply'
+        3. Access Coder at '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Information
+      description: Please provide environment details
+      value: |
+        - OS: [e.g., macOS 14.0, Ubuntu 22.04, Windows 11]
+        - Terraform version: [run `terraform version`]
+        - kubectl version: [run `kubectl version --client`]
+        - Environment: [dev/staging/prod]
+        - Scaleway region: [e.g., fr-par-1, fr-par-2, nl-ams-1]
+        - Node pool type: [e.g., GP1-XS, GP1-S, GP1-M]
+    validations:
+      required: true
+
+  - type: textarea
+    id: terraform-config
+    attributes:
+      label: Terraform Configuration
+      description: Please share relevant configuration (remove any secrets)
+      render: hcl
+      placeholder: |
+        # Relevant parts of your terraform configuration
+        resource "scaleway_k8s_cluster" "main" {
+          name    = "coder-${var.environment}"
+          version = "1.29.1"
+          # ...
+        }
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and Error Messages
+      description: Please include relevant logs and error messages
+      render: shell
+      placeholder: |
+        # Include output from:
+        # terraform plan/apply output
+        # kubectl logs deployment/coder -n coder
+        # ./scripts/validate.sh output
+        # Any error messages from setup scripts
+
+  - type: textarea
+    id: scaleway-resources
+    attributes:
+      label: Scaleway Resources
+      description: Information about related Scaleway resources
+      placeholder: |
+        - Cluster ID: [if known]
+        - Database instance: [if relevant]
+        - Load balancer: [if relevant]
+        - Any error messages from Scaleway console
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here
+      placeholder: Screenshots, additional logs, related issues, cost impact, etc.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this issue?
+      options:
+        - Low - Minor inconvenience
+        - Medium - Affects functionality but has workarounds
+        - High - Blocks major functionality
+        - Critical - Completely broken, no workarounds
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cost-impact
+    attributes:
+      label: Cost Impact
+      description: Does this issue affect costs?
+      options:
+        - No cost impact
+        - Minor cost increase
+        - Significant cost increase
+        - Prevents cost optimization
+        - Unknown cost impact
+    validations:
+      required: true

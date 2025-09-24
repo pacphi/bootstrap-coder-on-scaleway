@@ -27,12 +27,12 @@ resource "scaleway_secret" "database_credentials" {
   region      = var.region
   project_id  = var.project_id
 
-  tags = {
-    Environment = var.environment
-    Service     = "coder"
-    Type        = "database"
-    ManagedBy   = "terraform"
-  }
+  tags = [
+    "Environment:${var.environment}",
+    "Service:coder",
+    "Type:database",
+    "ManagedBy:terraform"
+  ]
 }
 
 resource "scaleway_secret_version" "database_password" {
@@ -54,12 +54,12 @@ resource "scaleway_secret" "coder_admin_credentials" {
   region      = var.region
   project_id  = var.project_id
 
-  tags = {
-    Environment = var.environment
-    Service     = "coder"
-    Type        = "admin"
-    ManagedBy   = "terraform"
-  }
+  tags = [
+    "Environment:${var.environment}",
+    "Service:coder",
+    "Type:admin",
+    "ManagedBy:terraform"
+  ]
 }
 
 resource "scaleway_secret_version" "coder_admin_password" {
@@ -80,13 +80,13 @@ resource "scaleway_secret" "oauth_github" {
   region      = var.region
   project_id  = var.project_id
 
-  tags = {
-    Environment = var.environment
-    Service     = "coder"
-    Type        = "oauth"
-    Provider    = "github"
-    ManagedBy   = "terraform"
-  }
+  tags = [
+    "Environment:${var.environment}",
+    "Service:coder",
+    "Type:oauth",
+    "Provider:github",
+    "ManagedBy:terraform"
+  ]
 }
 
 resource "scaleway_secret_version" "oauth_github" {
@@ -108,13 +108,13 @@ resource "scaleway_secret" "oauth_google" {
   region      = var.region
   project_id  = var.project_id
 
-  tags = {
-    Environment = var.environment
-    Service     = "coder"
-    Type        = "oauth"
-    Provider    = "google"
-    ManagedBy   = "terraform"
-  }
+  tags = [
+    "Environment:${var.environment}",
+    "Service:coder",
+    "Type:oauth",
+    "Provider:google",
+    "ManagedBy:terraform"
+  ]
 }
 
 resource "scaleway_secret_version" "oauth_google" {
@@ -136,12 +136,12 @@ resource "scaleway_secret" "application_secrets" {
   region      = var.region
   project_id  = var.project_id
 
-  tags = merge({
-    Environment = var.environment
-    Service     = "coder"
-    Type        = "application"
-    ManagedBy   = "terraform"
-  }, each.value.tags)
+  tags = concat([
+    "Environment:${var.environment}",
+    "Service:coder",
+    "Type:application",
+    "ManagedBy:terraform"
+  ], [for k, v in each.value.tags : "${k}:${v}"])
 }
 
 resource "scaleway_secret_version" "application_secrets" {

@@ -93,7 +93,7 @@ data "coder_parameter" "python_version" {
   name         = "python_version"
   display_name = "Python Version"
   description  = "Python version to install"
-  default      = "3.12"
+  default      = "3.13"
   icon         = "/icon/python.svg"
   mutable      = false
   option {
@@ -103,6 +103,10 @@ data "coder_parameter" "python_version" {
   option {
     name  = "Python 3.12"
     value = "3.12"
+  }
+  option {
+    name  = "Python 3.13"
+    value = "3.13"
   }
 }
 
@@ -220,7 +224,7 @@ resource "coder_agent" "main" {
         ;;
       "pycharm")
         # Download and install PyCharm Community
-        wget -q https://download.jetbrains.com/python/pycharm-community-2023.3.2.tar.gz -O /tmp/pycharm.tar.gz
+        wget -q https://download.jetbrains.com/python/pycharm-community-2025.2.tar.gz -O /tmp/pycharm.tar.gz
         sudo tar -xzf /tmp/pycharm.tar.gz -C /opt
         sudo ln -sf /opt/pycharm-community-*/bin/pycharm.sh /usr/local/bin/pycharm
         ;;
@@ -244,8 +248,8 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^${data.coder_parameter.python_version.value}"
-django = "^5.0.0"
-djangorestframework = "^3.14.0"
+django = "^5.2.6"
+djangorestframework = "^3.15.0"
 celery = "^5.3.0"
 redis = "^5.0.0"
 psycopg2-binary = "^2.9.0"
@@ -770,7 +774,7 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = "ubuntu@sha256:2e863c44b718727c860746568e1d54afd13b2fa71b160f5cd9058fc436217b30"
+          image             = "ubuntu:24.04"
           image_pull_policy = "Always"
           command           = ["/bin/bash", "-c", coder_agent.main.init_script]
 

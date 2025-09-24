@@ -176,9 +176,9 @@ resource "coder_agent" "main" {
       gnupg \
       lsb-release
 
-    # Install Node.js 20 LTS
-    echo "📦 Installing Node.js 20 LTS..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    # Install Node.js 22 LTS
+    echo "📦 Installing Node.js 22 LTS..."
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo apt-get install -y nodejs
 
     # Verify Node.js installation
@@ -202,9 +202,9 @@ resource "coder_agent" "main" {
     case "${data.coder_parameter.development_stack.value}" in
       "fullstack"|"python-ai")
         echo "🐍 Installing Python stack..."
-        sudo apt-get install -y python3.12 python3.12-dev python3.12-venv python3-pip
-        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
-        sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
+        sudo apt-get install -y python3.13 python3.13-dev python3.13-venv python3-pip
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
+        sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1
 
         # Install Poetry
         curl -sSL https://install.python-poetry.org | python3 -
@@ -646,7 +646,7 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = "ubuntu@sha256:2e863c44b718727c860746568e1d54afd13b2fa71b160f5cd9058fc436217b30"
+          image             = "ubuntu:24.04"
           image_pull_policy = "Always"
           command           = ["/bin/bash", "-c", coder_agent.main.init_script]
 

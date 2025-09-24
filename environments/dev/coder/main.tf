@@ -1,25 +1,9 @@
 terraform {
-  required_version = ">= 1.12.0"
-}
-
-# Data sources to read infrastructure outputs
-data "terraform_remote_state" "infra" {
-  backend = "s3"
-  config = {
-    bucket = "terraform-state-coder-dev"
-    key    = "infra/terraform.tfstate"
-    region = var.scaleway_region
-    endpoints = {
-      s3 = "https://s3.${var.scaleway_region}.scw.cloud"
-    }
-    skip_credentials_validation = true
-    skip_metadata_api_check     = true
-    skip_region_validation      = true
-    skip_requesting_account_id  = true
-  }
+  required_version = ">= 1.13.0"
 }
 
 # Local variables for coder deployment
+# Note: data.terraform_remote_state.infra is defined in providers.tf
 locals {
   environment  = "dev"
   project_name = "coder"

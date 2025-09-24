@@ -93,13 +93,9 @@ data "coder_parameter" "python_version" {
   name         = "python_version"
   display_name = "Python Version"
   description  = "Python version to install"
-  default      = "3.11"
+  default      = "3.13"
   icon         = "/icon/python.svg"
   mutable      = false
-  option {
-    name  = "Python 3.10"
-    value = "3.10"
-  }
   option {
     name  = "Python 3.11"
     value = "3.11"
@@ -107,6 +103,10 @@ data "coder_parameter" "python_version" {
   option {
     name  = "Python 3.12"
     value = "3.12"
+  }
+  option {
+    name  = "Python 3.13"
+    value = "3.13"
   }
 }
 
@@ -868,7 +868,7 @@ services:
     restart: unless-stopped
 
   mlflow:
-    image: python:3.11-slim
+    image: python:3.13-slim
     ports:
       - "5000:5000"
     volumes:
@@ -1151,7 +1151,7 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = "ubuntu@sha256:2e863c44b718727c860746568e1d54afd13b2fa71b160f5cd9058fc436217b30"
+          image             = "ubuntu:24.04"
           image_pull_policy = "Always"
           command           = ["/bin/bash", "-c", coder_agent.main.init_script]
 

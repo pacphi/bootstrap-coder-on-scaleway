@@ -89,7 +89,7 @@ data "coder_parameter" "node_version" {
   name         = "node_version"
   display_name = "Node.js Version"
   description  = "Node.js version to install"
-  default      = "20"
+  default      = "22"
   icon         = "/icon/nodejs.svg"
   mutable      = false
   option {
@@ -101,8 +101,8 @@ data "coder_parameter" "node_version" {
     value = "20"
   }
   option {
-    name  = "Node.js 21"
-    value = "21"
+    name  = "Node.js 22 LTS"
+    value = "22"
   }
 }
 
@@ -212,7 +212,7 @@ resource "coder_agent" "main" {
 
     # Install Node.js ${data.coder_parameter.node_version.value} via NVM
     echo "📦 Installing Node.js ${data.coder_parameter.node_version.value}..."
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
     export NVM_DIR="$HOME/.nvm"
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
     nvm install ${data.coder_parameter.node_version.value}
@@ -1140,7 +1140,7 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = "ubuntu@sha256:2e863c44b718727c860746568e1d54afd13b2fa71b160f5cd9058fc436217b30"
+          image             = "ubuntu:24.04"
           image_pull_policy = "Always"
           command           = ["/bin/bash", "-c", coder_agent.main.init_script]
 

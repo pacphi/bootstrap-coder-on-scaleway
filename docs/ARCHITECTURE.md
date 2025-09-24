@@ -355,7 +355,7 @@ sequenceDiagram
 
     Template->>K8s: Create workspace pod
     K8s->>Workspace: Initialize container with:
-    Note over Workspace: - Python 3.11 + Django 4.2<br/>- CrewAI framework<br/>- PostgreSQL client<br/>- VS Code + extensions<br/>- Claude Code CLI
+    Note over Workspace: - Python 3.13 + Django 5.2 LTS<br/>- CrewAI framework<br/>- PostgreSQL client<br/>- VS Code + extensions<br/>- Claude Code CLI
 
     Workspace->>ClaudeFlow: Initialize AI environment
     ClaudeFlow->>Workspace: Load 87 MCP tools
@@ -681,9 +681,9 @@ sequenceDiagram
     Coder->>Template: Process template configuration
 
     Template->>Template: Parse template variables:
-    Note over Template: - Python version: 3.11<br/>- Django version: 4.2<br/>- CPU: 2 cores<br/>- Memory: 4GB<br/>- Storage: 20GB
+    Note over Template: - Python version: 3.13<br/>- Django version: 5.2.6<br/>- CPU: 2 cores<br/>- Memory: 4GB<br/>- Storage: 20GB
 
-    Template->>Registry: Pull base Ubuntu 22.04 image
+    Template->>Registry: Pull base Ubuntu 24.04 image
     Template->>K8s: Create ConfigMap with setup scripts
     Template->>Storage: Provision 20GB PVC
 

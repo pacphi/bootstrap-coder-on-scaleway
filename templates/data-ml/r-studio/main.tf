@@ -259,7 +259,7 @@ resource "coder_agent" "main" {
         sudo apt install -y code
 
         # Install Quarto
-        wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.549/quarto-1.4.549-linux-amd64.deb
+        wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.5.57/quarto-1.5.57-linux-amd64.deb
         sudo dpkg -i quarto-1.4.549-linux-amd64.deb
         rm quarto-1.4.549-linux-amd64.deb
 
@@ -1085,7 +1085,7 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = "ubuntu@sha256:2e863c44b718727c860746568e1d54afd13b2fa71b160f5cd9058fc436217b30"
+          image             = "ubuntu:24.04"
           image_pull_policy = "Always"
           command           = ["/bin/bash", "-c", coder_agent.main.init_script]
 

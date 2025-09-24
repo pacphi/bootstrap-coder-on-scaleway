@@ -104,6 +104,10 @@ data "coder_parameter" "java_version" {
     name  = "Java 21 LTS"
     value = "21"
   }
+  option {
+    name  = "Java 25 LTS"
+    value = "25"
+  }
 }
 
 data "coder_parameter" "ide" {
@@ -143,20 +147,20 @@ resource "coder_agent" "main" {
     sudo apt-get update
     sudo apt-get install -y wget apt-transport-https gnupg
 
-    # Add Eclipse Temurin repository
-    wget -qO - https://packages.adoptium.net/artifactory/api/gpg/public/repositories/deb | sudo gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | sudo tee /etc/apt/sources.list.d/adoptium.list
+    # Add Bellsoft Liberica repository
+    wget -qO - https://download.bell-sw.com/pki/GPG-KEY-bellsoft | sudo gpg --dearmor -o /etc/apt/keyrings/bellsoft.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/bellsoft.gpg] https://apt.bell-sw.com/ stable main" | sudo tee /etc/apt/sources.list.d/bellsoft.list
 
     sudo apt-get update
-    sudo apt-get install -y liberica-${data.coder_parameter.java_version.value}-jdk
+    sudo apt-get install -y bellsoft-java${data.coder_parameter.java_version.value}-full
 
     # Install Maven
     sudo apt-get install -y maven
 
     # Install Gradle
-    wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -P /tmp
-    sudo unzip -q /tmp/gradle-8.5-bin.zip -d /opt
-    sudo ln -sf /opt/gradle-8.5/bin/gradle /usr/local/bin/gradle
+    wget -q https://services.gradle.org/distributions/gradle-9.1-bin.zip -P /tmp
+    sudo unzip -q /tmp/gradle-9.1-bin.zip -d /opt
+    sudo ln -sf /opt/gradle-9.1/bin/gradle /usr/local/bin/gradle
 
     # Install Docker
     curl -fsSL https://get.docker.com -o get-docker.sh
@@ -172,14 +176,14 @@ resource "coder_agent" "main" {
     sudo apt-get install -y git curl wget unzip htop tree jq
 
     # Install Node.js (for frontend tooling)
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo apt-get install -y nodejs
 
     # IDE-specific installations
     case "${data.coder_parameter.ide.value}" in
       "intellij")
         # Download and install IntelliJ IDEA Community
-        wget -q https://download.jetbrains.com/idea/ideaIC-2023.3.2.tar.gz -O /tmp/intellij.tar.gz
+        wget -q https://download.jetbrains.com/idea/ideaIC-2025.2.2.tar.gz -O /tmp/intellij.tar.gz
         sudo tar -xzf /tmp/intellij.tar.gz -C /opt
         sudo ln -sf /opt/idea-IC-*/bin/idea.sh /usr/local/bin/idea
         ;;
@@ -221,7 +225,7 @@ resource "coder_agent" "main" {
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.1</version>
+        <version>3.5.6</version>
         <relativePath/>
     </parent>
 
@@ -464,7 +468,7 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = "ubuntu@sha256:2e863c44b718727c860746568e1d54afd13b2fa71b160f5cd9058fc436217b30"
+          image             = "ubuntu:24.04"
           image_pull_policy = "Always"
           command           = ["/bin/bash", "-c", coder_agent.main.init_script]
 
