@@ -46,7 +46,7 @@ log INFO "Running pre-setup hook for environment: ${ENVIRONMENT:-unknown}"
 # 1. Check system resources
 log INFO "Checking system resources..."
 if command -v free &>/dev/null; then
-    local memory_gb=$(free -g | awk 'NR==2{print $2}')
+    memory_gb=$(free -g | awk 'NR==2{print $2}')
     if [[ "$memory_gb" -lt 8 ]]; then
         log WARN "System has less than 8GB RAM - deployment may be slow"
     fi
@@ -55,7 +55,7 @@ fi
 # 2. Check disk space
 log INFO "Checking available disk space..."
 if command -v df &>/dev/null; then
-    local available_space=$(df -BG . | awk 'NR==2{print $4}' | sed 's/G//')
+    available_space=$(df -BG . | awk 'NR==2{print $4}' | sed 's/G//')
     if [[ "$available_space" -lt 10 ]]; then
         log WARN "Less than 10GB disk space available"
     fi
@@ -67,7 +67,7 @@ case "$ENVIRONMENT" in
         log INFO "Production environment detected - running additional checks..."
 
         # Check if it's business hours (example check)
-        local current_hour=$(date +%H)
+        current_hour=$(date +%H)
         if [[ "$current_hour" -ge 9 && "$current_hour" -le 17 ]]; then
             log WARN "Deploying to production during business hours - consider off-peak deployment"
         fi

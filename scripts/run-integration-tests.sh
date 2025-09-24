@@ -159,7 +159,7 @@ run_test() {
             timeout "$TIMEOUT" bash -c "$test_function" 2>&4 1>&3
             echo $? >&5
         } 5>&1 | {
-            read exit_code
+            read -r exit_code
             exit "$exit_code"
         }
     ) &
@@ -341,7 +341,7 @@ test_kubernetes() {
     local not_ready_nodes=$(kubectl get nodes --no-headers | grep -v "Ready" | wc -l)
     if [[ "$not_ready_nodes" -gt "0" ]]; then
         log ERROR "$not_ready_nodes nodes are not in Ready state"
-        kubectl get nodes --no-headers | grep -v "Ready" | while read node rest; do
+        kubectl get nodes --no-headers | grep -v "Ready" | while read -r node rest; do
             log ERROR "Node $node is not ready"
         done
         return 1

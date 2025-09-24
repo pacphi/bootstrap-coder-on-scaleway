@@ -67,7 +67,7 @@ case "$ENVIRONMENT" in
         # fi
 
         # Example: Check time restrictions
-        local current_hour=$(date +%H)
+        current_hour=$(date +%H)
         if [[ "$current_hour" -ge 9 && "$current_hour" -le 17 ]]; then
             log WARN "⚠️  Tearing down production during business hours"
         fi
@@ -85,9 +85,9 @@ esac
 log INFO "Verifying backup requirements..."
 
 # Check if recent backup exists
-local backup_dir="$PROJECT_ROOT/backups"
+backup_dir="$PROJECT_ROOT/backups"
 if [[ -d "$backup_dir" ]]; then
-    local recent_backup=$(find "$backup_dir" -name "*$ENVIRONMENT*" -type d -mtime -1 | head -1)
+    recent_backup=$(find "$backup_dir" -name "*$ENVIRONMENT*" -type d -mtime -1 | head -1)
     if [[ -n "$recent_backup" ]]; then
         log INFO "✅ Recent backup found: $(basename "$recent_backup")"
     else
@@ -141,18 +141,18 @@ log INFO "Notifying external systems about impending teardown..."
 log INFO "Checking for active users and workspaces..."
 
 if command -v kubectl &>/dev/null; then
-    local kubeconfig="${HOME}/.kube/config-coder-${ENVIRONMENT}"
+    kubeconfig="${HOME}/.kube/config-coder-${ENVIRONMENT}"
     if [[ -f "$kubeconfig" ]]; then
         export KUBECONFIG="$kubeconfig"
 
         if kubectl cluster-info &>/dev/null; then
             # List active workspaces
-            local workspace_count=$(kubectl get pods -n coder --no-headers 2>/dev/null | grep -c "workspace" || echo "0")
+            workspace_count=$(kubectl get pods -n coder --no-headers 2>/dev/null | grep -c "workspace" || echo "0")
 
             if [[ "$workspace_count" -gt 0 ]]; then
                 log WARN "⚠️  Found $workspace_count active workspace(s):"
                 kubectl get pods -n coder --no-headers 2>/dev/null | grep "workspace" | while read -r pod_info; do
-                    local pod_name=$(echo "$pod_info" | awk '{print $1}')
+                    pod_name=$(echo "$pod_info" | awk '{print $1}')
                     log WARN "  - $pod_name"
                 done
 

@@ -508,7 +508,7 @@ cat backups/state-migration/migration-coder-*.log
 cd environments/dev && terraform init -backend=false && terraform validate
 ```
 
-#### Two-Phase Environments
+#### Two-Phase Environments - Testing
 
 ```bash
 # Test state connectivity for both phases
@@ -530,7 +530,7 @@ cd environments/dev/coder && terraform refresh
 
 **Rollback to Local State**
 
-#### Legacy Environments
+#### Legacy Environments - Rollback
 
 ```bash
 # Copy from migration backup
@@ -544,7 +544,7 @@ mv providers.tf providers.tf.backup
 terraform init
 ```
 
-#### Two-Phase Environments
+#### Two-Phase Environments - Rollback
 
 ```bash
 # Rollback infrastructure phase
@@ -565,7 +565,7 @@ terraform init
 
 **State Corruption Recovery**
 
-#### Legacy Environments
+#### Legacy Environments - Recovery
 
 ```bash
 # Restore from backup
@@ -575,7 +575,7 @@ terraform init
 # (manual process through Scaleway console)
 ```
 
-#### Two-Phase Environments
+#### Two-Phase Environments - Recovery
 
 ```bash
 # Restore specific phase from backup

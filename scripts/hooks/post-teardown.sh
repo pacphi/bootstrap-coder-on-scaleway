@@ -49,7 +49,7 @@ log INFO "Verifying complete resource cleanup..."
 
 # Check if any resources are still accessible
 if command -v kubectl &>/dev/null; then
-    local kubeconfig="${HOME}/.kube/config-coder-${ENVIRONMENT}"
+    kubeconfig="${HOME}/.kube/config-coder-${ENVIRONMENT}"
     if [[ -f "$kubeconfig" ]]; then
         export KUBECONFIG="$kubeconfig"
 
@@ -57,7 +57,7 @@ if command -v kubectl &>/dev/null; then
             log WARN "⚠️  Cluster still accessible - teardown may be incomplete"
 
             # List any remaining resources
-            local remaining_pods=$(kubectl get pods -A --no-headers 2>/dev/null | wc -l || echo "0")
+            remaining_pods=$(kubectl get pods -A --no-headers 2>/dev/null | wc -l || echo "0")
             if [[ "$remaining_pods" -gt 0 ]]; then
                 log WARN "Found $remaining_pods remaining pods"
             fi
@@ -71,14 +71,14 @@ fi
 log INFO "Cleaning up local artifacts..."
 
 # Remove kubeconfig
-local kubeconfig="${HOME}/.kube/config-coder-${ENVIRONMENT}"
+kubeconfig="${HOME}/.kube/config-coder-${ENVIRONMENT}"
 if [[ -f "$kubeconfig" ]]; then
     rm -f "$kubeconfig"
     log INFO "✅ Removed kubeconfig: $kubeconfig"
 fi
 
 # Archive any temporary files
-local temp_files=(
+temp_files=(
     "$PROJECT_ROOT/environments/$ENVIRONMENT/scaling-plan.json"
     "$PROJECT_ROOT/environments/$ENVIRONMENT/*.tfplan"
     "$PROJECT_ROOT/environments/$ENVIRONMENT/*.tfvars"
@@ -86,7 +86,7 @@ local temp_files=(
 
 for file_pattern in "${temp_files[@]}"; do
     if ls $file_pattern >/dev/null 2>&1; then
-        local archive_dir="$PROJECT_ROOT/archives/teardown/$(date +%Y%m%d-%H%M%S)-$ENVIRONMENT"
+        archive_dir="$PROJECT_ROOT/archives/teardown/$(date +%Y%m%d-%H%M%S)-$ENVIRONMENT"
         mkdir -p "$archive_dir"
         mv $file_pattern "$archive_dir/" 2>/dev/null || true
         log INFO "Archived temporary files to: $archive_dir"
