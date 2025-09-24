@@ -25,6 +25,7 @@ disable=SC2329  # This file has a shebang but is not executable (some scripts ar
 disable=SC2012  # Use find instead of ls to better handle filenames (acceptable pattern)
 disable=SC2076  # Remove quotes from right-hand side of =~ (acceptable pattern)
 disable=SC2295  # Expansions inside ${..} need to be quoted separately (style preference)
+disable=SC2317  # Command appears to be unreachable (acceptable for template functions)
 
 # Set shell dialect (bash is primary shell used in this project)
 shell=bash

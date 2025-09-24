@@ -232,7 +232,11 @@ jobs:
     name: Create Pre-Teardown Backup
     runs-on: ubuntu-latest
     needs: [validate-request, discover-backend-state]
-    if: needs.validate-request.outputs.confirmed == 'true' && github.event.inputs.backup_before_destroy == 'true' && (needs.discover-backend-state.outputs.coder_state_exists == 'true' || needs.discover-backend-state.outputs.infra_state_exists == 'true')
+    if: >-
+      needs.validate-request.outputs.confirmed == 'true' &&
+      github.event.inputs.backup_before_destroy == 'true' &&
+      (needs.discover-backend-state.outputs.coder_state_exists == 'true' ||
+      needs.discover-backend-state.outputs.infra_state_exists == 'true')
     permissions:
       contents: read  # Read repository code
       actions: write  # Upload backup artifacts
@@ -370,7 +374,11 @@ jobs:
     name: Teardown Coder Application (Phase 1)
     runs-on: ubuntu-latest
     needs: [validate-request, discover-backend-state, pre-teardown-backup, analyze-impact]
-    if: needs.validate-request.outputs.confirmed == 'true' && needs.discover-backend-state.outputs.coder_state_exists == 'true' && (needs.validate-request.outputs.teardown_mode == 'complete' || needs.validate-request.outputs.teardown_mode == 'coder_only')
+    if: >-
+      needs.validate-request.outputs.confirmed == 'true' &&
+      needs.discover-backend-state.outputs.coder_state_exists == 'true' &&
+      (needs.validate-request.outputs.teardown_mode == 'complete' ||
+      needs.validate-request.outputs.teardown_mode == 'coder_only')
     outputs:
       coder_teardown_result: ${{ steps.teardown.outputs.result }}
 
@@ -470,7 +478,14 @@ jobs:
     name: Teardown Infrastructure (Phase 2)
     runs-on: ubuntu-latest
     needs: [validate-request, discover-backend-state, pre-teardown-backup, analyze-impact, teardown-coder]
-    if: always() && needs.validate-request.outputs.confirmed == 'true' && needs.discover-backend-state.outputs.infra_state_exists == 'true' && (needs.validate-request.outputs.teardown_mode == 'complete' || needs.validate-request.outputs.teardown_mode == 'infrastructure_only') && (needs.teardown-coder.result == 'success' || needs.teardown-coder.result == 'skipped' || needs.validate-request.outputs.teardown_mode == 'infrastructure_only' || github.event.inputs.force_cleanup == 'true')
+    if: >-
+      always() && needs.validate-request.outputs.confirmed == 'true' &&
+      needs.discover-backend-state.outputs.infra_state_exists == 'true' &&
+      (needs.validate-request.outputs.teardown_mode == 'complete' ||
+      needs.validate-request.outputs.teardown_mode == 'infrastructure_only') &&
+      (needs.teardown-coder.result == 'success' || needs.teardown-coder.result == 'skipped' ||
+      needs.validate-request.outputs.teardown_mode == 'infrastructure_only' ||
+      github.event.inputs.force_cleanup == 'true')
     outputs:
       infra_teardown_result: ${{ steps.teardown.outputs.result }}
 
@@ -560,7 +575,11 @@ jobs:
     name: Cleanup Backend and Artifacts
     runs-on: ubuntu-latest
     needs: [validate-request, discover-backend-state, teardown-coder, teardown-infrastructure]
-    if: always() && needs.validate-request.outputs.confirmed == 'true' && (needs.teardown-coder.result == 'success' || needs.teardown-infrastructure.result == 'success' || github.event.inputs.force_cleanup == 'true')
+    if: >-
+      always() && needs.validate-request.outputs.confirmed == 'true' &&
+      (needs.teardown-coder.result == 'success' ||
+      needs.teardown-infrastructure.result == 'success' ||
+      github.event.inputs.force_cleanup == 'true')
 
     steps:
       - name: Checkout Code

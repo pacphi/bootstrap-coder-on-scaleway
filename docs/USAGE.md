@@ -1610,7 +1610,7 @@ kubectl describe nodes
 kubectl get events -n coder --sort-by='.lastTimestamp'
 
 # 5. Check image availability
-kubectl run test --image=python:3.11 --dry-run=client -o yaml
+kubectl run test --image=python:3.13 --dry-run=client -o yaml
 ```
 
 #### Performance Issues

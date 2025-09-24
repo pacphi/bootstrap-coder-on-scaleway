@@ -93,6 +93,8 @@ data "coder_parameter" "node_version" {
   icon         = "/icon/nodejs.svg"
   mutable      = false
   option {
+    name  = "Node.js 18 LTS"
+    value = "18"
   }
   option {
     name  = "Node.js 20 LTS"

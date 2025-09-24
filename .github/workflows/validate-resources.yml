@@ -2,7 +2,7 @@ name: Resource Validation
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   push:
   workflow_dispatch:
 
