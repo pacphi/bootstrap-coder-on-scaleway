@@ -1600,8 +1600,11 @@ resource "kubernetes_deployment" "main" {
             run_as_non_root            = true
             allow_privilege_escalation = false
             read_only_root_filesystem  = true
+            # Explicitly drop ALL capabilities to minimize attack surface
             capabilities {
               drop = ["ALL"]
+              # Do not add any additional capabilities
+              add = []
             }
           }
 

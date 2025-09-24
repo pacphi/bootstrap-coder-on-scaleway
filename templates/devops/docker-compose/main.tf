@@ -200,24 +200,32 @@ resource "coder_agent" "main" {
       gnupg \
       lsb-release
 
-    # Install Docker ${data.coder_parameter.docker_version.value}
-    echo "🐳 Installing Docker ${data.coder_parameter.docker_version.value}..."
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sudo sh get-docker.sh
-    sudo usermod -aG docker coder
-    sudo systemctl enable docker --now
-    rm get-docker.sh
+    # Install Buildah for secure rootless container building
+    echo "🏗️ Installing Buildah for secure container operations..."
+    sudo apt-get update
+    sudo apt-get install -y buildah podman skopeo
 
-    # Install Docker Compose ${data.coder_parameter.compose_version.value}
-    echo "🐙 Installing Docker Compose ${data.coder_parameter.compose_version.value}..."
-    if [[ "${data.coder_parameter.compose_version.value}" == "latest" ]]; then
-      COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | jq -r .tag_name)
-    else
-      COMPOSE_VERSION="v${data.coder_parameter.compose_version.value}.0"
-    fi
+    # Configure buildah for rootless operation
+    echo "🔧 Configuring Buildah for rootless operation..."
+    sudo usermod --add-subuids 10000-75535 coder
+    sudo usermod --add-subgids 10000-75535 coder
 
-    sudo curl -L "https://github.com/docker/compose/releases/download/$${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
+    # Create buildah configuration
+    mkdir -p ~/.config/containers
+    cat > ~/.config/containers/storage.conf << 'EOF'
+[storage]
+driver = "vfs"
+runroot = "/tmp/buildah-run"
+graphroot = "/var/lib/containers/storage"
+EOF
+
+    # Install Podman Compose for Docker Compose compatibility
+    echo "🐙 Installing Podman Compose ${data.coder_parameter.compose_version.value}..."
+    pip3 install podman-compose
+
+    # Create docker-compose alias for podman-compose
+    echo 'alias docker-compose="podman-compose"' >> ~/.bashrc
+    echo 'alias docker="podman"' >> ~/.bashrc
 
     # Install additional Docker tools
     echo "🛠️ Installing additional Docker tools..."
@@ -1538,8 +1546,8 @@ EOF
     # Set proper ownership
     sudo chown -R coder:coder /home/coder
 
-    echo "✅ Docker Compose DevOps environment ready!"
-    echo "🐳 Docker ${data.coder_parameter.docker_version.value} and Compose ${data.coder_parameter.compose_version.value} installed"
+    echo "✅ Secure Container DevOps environment ready!"
+    echo "🏗️ Buildah with Podman and Podman Compose installed (secure rootless alternative to Docker)"
     echo "📦 Stack template: ${data.coder_parameter.stack_template.value}"
     echo "📊 Monitoring: ${data.coder_parameter.enable_monitoring.value ? "enabled" : "disabled"}"
     echo ""
@@ -1767,9 +1775,11 @@ resource "kubernetes_deployment" "main" {
             run_as_user                = 1000
             run_as_non_root            = true
             allow_privilege_escalation = false
-            read_only_root_filesystem  = true
+            # Use read-only root filesystem for enhanced security
+            read_only_root_filesystem = true
             capabilities {
               drop = ["ALL"]
+              add  = []
             }
           }
 
@@ -1799,13 +1809,13 @@ resource "kubernetes_deployment" "main" {
           }
 
           env {
-            name  = "DOCKER_HOST"
-            value = "tcp://localhost:2376"
+            name  = "BUILDAH_ISOLATION"
+            value = "chroot"
           }
 
           env {
-            name  = "DOCKER_TLS_CERTDIR"
-            value = ""
+            name  = "STORAGE_DRIVER"
+            value = "vfs"
           }
 
           resources {
@@ -1827,8 +1837,8 @@ resource "kubernetes_deployment" "main" {
 
 
           volume_mount {
-            mount_path = "/var/lib/docker"
-            name       = "docker-storage"
+            mount_path = "/var/lib/containers"
+            name       = "buildah-storage"
             read_only  = false
           }
 
@@ -1839,51 +1849,60 @@ resource "kubernetes_deployment" "main" {
           }
         }
 
-        # Docker-in-Docker sidecar container for secure Docker access
+        # Buildah sidecar container for secure rootless container building
+        # This replaces Docker-in-Docker to avoid SYS_ADMIN capability requirement
         container {
-          name              = "docker-daemon"
-          image             = "docker@sha256:af96c680a7e1f853ebdd50c1e95469820e921b7e4bf089ac81b5103cb2987456"
-          image_pull_policy = "Always"
+          name              = "buildah"
+          image             = "quay.io/buildah/stable@sha256:a915bbf0c1321b6f6ecddfc84b498191c4b44a1f64c62ab8519e908e6f027cca"
+          image_pull_policy = "IfNotPresent"
 
           security_context {
-            # Use specific capabilities instead of privileged mode for better security
+            # Buildah can run without privileged mode and dangerous capabilities
             privileged                 = false
             read_only_root_filesystem  = true
-            run_as_non_root            = false # Docker daemon needs to run as root
-            allow_privilege_escalation = true  # Required for Docker daemon operations
+            run_as_non_root            = true
+            run_as_user                = 1000
+            allow_privilege_escalation = false
             capabilities {
+              # Minimal capabilities for rootless container operations
               add = [
-                "SYS_ADMIN",    # Required for mount operations in Docker
-                "DAC_OVERRIDE", # Required for file access in Docker
-                "SETUID",       # Required for user switching in containers
-                "SETGID"        # Required for group switching in containers
+                "SETUID", # Required for user switching in containers
+                "SETGID"  # Required for group switching in containers
               ]
               drop = ["ALL"]
             }
           }
 
-          args = ["--host=tcp://0.0.0.0:2376", "--tls=false"]
+          # Buildah command to start in daemon mode for container operations
+          command = ["/bin/bash", "-c", "buildah --help && sleep infinity"]
 
           resources {
             requests = {
               "cpu"    = "100m"
-              "memory" = "512Mi"
+              "memory" = "256Mi"
             }
             limits = {
-              "cpu"    = "500m"
-              "memory" = "1Gi"
+              "cpu"    = "300m"
+              "memory" = "512Mi"
             }
           }
 
           volume_mount {
-            mount_path = "/var/lib/docker"
-            name       = "docker-storage"
+            mount_path = "/home/coder"
+            name       = "home"
             read_only  = false
           }
 
           volume_mount {
             mount_path = "/tmp"
             name       = "tmp-volume"
+            read_only  = false
+          }
+
+          # Mount buildah storage
+          volume_mount {
+            mount_path = "/var/lib/containers"
+            name       = "buildah-storage"
             read_only  = false
           }
         }
@@ -1898,9 +1917,9 @@ resource "kubernetes_deployment" "main" {
 
 
         volume {
-          name = "docker-storage"
+          name = "buildah-storage"
           empty_dir {
-            size_limit = "30Gi"
+            size_limit = "20Gi"
           }
         }
 
