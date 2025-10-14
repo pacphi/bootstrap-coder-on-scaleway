@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload Infrastructure SARIF Results
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ env.SARIF_OUTPUT_DIR }}/infrastructure-checkov.sarif
           category: infrastructure-security
@@ -217,7 +217,7 @@ jobs:
 
       - name: Upload Template SARIF Results
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ env.SARIF_OUTPUT_DIR }}/templates-checkov.sarif
           category: template-security
@@ -264,7 +264,7 @@ jobs:
 
       - name: Upload Workflow SARIF Results
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ env.SARIF_OUTPUT_DIR }}/workflows-checkov.sarif
           category: workflow-security
@@ -328,7 +328,7 @@ jobs:
 
       - name: Upload Secrets SARIF Results
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ env.SARIF_OUTPUT_DIR }}/secrets-gitleaks.sarif
           category: secrets-detection
