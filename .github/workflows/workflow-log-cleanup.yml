@@ -21,6 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clean old workflow runs
-        uses: igorjs/gh-actions-clean-workflow@v6
+        uses: igorjs/gh-actions-clean-workflow@v7
         with:
           runs_older_than: ${{ inputs.days_before || '7' }}  # Delete runs older than specified days (default: 7)
