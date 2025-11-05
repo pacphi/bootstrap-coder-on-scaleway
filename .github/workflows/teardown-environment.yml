@@ -252,7 +252,7 @@ jobs:
 
       - name: Download Kubeconfig (if available)
         continue-on-error: true
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: kubeconfig-${{ github.event.inputs.environment }}-infra
           path: ./
@@ -293,7 +293,7 @@ jobs:
 
       - name: Upload Backup Artifact
         if: steps.backup.outputs.backup_name != 'backup-unavailable'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.backup.outputs.backup_name }}
           path: backups/${{ steps.backup.outputs.backup_name }}.tar.gz
