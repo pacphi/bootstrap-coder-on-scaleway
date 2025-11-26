@@ -103,7 +103,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Cache Tools and Dependencies
         uses: actions/cache@v4
@@ -149,7 +149,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Parse Advanced Configuration
         id: parse-config
