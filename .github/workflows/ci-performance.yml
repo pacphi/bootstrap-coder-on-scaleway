@@ -41,7 +41,7 @@ jobs:
 
       - name: Cache Terraform Providers and Modules
         id: terraform-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.terraform.d/plugin-cache
@@ -54,20 +54,20 @@ jobs:
 
       - name: Cache kubectl Binary
         id: kubectl-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /usr/local/bin/kubectl
           key: kubectl-${{ runner.os }}-${{ inputs.kubectl_version }}
 
       - name: Cache Helm Binary
         id: helm-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /usr/local/bin/helm
           key: helm-${{ runner.os }}-${{ inputs.helm_version }}
 
       - name: Cache Helm Chart Repository
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/helm/repository
           key: helm-repo-${{ runner.os }}-${{ hashFiles('**/Chart.yaml', '**/Chart.lock') }}

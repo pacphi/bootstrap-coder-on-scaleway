@@ -150,7 +150,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Cache Terraform Providers and Modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.terraform.d/plugin-cache
@@ -178,7 +178,7 @@ jobs:
         run: mkdir -p ~/.terraform.d/plugin-cache
 
       - name: Cache kubectl Binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /usr/local/bin/kubectl
           key: kubectl-${{ runner.os }}-v1.32.0
@@ -395,7 +395,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Cache Terraform Providers and Modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.terraform.d/plugin-cache
@@ -418,7 +418,7 @@ jobs:
         run: mkdir -p ~/.terraform.d/plugin-cache
 
       - name: Download Backend Configuration
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-infra-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/infra
@@ -492,7 +492,7 @@ jobs:
 
       - name: Upload Infrastructure Plan Artifacts
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: terraform-infra-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
           path: |
@@ -563,7 +563,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Cache Terraform Providers and Modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.terraform.d/plugin-cache
@@ -587,7 +587,7 @@ jobs:
         run: mkdir -p ~/.terraform.d/plugin-cache
 
       - name: Cache kubectl Binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /usr/local/bin/kubectl
           key: kubectl-${{ runner.os }}-v1.32.0
@@ -598,13 +598,13 @@ jobs:
           version: 'v1.32.0'
 
       - name: Download Infrastructure Plan Artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: terraform-infra-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/infra/
 
       - name: Download Backend Configuration
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-infra-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/infra
@@ -686,7 +686,7 @@ jobs:
 
       - name: Upload Kubeconfig Artifact (Immediately Available)
         if: steps.apply.outputs.apply_completed == 'true'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-infra
           path: environments/${{ needs.validate.outputs.deploy_env }}/kubeconfig-${{ needs.validate.outputs.deploy_env }}

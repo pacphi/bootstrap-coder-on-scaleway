@@ -404,7 +404,7 @@ jobs:
           echo "backend_endpoint=$s3_endpoint" >> $GITHUB_OUTPUT
 
       - name: Upload Backend Configuration
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: backend-config-${{ inputs.environment }}${{ inputs.phase && format('-{0}', inputs.phase) || '' }}-${{ github.run_id }}
           path: ${{ steps.generate-backend.outputs.backend_file_path }}
