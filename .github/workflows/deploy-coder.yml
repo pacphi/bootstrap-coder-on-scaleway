@@ -152,7 +152,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Cache Terraform Providers and Modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.terraform.d/plugin-cache
@@ -180,7 +180,7 @@ jobs:
         run: mkdir -p ~/.terraform.d/plugin-cache
 
       - name: Cache kubectl Binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /usr/local/bin/kubectl
           key: kubectl-${{ runner.os }}-v1.32.0
@@ -396,7 +396,7 @@ jobs:
           echo "available=true" >> $GITHUB_OUTPUT
 
       - name: Download Kubeconfig Artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-infra
           path: .
@@ -447,7 +447,7 @@ jobs:
           fi
 
       - name: Upload Kubeconfig for Coder Deployment
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-coder
           path: kubeconfig-${{ needs.validate.outputs.deploy_env }}
@@ -487,13 +487,13 @@ jobs:
           version: 'v3.12.0'
 
       - name: Download Backend Configuration
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-coder-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
 
       - name: Download Kubeconfig
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-coder
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
@@ -568,7 +568,7 @@ jobs:
 
       - name: Upload Coder Plan Artifacts
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: terraform-coder-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
           path: |
@@ -654,19 +654,19 @@ jobs:
           version: 'v3.12.0'
 
       - name: Download Coder Plan Artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: terraform-coder-plan-${{ needs.validate.outputs.deploy_env }}-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder/
 
       - name: Download Backend Configuration
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: backend-config-${{ needs.validate.outputs.deploy_env }}-coder-${{ github.run_id }}
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
 
       - name: Download Kubeconfig
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: kubeconfig-${{ needs.validate.outputs.deploy_env }}-coder
           path: environments/${{ needs.validate.outputs.deploy_env }}/coder
