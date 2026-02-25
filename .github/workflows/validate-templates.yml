@@ -248,7 +248,7 @@ jobs:
             terraform-templates-${{ runner.os }}-
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "~1.13.0"
         env:
@@ -451,7 +451,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "~1.13.0"
           terraform_wrapper: false
