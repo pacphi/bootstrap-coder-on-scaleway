@@ -75,7 +75,7 @@ jobs:
             helm-repo-${{ runner.os }}-
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ inputs.terraform_version }}
         env:
@@ -90,7 +90,7 @@ jobs:
           version: ${{ inputs.kubectl_version }}
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
         with:
           version: ${{ inputs.helm_version }}
 
