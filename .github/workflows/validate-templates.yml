@@ -248,7 +248,7 @@ jobs:
             terraform-templates-${{ runner.os }}-
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "~1.13.0"
         env:
@@ -405,7 +405,7 @@ jobs:
 
       - name: Upload Security Scan Artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: template-security-results-$(date +%Y%m%d)
           path: templates-security.sarif
@@ -451,19 +451,19 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "~1.13.0"
           terraform_wrapper: false
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@v5
         with:
           version: 'v1.32.0'
 
 
       - name: Download Backend Configuration
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: backend-config-${{ github.event.inputs.test_environment }}-infra-${{ github.run_id }}
           path: environments/${{ github.event.inputs.test_environment }}/infra
@@ -579,7 +579,7 @@ jobs:
           EOF
 
       - name: Upload Validation Report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: template-validation-report-$(date +%Y%m%d)
           path: template-validation-report.md

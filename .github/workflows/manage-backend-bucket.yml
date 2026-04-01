@@ -121,7 +121,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "~1.13.0"
           terraform_wrapper: false
@@ -404,7 +404,7 @@ jobs:
           echo "backend_endpoint=$s3_endpoint" >> $GITHUB_OUTPUT
 
       - name: Upload Backend Configuration
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: backend-config-${{ inputs.environment }}${{ inputs.phase && format('-{0}', inputs.phase) || '' }}-${{ github.run_id }}
           path: ${{ steps.generate-backend.outputs.backend_file_path }}
