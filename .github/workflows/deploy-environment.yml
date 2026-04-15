@@ -434,7 +434,7 @@ jobs:
 
       - name: Comment Deployment Summary on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const overallStatus = '${{ steps.evaluate.outputs.overall_status }}';
@@ -570,7 +570,7 @@ jobs:
 
       - name: Create GitHub Issue on Complete Failure
         if: needs.deploy-infrastructure.result == 'failure'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             // Import the issue management helper
@@ -594,7 +594,7 @@ jobs:
 
       - name: Create GitHub Issue on Partial Failure
         if: needs.deploy-infrastructure.result == 'success' && needs.deploy-coder.result == 'failure'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             // Import the issue management helper
