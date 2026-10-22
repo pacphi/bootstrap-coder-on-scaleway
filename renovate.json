@@ -1,0 +1,959 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Managed from pacphi/mise-dotfiles. Replaces Dependabot version updates (2026-10-21).",
+  "extends": [
+    "config:recommended"
+  ],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": [
+      "security"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "github-actions: dev commit prefix",
+      "matchCategories": [
+        "ci"
+      ],
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "commitMessagePrefix": "chore(deps-dev):"
+    },
+    {
+      "description": "github-actions: settings",
+      "matchCategories": [
+        "ci"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "github-actions",
+        "ci/cd",
+        "security"
+      ],
+      "reviewers": [
+        "security-team"
+      ],
+      "assignees": [
+        "devops-team"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "github-actions: group github-actions",
+      "matchCategories": [
+        "ci"
+      ],
+      "groupName": "github-actions",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform shared/**: dev commit prefix",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "shared/**"
+      ],
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "commitMessagePrefix": "chore(deps-dev):"
+    },
+    {
+      "description": "terraform shared/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "shared/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "infrastructure"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform backend-setup/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "backend-setup/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "backend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform backend-setup/**: group backend-providers",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "backend-setup/**"
+      ],
+      "groupName": "backend-providers",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform environments/dev/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "environments/dev/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "environment:dev"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform environments/staging/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "environments/staging/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "environment:staging"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform environments/prod/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "environments/prod/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "environment:prod"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform modules/coder-deployment/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "modules/coder-deployment/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "module"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform modules/networking/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "modules/networking/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "module"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform modules/postgresql/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "modules/postgresql/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "module"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform modules/scaleway-cluster/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "modules/scaleway-cluster/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "module"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform modules/security/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "modules/security/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "module",
+        "security"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform modules/terraform-backend/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "modules/terraform-backend/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "module",
+        "backend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/ai-enhanced/claude-flow-base/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/ai-enhanced/claude-flow-base/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "ai-enhanced"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/ai-enhanced/claude-flow-base/**: group ai-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/ai-enhanced/claude-flow-base/**"
+      ],
+      "groupName": "ai-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/ai-enhanced/claude-flow-enterprise/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/ai-enhanced/claude-flow-enterprise/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "ai-enhanced"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/ai-enhanced/claude-flow-enterprise/**: group ai-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/ai-enhanced/claude-flow-enterprise/**"
+      ],
+      "groupName": "ai-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/backend/dotnet-core/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/dotnet-core/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "backend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/backend/dotnet-core/**: group backend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/dotnet-core/**"
+      ],
+      "groupName": "backend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/backend/go-fiber/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/go-fiber/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "backend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/backend/go-fiber/**: group backend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/go-fiber/**"
+      ],
+      "groupName": "backend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/backend/java-spring/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/java-spring/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "backend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/backend/java-spring/**: group backend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/java-spring/**"
+      ],
+      "groupName": "backend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/backend/php-symfony-neuron/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/php-symfony-neuron/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "backend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/backend/php-symfony-neuron/**: group backend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/php-symfony-neuron/**"
+      ],
+      "groupName": "backend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/backend/python-django-crewai/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/python-django-crewai/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "backend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/backend/python-django-crewai/**: group backend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/python-django-crewai/**"
+      ],
+      "groupName": "backend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/backend/ruby-rails/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/ruby-rails/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "backend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/backend/ruby-rails/**: group backend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/ruby-rails/**"
+      ],
+      "groupName": "backend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/backend/rust-actix/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/rust-actix/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "backend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/backend/rust-actix/**: group backend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/backend/rust-actix/**"
+      ],
+      "groupName": "backend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/data-ml/jupyter-python/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/data-ml/jupyter-python/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "data-ml"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/data-ml/jupyter-python/**: group data-ml-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/data-ml/jupyter-python/**"
+      ],
+      "groupName": "data-ml-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/data-ml/r-studio/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/data-ml/r-studio/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "data-ml"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/data-ml/r-studio/**: group data-ml-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/data-ml/r-studio/**"
+      ],
+      "groupName": "data-ml-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/devops/docker-compose/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/devops/docker-compose/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "devops"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/devops/docker-compose/**: group devops-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/devops/docker-compose/**"
+      ],
+      "groupName": "devops-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/devops/kubernetes-helm/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/devops/kubernetes-helm/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "devops"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/devops/kubernetes-helm/**: group devops-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/devops/kubernetes-helm/**"
+      ],
+      "groupName": "devops-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/devops/terraform-ansible/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/devops/terraform-ansible/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "devops"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/devops/terraform-ansible/**: group devops-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/devops/terraform-ansible/**"
+      ],
+      "groupName": "devops-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/frontend/angular/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/frontend/angular/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "frontend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/frontend/angular/**: group frontend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/frontend/angular/**"
+      ],
+      "groupName": "frontend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/frontend/react-typescript/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/frontend/react-typescript/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "frontend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/frontend/react-typescript/**: group frontend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/frontend/react-typescript/**"
+      ],
+      "groupName": "frontend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/frontend/svelte-kit/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/frontend/svelte-kit/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "frontend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/frontend/svelte-kit/**: group frontend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/frontend/svelte-kit/**"
+      ],
+      "groupName": "frontend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/frontend/vue-nuxt/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/frontend/vue-nuxt/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "frontend"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/frontend/vue-nuxt/**: group frontend-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/frontend/vue-nuxt/**"
+      ],
+      "groupName": "frontend-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/mobile/flutter/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/mobile/flutter/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "mobile"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/mobile/flutter/**: group mobile-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/mobile/flutter/**"
+      ],
+      "groupName": "mobile-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/mobile/ionic/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/mobile/ionic/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "mobile"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/mobile/ionic/**: group mobile-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/mobile/ionic/**"
+      ],
+      "groupName": "mobile-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    },
+    {
+      "description": "terraform templates/mobile/react-native/**: settings",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/mobile/react-native/**"
+      ],
+      "schedule": [
+        "* 0-5 * * 1"
+      ],
+      "labels": [
+        "dependencies",
+        "terraform",
+        "template",
+        "mobile"
+      ],
+      "commitMessagePrefix": "chore(deps):"
+    },
+    {
+      "description": "terraform templates/mobile/react-native/**: group mobile-templates",
+      "matchCategories": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "templates/mobile/react-native/**"
+      ],
+      "groupName": "mobile-templates",
+      "matchPackageNames": [
+        "*"
+      ]
+    }
+  ],
+  "prConcurrentLimit": 10
+}
