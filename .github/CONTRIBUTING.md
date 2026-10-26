@@ -87,7 +87,7 @@ We welcome several types of contributions:
 1. **Check existing issues** to avoid duplicate work
 2. **Open an issue** to discuss significant changes before implementation
 3. **Review the architecture** in [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)
-4. **Understand the codebase** using [CLAUDE.md](../CLAUDE.md)
+4. **Understand the codebase** using [AGENTS.md](../AGENTS.md)
 
 ## Contribution Guidelines
 
