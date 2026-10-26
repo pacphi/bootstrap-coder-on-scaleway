@@ -1782,7 +1782,7 @@ Budget alert: Current month costs (€450) exceed 80% of budget (€400)
 
 1. **Internal Documentation**:
    - `docs/ARCHITECTURE.md` - System architecture
-   - `CLAUDE.md` - AI assistant context
+   - `AGENTS.md` - AI assistant context (`CLAUDE.md` imports it)
    - Script help: `./scripts/lifecycle/setup.sh --help`
 
 2. **Monitoring and Logs**:

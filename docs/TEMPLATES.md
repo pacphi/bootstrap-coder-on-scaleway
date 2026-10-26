@@ -360,7 +360,7 @@ Run this script after adding, removing, or modifying templates to keep the docum
 
 ## Related Documentation
 
-- [CLAUDE.md](../CLAUDE.md) - Project overview and architecture
+- [AGENTS.md](../AGENTS.md) - Project overview and architecture
 - [Setup Guide](../scripts/lifecycle/setup.sh) - Environment deployment
 - [Cost Calculator](../scripts/utils/cost-calculator.sh) - Resource cost analysis
 - [Test Suite](../scripts/test-runner.sh) - Template validation and testing
