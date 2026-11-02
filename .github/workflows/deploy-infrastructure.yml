@@ -170,7 +170,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.13.0"
+          terraform_version: "~1.17.0"
         env:
           TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
 
@@ -186,7 +186,7 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.32.0'
+          version: 'v1.37.2'
 
       - name: Check Terraform Formatting (Infrastructure)
         run: |
@@ -409,7 +409,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.13.0"
+          terraform_version: "~1.17.0"
           terraform_wrapper: false
         env:
           TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
@@ -578,7 +578,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.13.0"
+          terraform_version: "~1.17.0"
           terraform_wrapper: false
         env:
           TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
@@ -595,7 +595,7 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.32.0'
+          version: 'v1.37.2'
 
       - name: Download Infrastructure Plan Artifacts
         uses: actions/download-artifact@v7

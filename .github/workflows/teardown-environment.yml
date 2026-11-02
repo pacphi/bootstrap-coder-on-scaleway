@@ -248,7 +248,7 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.32.0'
+          version: 'v1.37.2'
 
       - name: Download Kubeconfig (if available)
         continue-on-error: true
@@ -389,18 +389,18 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.13.0"
+          terraform_version: "~1.17.0"
           terraform_wrapper: false
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.32.0'
+          version: 'v1.37.2'
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
         with:
-          version: 'v3.12.0'
+          version: 'v3.22.1'
 
       - name: Setup Backend Configuration for Coder
         run: |
@@ -496,7 +496,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.13.0"
+          terraform_version: "~1.17.0"
           terraform_wrapper: false
 
       - name: Setup Backend Configuration for Infrastructure

@@ -172,7 +172,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.13.0"
+          terraform_version: "~1.17.0"
         env:
           TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
 
@@ -188,12 +188,12 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.32.0'
+          version: 'v1.37.2'
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
         with:
-          version: 'v3.12.0'
+          version: 'v3.22.1'
 
       - name: Check Terraform Formatting (Coder)
         run: |
@@ -473,18 +473,18 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.13.0"
+          terraform_version: "~1.17.0"
           terraform_wrapper: false
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.32.0'
+          version: 'v1.37.2'
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
         with:
-          version: 'v3.12.0'
+          version: 'v3.22.1'
 
       - name: Download Backend Configuration
         uses: actions/download-artifact@v7
@@ -640,18 +640,18 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.13.0"
+          terraform_version: "~1.17.0"
           terraform_wrapper: false
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.32.0'
+          version: 'v1.37.2'
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
         with:
-          version: 'v3.12.0'
+          version: 'v3.22.1'
 
       - name: Download Coder Plan Artifacts
         uses: actions/download-artifact@v7
